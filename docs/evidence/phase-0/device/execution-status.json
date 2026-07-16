@@ -1,12 +1,16 @@
 {
   "schemaVersion": 1,
   "proofId": "phase0-device-execution-status",
-  "capturedAt": "2026-07-16T11:29:33Z",
-  "command": "./tools/device-proof/test.sh && ./tools/device-proof/build.sh && ./tools/device-proof/install.sh && ./tools/device-proof/launch.sh <ephemeral-redacted-lan-url> && ./tools/device-proof/privacy-scan.sh",
+  "capturedAt": "2026-07-16T14:54:01Z",
+  "command": "./scripts/deploy-device.sh && ./tools/device-proof/launch.sh <ephemeral-redacted-lan-url> && ./tools/device-proof/collect.sh && ./tools/device-proof/privacy-scan.sh",
   "environment": {"platform": "physical iOS device", "harnessType": "isolated non-production proof"},
   "owner": {"phase": "Phase 0", "workstream": "device"},
   "status": "blocked",
-  "limitations": ["The signed harness installed, but SpringBoard rejected the single bounded launch because the paired device was locked; no runtime capability evidence was collected."],
+  "limitations": [
+    "The strict runtime summary remains blocked because the observed interruption has no matching ended event.",
+    "Background transfers completed and were validated atomically, but process restoration and exactly-once delegate acknowledgement were not exercised.",
+    "Cancellation and resume remains an operator-only follow-up procedure."
+  ],
   "harness": "isolated-phase0-device-proof",
   "device": {
     "identifier": "redacted",
@@ -22,12 +26,12 @@
     {
       "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s Tests/Phase0Device -p 'test_*.py' -v",
       "status": "pass",
-      "evidence": "10 Python device-contract tests, 0 failures; mixed or non-monotonic runs, missing platform/runtime families or restoration, contradictory failure events, incomplete remote-codec evidence, duplicate delegate acknowledgement, and ineligible device selection all fail closed"
+      "evidence": "11 Python device-contract tests, 0 failures; includes an explicit byte-range response regression plus fail-closed summary and device-selection contracts"
     },
     {
       "command": "./tools/device-proof/build.sh",
       "status": "pass",
-      "evidence": "clean arm64 iOS 18.4 development-signed build using local signing state and neutral org.example proof bundle prefix; built Info.plist proves UIBackgroundModes=audio and NSAllowsLocalNetworking=true with no broad ATS override"
+      "evidence": "clean arm64 iOS 18.4 development-signed build using local signing state and neutral org.example proof bundle prefix; the build gate proves all eight manifest-pinned resources are bundled and Info.plist permits local networking without a broad ATS override"
     },
     {
       "command": "./tools/device-proof/install.sh",
@@ -36,13 +40,13 @@
     },
     {
       "command": "./tools/device-proof/launch.sh <ephemeral-redacted-lan-url>",
-      "status": "blocked",
-      "reason": "CoreDevice 10002; one bounded launch attempt after a clean strengthened build/install was denied because the paired device was locked and could not be unlocked noninteractively; the final strengthened build was installed without repeating the prohibited launch loop"
+      "status": "pass",
+      "evidence": "devicectl launched the installed harness on unlocked paired hardware against a redacted synthetic LAN fixture endpoint"
     },
     {
       "command": "./tools/device-proof/collect.sh",
       "status": "blocked",
-      "reason": "CoreDevice 7000 reported that the expected device-proof-events.jsonl node did not exist; the blocked launch never created runtime evidence"
+      "reason": "52 strict-sequence single-run events prove the full local and remote codec matrix, trusted HTTPS and consented local HTTP, five-minute background playback, play/pause/seek/previous/next receipts, a Bluetooth route change, and validated AAC/MP3/FLAC downloads; interruption ended, session restoration, and exactly-once background delegate acknowledgement remain missing"
     },
     {
       "command": "./tools/device-proof/privacy-scan.sh",
@@ -51,12 +55,13 @@
     }
   ],
   "capability_status": {
-    "background_audio": "blocked_on_device_launch",
-    "remote_commands": "blocked_on_device_launch",
-    "route_changes": "blocked_on_device_launch_and_external_route",
-    "background_download": "blocked_on_device_launch",
-    "ats_local_connectivity": "blocked_on_device_launch_and_local_network_consent",
-    "codec_preparation": "blocked_on_device_launch"
+    "background_audio": "pass_five_minute_locked_playback",
+    "remote_commands": "pass_play_pause_seek_previous_next",
+    "route_changes": "pass_bluetooth_route_change",
+    "audio_interruption": "blocked_missing_ended_event",
+    "background_download": "partial_atomic_validation_passed_restoration_blocked",
+    "ats_local_connectivity": "pass_https_and_consented_local_http",
+    "codec_preparation": "pass_required_local_and_remote_http_matrix"
   },
   "harness_status": {
     "required_local_codec_paths": ["mp3", "aac", "alac", "flac", "vorbis_ogg", "opus_ogg"],

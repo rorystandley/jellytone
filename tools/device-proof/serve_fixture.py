@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer
 from functools import partial
-import argparse, json, socket
+import argparse
+import json
+import socket
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "playback"))
+from serve_fixtures import Handler  # noqa: E402
 
 p = argparse.ArgumentParser()
 p.add_argument("--root", required=True); p.add_argument("--state", required=True)
 args = p.parse_args()
-
-class Handler(SimpleHTTPRequestHandler):
-    def log_message(self, fmt, *values): pass
 
 server = ThreadingHTTPServer(("0.0.0.0", 0), partial(Handler, directory=args.root))
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

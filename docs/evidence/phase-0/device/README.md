@@ -55,7 +55,11 @@ Python device-contract tests, a clean signed arm64 build whose bundle contains
 all eight manifest-pinned resources, generated transport/background settings,
 privacy scanning, and repeatable device installation through
 `scripts/deploy-device.sh`. An unlocked launch reached the synthetic harness and
-exposed the resource-packaging and Local Network permission gates; the packaging
-defect is fixed. The subsequent fixture relaunch was blocked by CoreDevice 10002
-after the iPhone relocked. No hardware capability is promoted until a fresh
-unlocked run satisfies the strict collected-event summary.
+exposed the resource-packaging, HTTP byte-range, and Local Network permission
+gates; those defects are fixed and covered by fail-fast generation/build checks
+and a range-response regression test. A physical-device run now proves the full
+required local and remote codec matrix, HTTPS and consented local HTTP,
+five-minute locked playback, play/pause/seek/previous/next receipts, a Bluetooth
+route change, and atomic validation of all three downloads. The strict summary
+remains blocked by a missing interruption-ended event and by unexercised
+background-session restoration and exactly-once delegate acknowledgement.
