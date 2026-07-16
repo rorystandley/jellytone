@@ -38,9 +38,14 @@ delivery. Event facts prove only what they report. Background download survival
 through suspension/relaunch, locked-screen playback duration, accessory remote
 commands, Bluetooth/AirPlay route behavior, and acoustic transition quality need
 the corresponding agent-operated hardware action and must remain open otherwise.
+Raw events and the generated summary remain in the checkout-keyed temporary
+artifact directory. `collect.sh` exits nonzero unless the summary passes, and it
+does not copy JSONL events or a new unregistered JSON record into committed
+evidence. After a passing run, the coordinator reviews the redacted summary and
+updates the registered Phase 0 records intentionally.
 
-As of 2026-07-16T11:29:33Z, ten simulator XCTest cases, five deterministic
-summary-contract tests, a clean signed arm64 build, generated
+The current focused lane passes twelve simulator XCTest cases and ten deterministic
+Python device-contract tests, a clean signed arm64 build, generated
 transport/background settings, privacy scanning, and device installation pass.
 The single bounded launch attempt is still blocked by CoreDevice 10002 because
 SpringBoard reports that the paired iPhone is locked. No runtime events were

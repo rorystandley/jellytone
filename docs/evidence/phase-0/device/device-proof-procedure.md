@@ -3,7 +3,8 @@
 1. Run `./tools/device-proof/run.sh` with the paired iPhone unlocked and connected
    to the same LAN as the Mac. No Apple portal updates or entitlement submissions
    are performed.
-2. Confirm `latest-results.json` contains codec preparation, trusted HTTPS ATS,
+2. Confirm the temporary artifact `latest-results.json` reported by `collect.sh`
+   contains codec preparation, trusted HTTPS ATS,
    local HTTP ATS, playback, and background-download events. A local-network
    privacy denial is a failure, not a reason to broaden ATS.
    Also require a `route/baseline` event and `remote/registered` event before
@@ -15,6 +16,9 @@
 3. Lock the device for five minutes while the synthetic tone loops, then issue
    Play, Pause, and Seek from Lock Screen/Control Centre. Collect again and require
    one event per command and uninterrupted queue ownership.
+   The summary also requires Previous and Next receipts, a five-minute
+   `background_continuity_observed` pass, and began/ended interruption events;
+   registration alone cannot satisfy the runtime gate.
 4. Attach/remove a supported audio route and collect the route-change reason.
    Bluetooth and AirPlay require their actual hardware routes; built-in speaker
    evidence cannot substitute.

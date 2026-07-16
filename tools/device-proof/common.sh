@@ -30,6 +30,7 @@ load_signing() {
 discover_device() {
   local inventory="$ARTIFACTS/device-inventory.json"
   xcrun devicectl list devices --json-output "$inventory" >/dev/null
-  DEVICE_PROOF_DEVICE_ID="$(python3 "$ROOT/tools/device-proof/select_device.py" "$inventory")"
+  DEVICE_PROOF_DEVICE_ID="$(python3 "$ROOT/tools/device-proof/select_device.py" \
+    "$inventory" --metadata-output "$ARTIFACTS/device-metadata.json")"
   export DEVICE_PROOF_DEVICE_ID
 }

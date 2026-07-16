@@ -48,6 +48,39 @@ final class ProofLogicTests: XCTestCase {
         XCTAssertFalse(lines[0].contains("old"))
     }
 
+    func testEventStoreRestoresRunAndSequenceAcrossRelaunch() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let first = ProofEventStore(fileURL: url, runIdentifier: "synthetic-run")
+        first.append(category: "run", action: "first", result: "pass")
+        let restored = ProofEventStore(fileURL: url)
+        restored.append(category: "run", action: "second", result: "pass")
+
+        let events = try String(decoding: Data(contentsOf: url), as: UTF8.self)
+            .split(separator: "\n")
+            .map { try JSONDecoder().decode(ProofEvent.self, from: Data($0.utf8)) }
+        XCTAssertEqual(events.map(\.sequence), [1, 2])
+        XCTAssertEqual(Set(events.map(\.runIdentifier)), Set(["synthetic-run"]))
+    }
+
+    func testDelayedCallbackFromPreviousRunIsRejected() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = ProofEventStore(fileURL: url, runIdentifier: "old-run")
+        store.append(category: "download", action: "old", result: "pass", expectedRunIdentifier: "old-run")
+        store.reset()
+        store.append(category: "download", action: "stale", result: "pass", expectedRunIdentifier: "old-run")
+        store.append(category: "run", action: "current", result: "pass")
+
+        let events = try String(decoding: Data(contentsOf: url), as: UTF8.self)
+            .split(separator: "\n")
+            .map { try JSONDecoder().decode(ProofEvent.self, from: Data($0.utf8)) }
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events[0].sequence, 1)
+        XCTAssertEqual(events[0].action, "current")
+        XCTAssertNotEqual(events[0].runIdentifier, "old-run")
+    }
+
     func testDownloadPayloadRejectsPartialAndCorruptBytes() throws {
         let valid = Data("deterministic-audio".utf8)
         let expected = expectation(for: valid)
@@ -97,6 +130,7 @@ final class ProofLogicTests: XCTestCase {
         let media = expectation(for: Data("audio".utf8), id: "flac")
         let state = DownloadProofState(
             sessionIdentifier: "org.example.phase0.background",
+            runIdentifier: "synthetic-run",
             tasks: [DownloadProofTask(taskIdentifier: 7, media: media, phase: .scheduled)],
             acknowledgementCount: 0
         )
@@ -104,6 +138,8 @@ final class ProofLogicTests: XCTestCase {
         XCTAssertEqual(try store.load(), state)
         try store.updatePhase(.installed, taskIdentifier: 7)
         XCTAssertEqual(try store.task(7).phase, .installed)
+        store.reset()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.fileURL.path))
     }
 
     func testDuplicateAcknowledgementIsRejectedExactlyOnce() throws {
@@ -112,6 +148,7 @@ final class ProofLogicTests: XCTestCase {
         let store = DownloadProofStateStore(fileURL: directory.appendingPathComponent("state.json"))
         try store.save(DownloadProofState(
             sessionIdentifier: "org.example.phase0.background",
+            runIdentifier: "synthetic-run",
             tasks: [DownloadProofTask(taskIdentifier: 1, media: expectation(for: Data("audio".utf8)), phase: .probed)],
             acknowledgementCount: 0
         ))

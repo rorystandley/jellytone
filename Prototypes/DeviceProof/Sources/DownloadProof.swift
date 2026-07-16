@@ -43,6 +43,7 @@ struct DownloadProofState: Codable, Equatable, Sendable {
     }
 
     let sessionIdentifier: String
+    let runIdentifier: String
     var tasks: [DownloadProofTask]
     var acknowledgementCount: Int
 }
@@ -123,6 +124,12 @@ final class DownloadProofStateStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return try loadUnlocked()
+    }
+
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        try? FileManager.default.removeItem(at: fileURL)
     }
 
     private func loadUnlocked() throws -> DownloadProofState {

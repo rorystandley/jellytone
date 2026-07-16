@@ -23,6 +23,14 @@ final class DeviceProofCoordinator: NSObject, ObservableObject {
                 .flatMap(AVAudioSession.RouteChangeReason.init(rawValue:))
             Task { @MainActor in self?.recordRoute(reason) }
         }
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] note in
+            let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            Task { @MainActor in self?.recordInterruption(raw) }
+        }
     }
 
     func runAll(probeURL: URL?) {
@@ -38,6 +46,7 @@ final class DeviceProofCoordinator: NSObject, ObservableObject {
     func resetEvidence() {
         guard !hasRun else { return }
         events.reset()
+        downloadState.reset()
     }
 
     func configureAudio() {
@@ -62,6 +71,7 @@ final class DeviceProofCoordinator: NSObject, ObservableObject {
                 MPNowPlayingInfoPropertyPlaybackRate: 0.0
             ]
             player.play()
+            observeBackgroundContinuity()
             status = "Synthetic audio playing"
             events.append(category: "playback", action: "background_audio_started", result: "pass", facts: ["fixture": "synthetic", "route_type": session.currentRoute.outputs.first?.portType.rawValue ?? "none"])
         } catch {
@@ -128,8 +138,11 @@ final class DeviceProofCoordinator: NSObject, ObservableObject {
             events.append(category: "download", action: "scheduled", result: "fail", facts: ["reason": "manifest_entry_missing"])
             return
         }
-        let identifier = Bundle.main.bundleIdentifier.map { "\($0).background" } ?? "org.example.phase0.deviceproof.background"
-        let delegate = BackgroundDownloadDelegate(events: events, stateStore: downloadState)
+        let runIdentifier = events.activeRunIdentifier()
+        let runSuffix = runIdentifier.replacingOccurrences(of: "-", with: "").prefix(12)
+        let identifier = Bundle.main.bundleIdentifier.map { "\($0).background.\(runSuffix)" }
+            ?? "org.example.phase0.deviceproof.background.\(runSuffix)"
+        let delegate = BackgroundDownloadDelegate(events: events, stateStore: downloadState, runIdentifier: runIdentifier)
         backgroundDelegate = delegate
         let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
         configuration.sessionSendsLaunchEvents = true
@@ -141,6 +154,7 @@ final class DeviceProofCoordinator: NSObject, ObservableObject {
         do {
             try downloadState.save(DownloadProofState(
                 sessionIdentifier: identifier,
+                runIdentifier: runIdentifier,
                 tasks: tasks.map { DownloadProofTask(taskIdentifier: $0.0.taskIdentifier, media: $0.1, phase: .scheduled) },
                 acknowledgementCount: 0
             ))
@@ -155,12 +169,19 @@ final class DeviceProofCoordinator: NSObject, ObservableObject {
     }
 
     func restoreBackgroundSession(identifier: String, completion: @escaping () -> Void) {
-        guard let state = try? downloadState.load(), state.sessionIdentifier == identifier else {
+        guard let state = try? downloadState.load(),
+              state.sessionIdentifier == identifier,
+              state.runIdentifier == events.activeRunIdentifier() else {
             events.append(category: "download", action: "session_restored", result: "fail", facts: ["reason": "restoration_state_missing_or_mismatched"])
             completion()
             return
         }
-        let delegate = BackgroundDownloadDelegate(events: events, stateStore: downloadState, completion: completion)
+        let delegate = BackgroundDownloadDelegate(
+            events: events,
+            stateStore: downloadState,
+            runIdentifier: state.runIdentifier,
+            completion: completion
+        )
         backgroundDelegate = delegate
         let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
         _ = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
@@ -183,9 +204,47 @@ final class DeviceProofCoordinator: NSObject, ObservableObject {
             self.events.append(category: "remote", action: "seek", result: "pass")
             return .success
         }
+        center.previousTrackCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            self.player?.seek(to: .zero)
+            self.events.append(category: "remote", action: "previous", result: "pass")
+            return .success
+        }
+        center.nextTrackCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            self.player?.seek(to: .zero)
+            self.events.append(category: "remote", action: "next", result: "pass")
+            return .success
+        }
         events.append(category: "remote", action: "registered", result: "pass", facts: [
-            "commands": "play,pause,toggle,seek"
+            "commands": "play,pause,toggle,seek,previous,next"
         ])
+    }
+
+    private func observeBackgroundContinuity() {
+        let started = DispatchTime.now().uptimeNanoseconds
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000_000)
+            guard let self else { return }
+            let elapsed = (DispatchTime.now().uptimeNanoseconds - started) / 1_000_000_000
+            let playing = self.player?.timeControlStatus == .playing
+            self.events.append(
+                category: "playback",
+                action: "background_continuity_observed",
+                result: playing && elapsed >= 300 ? "pass" : "fail",
+                facts: ["elapsed_seconds": String(elapsed), "player_state": playing ? "playing" : "not_playing"]
+            )
+        }
+    }
+
+    private func recordInterruption(_ raw: UInt?) {
+        guard let raw, let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+        events.append(
+            category: "interruption",
+            action: type == .began ? "began" : "ended",
+            result: "observed",
+            facts: ["type_code": String(raw)]
+        )
     }
 
     private func recordRoute(_ reason: AVAudioSession.RouteChangeReason?) {
@@ -198,11 +257,28 @@ private enum ProofError: Error { case missingFixture }
 final class BackgroundDownloadDelegate: NSObject, URLSessionDownloadDelegate, URLSessionDelegate, @unchecked Sendable {
     private let events: ProofEventStore
     private let stateStore: DownloadProofStateStore
+    private let runIdentifier: String
     private var completion: (() -> Void)?
-    init(events: ProofEventStore, stateStore: DownloadProofStateStore, completion: (() -> Void)? = nil) {
+    init(
+        events: ProofEventStore,
+        stateStore: DownloadProofStateStore,
+        runIdentifier: String,
+        completion: (() -> Void)? = nil
+    ) {
         self.events = events
         self.stateStore = stateStore
+        self.runIdentifier = runIdentifier
         self.completion = completion
+    }
+
+    private func record(category: String, action: String, result: String, facts: [String: String] = [:]) {
+        events.append(
+            category: category,
+            action: action,
+            result: result,
+            facts: facts,
+            expectedRunIdentifier: runIdentifier
+        )
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
@@ -214,35 +290,35 @@ final class BackgroundDownloadDelegate: NSObject, URLSessionDownloadDelegate, UR
                 .appendingPathComponent("verified-downloads").appendingPathComponent(expected.file)
             try DownloadFileInstaller.installValidated(temporaryURL: location, response: response, expected: expected, destination: destination)
             try stateStore.updatePhase(.installed, taskIdentifier: downloadTask.taskIdentifier)
-            events.append(category: "download", action: "completed_atomically", result: "pass", facts: ["byte_count": String(expected.bytes), "media_identity": expected.id, "sha256": expected.sha256])
+            record(category: "download", action: "completed_atomically", result: "pass", facts: ["byte_count": String(expected.bytes), "media_identity": expected.id, "sha256": expected.sha256])
             Task {
                 do {
                     try await DownloadFileInstaller.probeFinalAudio(at: destination)
                     try stateStore.updatePhase(.probed, taskIdentifier: downloadTask.taskIdentifier)
-                    events.append(category: "download", action: "final_file_probed", result: "pass", facts: ["media_identity": expected.id])
+                    self.record(category: "download", action: "final_file_probed", result: "pass", facts: ["media_identity": expected.id])
                 } catch {
-                    events.append(category: "download", action: "final_file_probed", result: "fail", facts: ["reason": String(describing: error)])
+                    self.record(category: "download", action: "final_file_probed", result: "fail", facts: ["reason": String(describing: error)])
                 }
             }
         } catch {
-            events.append(category: "download", action: "completed_atomically", result: "fail", facts: ["reason": String(describing: error)])
+            record(category: "download", action: "completed_atomically", result: "fail", facts: ["reason": String(describing: error)])
         }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
-        events.append(category: "download", action: "task_finished", result: error == nil ? "pass" : "fail", facts: ["error": error.map { String(describing: $0) } ?? "none"])
+        record(category: "download", action: "task_finished", result: error == nil ? "pass" : "fail", facts: ["error": error.map { String(describing: $0) } ?? "none"])
     }
 
     func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
         do {
             let first = try stateStore.recordAcknowledgement()
-            events.append(category: "download", action: first ? "events_acknowledged" : "duplicate_acknowledgement_rejected", result: "pass", facts: ["exactly_once": first ? "true" : "false"])
+            record(category: "download", action: first ? "events_acknowledged" : "duplicate_acknowledgement_rejected", result: "pass", facts: ["exactly_once": first ? "true" : "false"])
             if first {
                 completion?()
                 completion = nil
             }
         } catch {
-            events.append(category: "download", action: "events_acknowledged", result: "fail", facts: ["reason": "acknowledgement_state_failed"])
+            record(category: "download", action: "events_acknowledged", result: "fail", facts: ["reason": "acknowledgement_state_failed"])
         }
     }
 }

@@ -30,6 +30,7 @@ def assert_common_envelope(test: unittest.TestCase, record: dict, workstream: st
 def event(sequence: int, category: str, action: str, result: str = "pass", **facts: str) -> dict:
     return {
         "schemaVersion": 1,
+        "runIdentifier": "synthetic-run",
         "sequence": sequence,
         "monotonicMilliseconds": sequence,
         "category": category,
@@ -48,6 +49,18 @@ class DeviceSummaryTests(unittest.TestCase):
             subprocess.run(["python3", str(SUMMARIZER), str(source), str(output)], check=True)
             return json.loads(output.read_text(encoding="utf-8"))
 
+    def require_pass(self, events: list[dict]) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "events.jsonl"
+            output = Path(directory) / "summary.json"
+            source.write_text("".join(json.dumps(value) + "\n" for value in events), encoding="utf-8")
+            return subprocess.run(
+                ["python3", str(SUMMARIZER), str(source), str(output), "--require-pass"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
     def complete_events(self) -> list[dict]:
         events = []
         sequence = 0
@@ -65,6 +78,21 @@ class DeviceSummaryTests(unittest.TestCase):
                 events.append(event(sequence, "download", action, media_identity=media_identity))
         sequence += 1
         events.append(event(sequence, "download", "events_acknowledged"))
+        for transport in ("https", "local_http"):
+            sequence += 1
+            events.append(event(sequence, "network", "ats_lan_probe", transport=transport))
+        for action in ("background_audio_started", "background_continuity_observed"):
+            sequence += 1
+            events.append(event(sequence, "playback", action))
+        for action in ("registered", "play", "pause", "seek", "previous", "next"):
+            sequence += 1
+            events.append(event(sequence, "remote", action))
+        for action in ("baseline", "changed"):
+            sequence += 1
+            events.append(event(sequence, "route", action, result="observed"))
+        for action in ("began", "ended"):
+            sequence += 1
+            events.append(event(sequence, "interruption", action, result="observed"))
         return events
 
     def test_complete_codec_and_download_events_pass(self) -> None:
@@ -87,6 +115,31 @@ class DeviceSummaryTests(unittest.TestCase):
         summary = self.summarize(events)
         self.assertEqual(summary["result"], "fail")
         self.assertEqual(summary["status"], "fail")
+
+    def test_require_pass_exits_nonzero_for_failure_in_any_category(self) -> None:
+        events = self.complete_events()
+        events.append(event(100, "network", "ats_lan_probe", result="fail", reason="synthetic_failure"))
+        self.assertNotEqual(self.require_pass(events).returncode, 0)
+        self.assertEqual(self.require_pass(self.complete_events()).returncode, 0)
+
+    def test_missing_platform_runtime_family_cannot_pass(self) -> None:
+        for category in ("network", "playback", "remote", "route", "interruption"):
+            with self.subTest(category=category):
+                events = [value for value in self.complete_events() if value["category"] != category]
+                summary = self.summarize(events)
+                self.assertEqual(summary["status"], "fail")
+                self.assertEqual(summary["proofs"]["platform_runtime"]["result"], "fail")
+
+    def test_mixed_run_or_non_monotonic_sequence_cannot_pass(self) -> None:
+        mixed = self.complete_events()
+        mixed[-1]["runIdentifier"] = "stale-run"
+        self.assertEqual(self.summarize(mixed)["eventIntegrity"]["result"], "fail")
+
+        duplicate = self.complete_events()
+        duplicate[-1]["sequence"] = duplicate[-2]["sequence"]
+        summary = self.summarize(duplicate)
+        self.assertEqual(summary["status"], "fail")
+        self.assertEqual(summary["eventIntegrity"]["strictSequence"], False)
 
     def test_duplicate_acknowledgement_or_missing_remote_codec_fails(self) -> None:
         events = self.complete_events()

@@ -13,6 +13,8 @@ status=$?
 set -e
 redact_log "$raw" "$ARTIFACTS/collect.log"; rm -f "$raw"
 [[ $status -eq 0 ]] || { tail -80 "$ARTIFACTS/collect.log"; exit "$status"; }
-python3 "$ROOT/tools/device-proof/summarize.py" "$ARTIFACTS/collected/device-proof-events.jsonl" "$ROOT/docs/evidence/phase-0/device/latest-results.json"
-cp "$ARTIFACTS/collected/device-proof-events.jsonl" "$ROOT/docs/evidence/phase-0/device/device-events.jsonl"
-echo "redacted device evidence collected"
+summary="$ARTIFACTS/latest-results.json"
+python3 "$ROOT/tools/device-proof/summarize.py" \
+  "$ARTIFACTS/collected/device-proof-events.jsonl" "$summary" --require-pass \
+  --device-metadata "$ARTIFACTS/device-metadata.json"
+echo "redacted passing device evidence collected outside repository: $summary"

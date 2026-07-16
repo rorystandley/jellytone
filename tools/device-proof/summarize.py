@@ -1,8 +1,19 @@
 #!/usr/bin/env python3
-import datetime, json, sys
+import argparse, datetime, json
 from pathlib import Path
 
-source, destination = map(Path, sys.argv[1:3])
+parser = argparse.ArgumentParser()
+parser.add_argument("source", type=Path)
+parser.add_argument("destination", type=Path)
+parser.add_argument("--require-pass", action="store_true")
+parser.add_argument("--device-metadata", type=Path)
+arguments = parser.parse_args()
+source = arguments.source
+destination = arguments.destination
+device = {"model": "not-captured", "os": "not-captured", "platform": "not-captured", "identifier": "redacted"}
+if arguments.device_metadata:
+    captured_device = json.loads(arguments.device_metadata.read_text(encoding="utf-8"))
+    device.update({key: captured_device.get(key, "unknown") for key in ("model", "os", "platform")})
 events = [json.loads(line) for line in source.read_text().splitlines() if line.strip()]
 for event in events:
     serialized = json.dumps(event)
@@ -14,6 +25,15 @@ for event in events:
     result = event["result"]
     categories[event["category"]][result] = categories[event["category"]].get(result, 0) + 1
 required_codecs = {"mp3", "aac", "alac", "flac", "vorbis_ogg", "opus_ogg"}
+run_identifiers = {event.get("runIdentifier") for event in events}
+sequences = [event.get("sequence") for event in events]
+integrity_pass = (
+    bool(events)
+    and len(run_identifiers) == 1
+    and None not in run_identifiers
+    and all(event.get("schemaVersion") == 1 for event in events)
+    and sequences == list(range(1, len(events) + 1))
+)
 codec_passes = {
     (event.get("facts", {}).get("codec"), event.get("facts", {}).get("source"))
     for event in events
@@ -24,6 +44,12 @@ remote_codecs = sorted(codec for codec in required_codecs if (codec, "remote_htt
 
 def passing_actions(category):
     return [event.get("action") for event in events if event.get("category") == category and event.get("result") == "pass"]
+
+def exercised_actions(category):
+    return [
+        event.get("action") for event in events
+        if event.get("category") == category and event.get("result") in {"pass", "observed"}
+    ]
 
 download_actions = passing_actions("download")
 acknowledgements = download_actions.count("events_acknowledged")
@@ -40,9 +66,27 @@ probed_media = {
     if event.get("category") == "download" and event.get("action") == "final_file_probed" and event.get("result") == "pass"
 }
 required_download_media = {"aac", "mp3", "flac"}
+network_transports = {
+    event.get("facts", {}).get("transport")
+    for event in events
+    if event.get("category") == "network"
+    and event.get("action") == "ats_lan_probe"
+    and event.get("result") == "pass"
+}
+playback_actions = set(passing_actions("playback"))
+remote_actions = set(passing_actions("remote"))
+route_actions = set(exercised_actions("route"))
+interruption_actions = set(exercised_actions("interruption"))
+required_remote_actions = {"registered", "play", "pause", "seek", "previous", "next"}
+platform_pass = (
+    network_transports >= {"https", "local_http"}
+    and playback_actions >= {"background_audio_started", "background_continuity_observed"}
+    and remote_actions >= required_remote_actions
+    and route_actions >= {"baseline", "changed"}
+    and interruption_actions >= {"began", "ended"}
+)
 has_disqualifying_event = any(
-    event.get("category") in {"codec", "download"}
-    and event.get("result") != "pass"
+    event.get("result") == "fail"
     for event in events
 )
 download_pass = (
@@ -59,6 +103,7 @@ codec_pass = (
     and set(remote_codecs) == required_codecs
     and not has_disqualifying_event
 )
+overall_pass = integrity_pass and codec_pass and download_pass and platform_pass
 result = {
     "schemaVersion": 1,
     "proofId": "phase0-device-runtime-results",
@@ -69,11 +114,16 @@ result = {
         "harnessType": "isolated non-production proof",
     },
     "owner": {"phase": "Phase 0", "workstream": "device"},
-    "status": "pass" if codec_pass and download_pass else "fail",
+    "status": "pass" if overall_pass else "fail",
     "harness": "isolated-phase0-device-proof",
-    "device": {"model": "iPhone 13", "os": "iOS 26.5.2", "identifier": "redacted"},
+    "device": device,
     "syntheticDataOnly": True,
     "eventCount": len(events),
+    "eventIntegrity": {
+        "singleRun": len(run_identifiers) == 1 and None not in run_identifiers,
+        "strictSequence": sequences == list(range(1, len(events) + 1)),
+        "result": "pass" if integrity_pass else "fail",
+    },
     "categories": categories,
     "proofs": {
         "codec_preparation": {
@@ -92,8 +142,17 @@ result = {
             "duplicate_acknowledgement_count": duplicate_acknowledgements,
             "result": "pass" if download_pass else "fail",
         },
+        "platform_runtime": {
+            "network_transports_passed": sorted(value for value in network_transports if value),
+            "playback_actions_passed": sorted(playback_actions),
+            "remote_actions_passed": sorted(remote_actions),
+            "required_remote_actions": sorted(required_remote_actions),
+            "route_actions_exercised": sorted(route_actions),
+            "interruption_actions_exercised": sorted(interruption_actions),
+            "result": "pass" if platform_pass else "fail",
+        },
     },
-    "result": "pass" if codec_pass and download_pass else "fail",
+    "result": "pass" if overall_pass else "fail",
     "limitations": [
         "Launch proof does not establish locked-screen duration or process suspension.",
         "Physical route changes require an attached route and separate agent-operated execution.",
@@ -108,3 +167,5 @@ result = {
 }
 destination.parent.mkdir(parents=True, exist_ok=True)
 destination.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+if arguments.require_pass and result["status"] != "pass":
+    raise SystemExit("device proof summary did not pass")

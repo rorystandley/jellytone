@@ -17,12 +17,12 @@
     {
       "command": "./tools/device-proof/test.sh",
       "status": "pass",
-      "evidence": "10 XCTest cases, 0 failures; covers redaction/reset, manifest payload validation, distinct concurrent staging paths, restoration state, monotonic phase handling, duplicate acknowledgement rejection, and bounded cancellation/resume policy"
+      "evidence": "12 XCTest cases, 0 failures; covers redaction/reset, run and sequence restoration, stale callback rejection, manifest payload validation, distinct concurrent staging paths, restoration state, monotonic phase handling, duplicate acknowledgement rejection, and bounded cancellation/resume policy"
     },
     {
       "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s Tests/Phase0Device -p 'test_*.py' -v",
       "status": "pass",
-      "evidence": "5 summary-contract tests, 0 failures; missing restoration, contradictory failure events, incomplete remote-codec evidence, and duplicate delegate acknowledgement all fail the summary"
+      "evidence": "10 Python device-contract tests, 0 failures; mixed or non-monotonic runs, missing platform/runtime families or restoration, contradictory failure events, incomplete remote-codec evidence, duplicate delegate acknowledgement, and ineligible device selection all fail closed"
     },
     {
       "command": "./tools/device-proof/build.sh",

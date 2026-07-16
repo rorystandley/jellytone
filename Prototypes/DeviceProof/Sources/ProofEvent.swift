@@ -2,6 +2,7 @@ import Foundation
 
 struct ProofEvent: Codable, Equatable, Sendable {
     let schemaVersion: Int
+    let runIdentifier: String
     let sequence: Int
     let monotonicMilliseconds: UInt64
     let category: String
@@ -43,22 +44,46 @@ enum ProofRedactor {
 final class ProofEventStore: @unchecked Sendable {
     static let shared = ProofEventStore()
     private let lock = NSLock()
-    private var sequence = 0
+    private var sequence: Int
+    private var runIdentifier: String
     private let encoder = JSONEncoder()
     let fileURL: URL
 
-    init(fileURL: URL? = nil) {
+    init(fileURL: URL? = nil, runIdentifier: String? = nil) {
         self.fileURL = fileURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("device-proof-events.jsonl")
+        self.sequence = 0
+        self.runIdentifier = runIdentifier ?? UUID().uuidString.lowercased()
         try? FileManager.default.createDirectory(at: self.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if runIdentifier == nil,
+           let data = try? Data(contentsOf: self.fileURL),
+           let lastLine = String(decoding: data, as: UTF8.self).split(separator: "\n").last,
+           let lastEvent = try? JSONDecoder().decode(ProofEvent.self, from: Data(lastLine.utf8)) {
+            self.sequence = lastEvent.sequence
+            self.runIdentifier = lastEvent.runIdentifier
+        }
     }
 
-    func append(category: String, action: String, result: String, facts: [String: String] = [:]) {
+    func activeRunIdentifier() -> String {
         lock.lock()
         defer { lock.unlock() }
+        return runIdentifier
+    }
+
+    func append(
+        category: String,
+        action: String,
+        result: String,
+        facts: [String: String] = [:],
+        expectedRunIdentifier: String? = nil
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard expectedRunIdentifier == nil || expectedRunIdentifier == runIdentifier else { return }
         sequence += 1
         let event = ProofEvent(
             schemaVersion: 1,
+            runIdentifier: runIdentifier,
             sequence: sequence,
             monotonicMilliseconds: DispatchTime.now().uptimeNanoseconds / 1_000_000,
             category: category,
@@ -80,6 +105,7 @@ final class ProofEventStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         sequence = 0
+        runIdentifier = UUID().uuidString.lowercased()
         try? FileManager.default.removeItem(at: fileURL)
     }
 }
