@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -157,6 +158,13 @@ class RecordSpecificTests(unittest.TestCase):
 
     def test_schema_declares_every_common_requirement(self) -> None:
         self.assertEqual(validate_evidence.validate_schema_document(), [])
+
+    def test_transition_evidence_requires_native_preload_measurements(self) -> None:
+        path = validate_evidence.EVIDENCE_ROOT / "playback/results/transition-measurements.json"
+        record = json.loads(path.read_text())
+        del record["results"]["nativeRemotePreloadedHardCut"]
+        issues = issues_for(record, "playback/results/transition-measurements.json")
+        self.assertTrue(any(issue.pointer == "/results" and "native" in issue.message for issue in issues))
 
     def test_registry_matches_committed_evidence_json(self) -> None:
         discovered = {

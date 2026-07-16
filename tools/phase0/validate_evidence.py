@@ -474,8 +474,9 @@ def _validate_source_policy(validator: RecordValidator) -> None:
 def _validate_transitions(validator: RecordValidator) -> None:
     _require_keys(validator, ("acceptance", "results", "scope"))
     results = validator.record.get("results")
-    expected = {"localLinearCrossfade250ms", "localPreparedHardCut", "remoteLoopbackLinearCrossfade250ms", "remoteLoopbackPreparedHardCut"}
-    validator.require(isinstance(results, dict) and set(results) == expected, "/results", "must contain exactly four transition measurements")
+    reference = {"localLinearCrossfade250ms", "localPreparedHardCut", "remoteLoopbackLinearCrossfade250ms", "remoteLoopbackPreparedHardCut"}
+    native = {"nativeLocalHardCut", "nativeLocalLinearCrossfade250ms", "nativeRemotePreloadedHardCut", "nativeRemotePreloadedLinearCrossfade250ms"}
+    validator.require(isinstance(results, dict) and set(results) == reference | native, "/results", "must contain all four reference and four native transition measurements")
     if not isinstance(results, dict):
         return
     for name, result in results.items():
@@ -484,6 +485,14 @@ def _validate_transitions(validator: RecordValidator) -> None:
             continue
         validator.require(result.get("durationErrorSamples") == 0, f"/results/{name}/durationErrorSamples", "must equal zero")
         validator.require(isinstance(result.get("longestDigitalSilenceSamples"), int) and result["longestDigitalSilenceSamples"] <= 4, f"/results/{name}/longestDigitalSilenceSamples", "must not exceed four samples")
+        if name in native:
+            validator.require(result.get("engine") == "AVAudioEngine offline manual rendering", f"/results/{name}/engine", "must identify the native rendering engine")
+            preloaded = result.get("preloadedBytes")
+            validator.require(isinstance(preloaded, list) and len(preloaded) == 2 and all(isinstance(value, int) and value > 0 for value in preloaded), f"/results/{name}/preloadedBytes", "must prove both native inputs were preloaded")
+            expected_source = "remote-loopback-preloaded" if "Remote" in name else "local-file"
+            validator.require(result.get("source") == expected_source, f"/results/{name}/source", "must identify the exercised source path")
+            expected_crossfade = 12_000 if "Crossfade" in name else 0
+            validator.require(result.get("crossfadeFrames") == expected_crossfade, f"/results/{name}/crossfadeFrames", "must identify the native overlap schedule")
 
 
 RECORD_VALIDATORS: Mapping[str, Callable[[RecordValidator], None]] = {

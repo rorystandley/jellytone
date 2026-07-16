@@ -46,6 +46,11 @@ def measure(path: pathlib.Path, expected_seconds: float) -> dict:
             "longestDigitalSilenceSamples": longest, "sampleRate": RATE}
 
 
+def native_probe(binary: pathlib.Path, source: str, inputs: tuple[str, str]) -> dict:
+    output = subprocess.check_output([str(binary), source, *inputs], text=True)
+    return json.loads(output)
+
+
 def main() -> None:
     subprocess.run([sys.executable, str(ROOT / "tools/playback/generate_fixtures.py")], check=True)
     hard_filter = "[0:a][1:a]concat=n=2:v=0:a=1[out]"
@@ -53,11 +58,20 @@ def main() -> None:
     local_inputs = (str(FIX / "tone-a.wav"), str(FIX / "tone-b.wav"))
     local_hard = run("transition-local-hard.wav", hard_filter, local_inputs)
     local_fade = run("transition-local-crossfade-250ms.wav", fade_filter, local_inputs)
-    server = subprocess.Popen([sys.executable, str(ROOT / "tools/playback/serve_fixtures.py"),
-                               "--directory", str(FIX), "--port", "18766"])
-    try:
-        time.sleep(0.3)
-        with tempfile.TemporaryDirectory() as temp:
+    with tempfile.TemporaryDirectory() as temp:
+        native_binary = pathlib.Path(temp) / "native-transition-probe"
+        subprocess.run(["xcrun", "swiftc", "-parse-as-library", "-O", "-framework", "AVFoundation",
+                        str(ROOT / "Prototypes/Playback/NativeTransitionProbe.swift"),
+                        "-o", str(native_binary)], check=True)
+        native_local_urls = tuple(pathlib.Path(path).as_uri() for path in local_inputs)
+        native_local = native_probe(native_binary, "local-file", native_local_urls)
+        server = subprocess.Popen([sys.executable, str(ROOT / "tools/playback/serve_fixtures.py"),
+                                   "--directory", str(FIX), "--port", "18766"])
+        try:
+            time.sleep(0.3)
+            remote_urls = ("http://127.0.0.1:18766/tone-a.wav",
+                           "http://127.0.0.1:18766/tone-b.wav")
+            native_remote = native_probe(native_binary, "remote-loopback-preloaded", remote_urls)
             downloaded = []
             preload = []
             for name in ("tone-a.wav", "tone-b.wav"):
@@ -69,20 +83,28 @@ def main() -> None:
             remote_inputs = (downloaded[0], downloaded[1])
             remote_hard = run("transition-remote-hard.wav", hard_filter, remote_inputs)
             remote_fade = run("transition-remote-crossfade-250ms.wav", fade_filter, remote_inputs)
-    finally:
-        server.terminate()
-        server.wait()
+        finally:
+            server.terminate()
+            server.wait()
+    native_results = {
+        "nativeLocalHardCut": {**native_local["hardCut"], "engine": native_local["engine"], "source": native_local["source"]},
+        "nativeLocalLinearCrossfade250ms": {**native_local["linearCrossfade250ms"], "engine": native_local["engine"], "source": native_local["source"]},
+        "nativeRemotePreloadedHardCut": {**native_remote["hardCut"], "engine": native_remote["engine"], "source": native_remote["source"]},
+        "nativeRemotePreloadedLinearCrossfade250ms": {**native_remote["linearCrossfade250ms"], "engine": native_remote["engine"], "source": native_remote["source"]},
+    }
     result = playback_envelope(
         proof_id="phase0-playback-transition-measurements",
         command="python3 tools/playback/render_transitions.py",
-        environment={"sampleRate": RATE, "renderer": "FFmpeg deterministic PCM render"},
-        limitations=["Sample-domain fixture rendering is not AVPlayer acoustic, background, route, or device transition evidence."],
+        environment={"sampleRate": RATE, "renderer": "FFmpeg reference plus AVAudioEngine offline manual rendering"},
+        limitations=["Host offline rendering is not AVPlayer acoustic, background, route, or device transition evidence.",
+                     "Remote inputs are fully preloaded over loopback before native rendering; streaming-buffer behavior remains unproven."],
         output=OUT,
         payload={"scope": "deterministic-render-algorithm-not-device-output",
                  "results": {"localPreparedHardCut": measure(local_hard, 4.0),
                              "localLinearCrossfade250ms": measure(local_fade, 3.75),
                              "remoteLoopbackPreparedHardCut": {**measure(remote_hard, 4.0), "preload": preload},
-                             "remoteLoopbackLinearCrossfade250ms": {**measure(remote_fade, 3.75), "preload": preload}},
+                             "remoteLoopbackLinearCrossfade250ms": {**measure(remote_fade, 3.75), "preload": preload},
+                             **native_results},
                  "acceptance": {"durationErrorSamplesMax": 1, "longestDigitalSilenceSamplesMax": 4}},
     )
     OUT.parent.mkdir(parents=True, exist_ok=True)

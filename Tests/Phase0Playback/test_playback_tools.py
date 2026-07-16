@@ -49,6 +49,16 @@ class PlaybackProofTests(unittest.TestCase):
         for result in report["results"].values():
             self.assertLessEqual(result["durationErrorSamples"], limits["durationErrorSamplesMax"])
             self.assertLessEqual(result["longestDigitalSilenceSamples"], limits["longestDigitalSilenceSamplesMax"])
+        native = {name: result for name, result in report["results"].items() if name.startswith("native")}
+        self.assertEqual(len(native), 4)
+        self.assertTrue(all(result["engine"] == "AVAudioEngine offline manual rendering"
+                            for result in native.values()))
+        self.assertTrue(all(len(result["preloadedBytes"]) == 2 and min(result["preloadedBytes"]) > 0
+                            for result in native.values()))
+        self.assertEqual({"local-file", "remote-loopback-preloaded"},
+                         {result["source"] for result in native.values()})
+        self.assertEqual([0, 0, 12_000, 12_000], sorted(result["crossfadeFrames"]
+                                                       for result in native.values()))
 
     def test_fixture_manifest_has_unique_reproducible_ids(self):
         with tempfile.TemporaryDirectory() as temp:

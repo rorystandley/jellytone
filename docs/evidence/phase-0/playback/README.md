@@ -30,11 +30,12 @@ evidence records deterministic byte counts; wall-clock latency is deliberately
 excluded from committed JSON and belongs in separately timestamped performance
 runs.
 
-`render_transitions.py` renders a prepared hard cut and a 250 ms linear
-crossfade from both files and the ranged loopback HTTP server. All four outputs
-have zero duration error at 48 kHz and no digital-silence run longer than two
-samples. This proves the deterministic scheduling/mixing measurement and
-fixtures; it does not measure AVPlayer speaker output.
+`render_transitions.py` renders a reference hard cut and 250 ms linear crossfade
+with FFmpeg, then compiles a Swift probe which preloads the same two inputs and
+renders both transitions with `AVAudioEngine` in offline manual-rendering mode.
+The local-file and ranged loopback-HTTP paths are measured independently. This
+proves native scheduling/mixing against fully preloaded PCM inputs; it does not
+measure AVPlayer streaming buffers, speaker output, or background/device behavior.
 
 ## Captured environment and findings
 

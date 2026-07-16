@@ -6,11 +6,12 @@
   "capturedAt": "2026-07-16T12:52:23Z",
   "command": "python3 tools/playback/render_transitions.py",
   "environment": {
-    "renderer": "FFmpeg deterministic PCM render",
+    "renderer": "FFmpeg reference plus AVAudioEngine offline manual rendering",
     "sampleRate": 48000
   },
   "limitations": [
-    "Sample-domain fixture rendering is not AVPlayer acoustic, background, route, or device transition evidence."
+    "Host offline rendering is not AVPlayer acoustic, background, route, or device transition evidence.",
+    "Remote inputs are fully preloaded over loopback before native rendering; streaming-buffer behavior remains unproven."
   ],
   "owner": {
     "phase": "Phase 0",
@@ -41,6 +42,62 @@
       "file": "transition-local-hard.wav",
       "longestDigitalSilenceSamples": 2,
       "sampleRate": 48000
+    },
+    "nativeLocalHardCut": {
+      "crossfadeFrames": 0,
+      "durationErrorSamples": 0,
+      "durationSeconds": 4,
+      "engine": "AVAudioEngine offline manual rendering",
+      "expectedDurationSeconds": 4,
+      "longestDigitalSilenceSamples": 2,
+      "preloadedBytes": [
+        384044,
+        384044
+      ],
+      "sampleRate": 48000,
+      "source": "local-file"
+    },
+    "nativeLocalLinearCrossfade250ms": {
+      "crossfadeFrames": 12000,
+      "durationErrorSamples": 0,
+      "durationSeconds": 3.75,
+      "engine": "AVAudioEngine offline manual rendering",
+      "expectedDurationSeconds": 3.75,
+      "longestDigitalSilenceSamples": 2,
+      "preloadedBytes": [
+        384044,
+        384044
+      ],
+      "sampleRate": 48000,
+      "source": "local-file"
+    },
+    "nativeRemotePreloadedHardCut": {
+      "crossfadeFrames": 0,
+      "durationErrorSamples": 0,
+      "durationSeconds": 4,
+      "engine": "AVAudioEngine offline manual rendering",
+      "expectedDurationSeconds": 4,
+      "longestDigitalSilenceSamples": 2,
+      "preloadedBytes": [
+        384044,
+        384044
+      ],
+      "sampleRate": 48000,
+      "source": "remote-loopback-preloaded"
+    },
+    "nativeRemotePreloadedLinearCrossfade250ms": {
+      "crossfadeFrames": 12000,
+      "durationErrorSamples": 0,
+      "durationSeconds": 3.75,
+      "engine": "AVAudioEngine offline manual rendering",
+      "expectedDurationSeconds": 3.75,
+      "longestDigitalSilenceSamples": 2,
+      "preloadedBytes": [
+        384044,
+        384044
+      ],
+      "sampleRate": 48000,
+      "source": "remote-loopback-preloaded"
     },
     "remoteLoopbackLinearCrossfade250ms": {
       "durationErrorSamples": 0,
