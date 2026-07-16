@@ -9,8 +9,12 @@ struct LibraryView: View {
             Group {
                 if model.isLoading && model.albums.isEmpty {
                     ProgressView("Loading music…")
-                } else if model.libraries.isEmpty {
-                    ContentUnavailableView("No music libraries", systemImage: "music.note.house")
+                } else if model.albums.isEmpty {
+                    ContentUnavailableView(
+                        "No albums found",
+                        systemImage: "music.note.house",
+                        description: Text("Pull to refresh or check this user's Jellyfin library access.")
+                    )
                 } else {
                     albumGrid
                 }
@@ -58,7 +62,7 @@ struct LibraryView: View {
             .padding()
         }
         .refreshable {
-            if let id = model.selectedLibraryID { try? await model.refreshAlbums(libraryID: id) }
+            try? await model.refreshAlbums(libraryID: model.selectedLibraryID)
         }
     }
 }

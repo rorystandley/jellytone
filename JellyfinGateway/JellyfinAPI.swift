@@ -62,17 +62,21 @@ struct JellyfinAPI: Sendable {
         }
     }
 
-    func albums(userID: String, libraryID: String) async throws -> [Album] {
+    func albums(userID: String, libraryID: String?) async throws -> [Album] {
+        var query = [
+            URLQueryItem(name: "userId", value: userID),
+            URLQueryItem(name: "IncludeItemTypes", value: "MusicAlbum"),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
+            URLQueryItem(name: "SortBy", value: "SortName"),
+            URLQueryItem(name: "SortOrder", value: "Ascending"),
+        ]
+        if let libraryID {
+            query.append(URLQueryItem(name: "ParentId", value: libraryID))
+        }
         let response = try await send(
-            path: ["Users", userID, "Items"],
-            query: [
-                URLQueryItem(name: "ParentId", value: libraryID),
-                URLQueryItem(name: "IncludeItemTypes", value: "MusicAlbum"),
-                URLQueryItem(name: "Recursive", value: "true"),
-                URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
-                URLQueryItem(name: "SortBy", value: "SortName"),
-                URLQueryItem(name: "SortOrder", value: "Ascending"),
-            ],
+            path: ["Items"],
+            query: query,
             as: ItemsResponse<Item>.self
         )
         return response.Items.map {
@@ -83,8 +87,9 @@ struct JellyfinAPI: Sendable {
 
     func tracks(userID: String, albumID: String) async throws -> [Track] {
         let response = try await send(
-            path: ["Users", userID, "Items"],
+            path: ["Items"],
             query: [
+                URLQueryItem(name: "userId", value: userID),
                 URLQueryItem(name: "ParentId", value: albumID),
                 URLQueryItem(name: "IncludeItemTypes", value: "Audio"),
                 URLQueryItem(name: "Recursive", value: "true"),

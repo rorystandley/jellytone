@@ -75,6 +75,25 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertEqual(libraries, [MusicLibrary(id: "music", name: "Music")])
     }
 
+    func testGlobalAlbumFallbackUsesCurrentItemsEndpoint() async throws {
+        MockURLProtocol.handler = { request in
+            let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+            XCTAssertEqual(components.path, "/jellyfin/Items")
+            XCTAssertEqual(components.queryItems?.first(where: { $0.name == "userId" })?.value, "user")
+            XCTAssertEqual(components.queryItems?.first(where: { $0.name == "IncludeItemTypes" })?.value, "MusicAlbum")
+            XCTAssertNil(components.queryItems?.first(where: { $0.name == "ParentId" }))
+            return Self.response(
+                for: request,
+                json: #"{"Items":[{"Id":"album","Name":"Synthetic Album","AlbumArtist":"Synthetic Artist"}]}"#
+            )
+        }
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com/jellyfin")),
+                              deviceID: "synthetic-device", token: "token", urlSession: makeSession())
+        let albums = try await api.albums(userID: "user", libraryID: nil)
+        XCTAssertEqual(albums.first?.name, "Synthetic Album")
+        XCTAssertEqual(albums.first?.artist, "Synthetic Artist")
+    }
+
     private func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]

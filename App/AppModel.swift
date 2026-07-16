@@ -70,10 +70,10 @@ final class AppModel: ObservableObject {
         if selectedLibraryID == nil || !libraries.contains(where: { $0.id == selectedLibraryID }) {
             selectedLibraryID = libraries.first?.id
         }
-        if let selectedLibraryID { try await refreshAlbums(libraryID: selectedLibraryID) }
+        try await refreshAlbums(libraryID: selectedLibraryID)
     }
 
-    func refreshAlbums(libraryID: String) async throws {
+    func refreshAlbums(libraryID: String?) async throws {
         guard let session, let api else { return }
         isLoading = true
         defer { isLoading = false }
