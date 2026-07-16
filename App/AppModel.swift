@@ -34,6 +34,7 @@ final class AppModel: ObservableObject {
     }
 
     func connect(server: String, username: String, password: String) async {
+        Diagnostics.event("connect_started")
         guard let serverURL = normalizedServerURL(server) else {
             errorMessage = APIError.invalidServerURL.localizedDescription
             return
@@ -45,6 +46,7 @@ final class AppModel: ObservableObject {
             let unauthenticated = JellyfinAPI(baseURL: serverURL, deviceID: deviceID)
             let info = try await unauthenticated.publicInfo()
             let authentication = try await unauthenticated.authenticate(username: username, password: password)
+            Diagnostics.event("authentication_succeeded")
             try KeychainTokenStore.save(authentication.token)
             let session = UserSession(
                 serverURL: serverURL,
@@ -60,13 +62,17 @@ final class AppModel: ObservableObject {
             persistProfile(session)
             try await refreshLibraries()
         } catch {
+            let failure = error as NSError
+            Diagnostics.event("connect_failed", ["code": failure.code, "domain": failure.domain])
             errorMessage = error.localizedDescription
         }
     }
 
     func refreshLibraries() async throws {
         guard let session, let api else { return }
+        Diagnostics.event("library_refresh_started")
         libraries = try await api.musicLibraries(userID: session.userID)
+        Diagnostics.event("music_views_loaded", ["count": libraries.count])
         if selectedLibraryID == nil || !libraries.contains(where: { $0.id == selectedLibraryID }) {
             selectedLibraryID = libraries.first?.id
         }
@@ -78,6 +84,7 @@ final class AppModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         albums = try await api.albums(userID: session.userID, libraryID: libraryID)
+        Diagnostics.event("albums_loaded", ["count": albums.count, "scoped": libraryID != nil])
     }
 
     func selectLibrary(_ id: String) async {
@@ -162,9 +169,14 @@ final class AppModel: ObservableObject {
                               serverName: profile.serverName, serverVersion: profile.serverVersion,
                               userID: profile.userID, username: profile.username,
                               accessToken: token, deviceID: profile.deviceID)
+        Diagnostics.event("session_restored")
         Task {
             do { try await refreshLibraries() }
-            catch { errorMessage = error.localizedDescription }
+            catch {
+                let failure = error as NSError
+                Diagnostics.event("restore_refresh_failed", ["code": failure.code, "domain": failure.domain])
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }

@@ -81,6 +81,8 @@ final class MinimumWorkingAppTests: XCTestCase {
             XCTAssertEqual(components.path, "/jellyfin/Items")
             XCTAssertEqual(components.queryItems?.first(where: { $0.name == "userId" })?.value, "user")
             XCTAssertEqual(components.queryItems?.first(where: { $0.name == "IncludeItemTypes" })?.value, "MusicAlbum")
+            XCTAssertEqual(components.queryItems?.first(where: { $0.name == "Limit" })?.value, "100")
+            XCTAssertEqual(components.queryItems?.first(where: { $0.name == "EnableTotalRecordCount" })?.value, "false")
             XCTAssertNil(components.queryItems?.first(where: { $0.name == "ParentId" }))
             return Self.response(
                 for: request,

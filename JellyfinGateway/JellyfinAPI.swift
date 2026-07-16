@@ -32,7 +32,7 @@ struct JellyfinAPI: Sendable {
     }
 
     func publicInfo() async throws -> PublicInfo {
-        try await send(path: ["System", "Info", "Public"], as: PublicInfo.self)
+        try await send(operation: "public_info", path: ["System", "Info", "Public"], as: PublicInfo.self)
     }
 
     func authenticate(username: String, password: String) async throws -> Authentication {
@@ -43,6 +43,7 @@ struct JellyfinAPI: Sendable {
             let User: User
         }
         let response = try await send(
+            operation: "authenticate",
             path: ["Users", "AuthenticateByName"],
             method: "POST",
             body: Body(Username: username, Pw: password),
@@ -53,6 +54,7 @@ struct JellyfinAPI: Sendable {
 
     func musicLibraries(userID: String) async throws -> [MusicLibrary] {
         let response = try await send(
+            operation: "music_views",
             path: ["Users", userID, "Views"],
             query: [URLQueryItem(name: "IncludeExternalContent", value: "false")],
             as: ItemsResponse<Item>.self
@@ -68,6 +70,8 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "IncludeItemTypes", value: "MusicAlbum"),
             URLQueryItem(name: "Recursive", value: "true"),
             URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
+            URLQueryItem(name: "Limit", value: "100"),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
             URLQueryItem(name: "SortBy", value: "SortName"),
             URLQueryItem(name: "SortOrder", value: "Ascending"),
         ]
@@ -75,6 +79,7 @@ struct JellyfinAPI: Sendable {
             query.append(URLQueryItem(name: "ParentId", value: libraryID))
         }
         let response = try await send(
+            operation: "albums",
             path: ["Items"],
             query: query,
             as: ItemsResponse<Item>.self
@@ -87,6 +92,7 @@ struct JellyfinAPI: Sendable {
 
     func tracks(userID: String, albumID: String) async throws -> [Track] {
         let response = try await send(
+            operation: "tracks",
             path: ["Items"],
             query: [
                 URLQueryItem(name: "userId", value: userID),
@@ -127,6 +133,7 @@ struct JellyfinAPI: Sendable {
     }
 
     private func send<Response: Decodable>(
+        operation: String,
         path: [String],
         query: [URLQueryItem] = [],
         method: String = "GET",
@@ -135,10 +142,11 @@ struct JellyfinAPI: Sendable {
         var request = URLRequest(url: try makeURL(path: path, query: query))
         request.httpMethod = method
         addAuthorization(to: &request)
-        return try await execute(request, as: type)
+        return try await execute(request, operation: operation, as: type)
     }
 
     private func send<Body: Encodable, Response: Decodable>(
+        operation: String,
         path: [String],
         method: String,
         body: Body,
@@ -149,16 +157,39 @@ struct JellyfinAPI: Sendable {
         request.httpBody = try JSONEncoder().encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         addAuthorization(to: &request)
-        return try await execute(request, as: type)
+        return try await execute(request, operation: operation, as: type)
     }
 
-    private func execute<Response: Decodable>(_ request: URLRequest, as type: Response.Type) async throws -> Response {
-        let (data, response) = try await urlSession.data(for: request)
+    private func execute<Response: Decodable>(
+        _ request: URLRequest,
+        operation: String,
+        as type: Response.Type
+    ) async throws -> Response {
+        Diagnostics.event("request_started", ["operation": operation])
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await urlSession.data(for: request)
+        } catch {
+            let failure = error as NSError
+            Diagnostics.event("request_failed", [
+                "code": failure.code,
+                "domain": failure.domain,
+                "operation": operation,
+            ])
+            throw error
+        }
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        Diagnostics.event("response_received", [
+            "bytes": data.count,
+            "operation": operation,
+            "status": http.statusCode,
+        ])
         guard 200..<300 ~= http.statusCode else { throw APIError.httpStatus(http.statusCode) }
         do {
             return try JSONDecoder().decode(type, from: data)
         } catch {
+            Diagnostics.event("response_decode_failed", ["bytes": data.count, "operation": operation])
             throw APIError.invalidPayload
         }
     }
