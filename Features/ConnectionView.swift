@@ -5,6 +5,7 @@ struct ConnectionView: View {
     @State private var server = ""
     @State private var username = ""
     @State private var password = ""
+    @State private var showingHTTPWarning = false
 
     var body: some View {
         NavigationStack {
@@ -25,7 +26,11 @@ struct ConnectionView: View {
                 }
 
                 Button {
-                    Task { await model.connect(server: server, username: username, password: password) }
+                    if URLComponents(string: server)?.scheme?.lowercased() == "http" {
+                        showingHTTPWarning = true
+                    } else {
+                        connect()
+                    }
                 } label: {
                     HStack {
                         Spacer()
@@ -36,6 +41,16 @@ struct ConnectionView: View {
                 .disabled(server.isEmpty || username.isEmpty || password.isEmpty || model.isLoading)
             }
             .navigationTitle("Jellyfin Audio")
+            .alert("HTTP is not encrypted", isPresented: $showingHTTPWarning) {
+                Button("Cancel", role: .cancel) {}
+                Button("Connect over Tailscale") { connect() }
+            } message: {
+                Text("Your password and music traffic are not protected by TLS. Continue only when this address is reached through your trusted Tailscale network.")
+            }
         }
+    }
+
+    private func connect() {
+        Task { await model.connect(server: server, username: username, password: password) }
     }
 }

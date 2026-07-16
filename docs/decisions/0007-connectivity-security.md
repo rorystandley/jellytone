@@ -82,6 +82,11 @@ Primary sources:
   `NSAllowsArbitraryLoads` and never a media-wide exception. Phase 1 must prove the
   exact iOS 18.4 behavior with `nscurl`, `URLSession`, IPv4, IPv6, `.local`, and a
   physical device before finalizing project configuration.
+- The Minimum Working App adds an `NSExceptionDomains` entry limited to `ts.net`
+  subdomains because ATS does not classify fully qualified Tailscale MagicDNS names
+  as local networking. An explicitly entered `http://` endpoint displays a warning
+  and requires confirmation before credentials are submitted. This does not permit
+  arbitrary HTTP, bypass certificate validation, or downgrade an HTTPS endpoint.
 - The app does not embed or manage Tailscale. UDP discovery is LAN/subnet scoped;
   Tailscale endpoints are manual URLs resolved through the connected VPN.
 
