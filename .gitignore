@@ -1,0 +1,5 @@
+/.build/
+/DerivedData/
+/JellyfinAudio.xcodeproj/
+*.xcuserstate
+xcuserdata/

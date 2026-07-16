@@ -11,10 +11,20 @@ ROOT = Path(__file__).resolve().parents[2]
 SELECTOR = ROOT / "tools" / "device-proof" / "select_device.py"
 
 
-def device(identifier: str, kind: str, model: str, paired: bool = True, developer: bool = True) -> dict:
+def device(
+    identifier: str,
+    kind: str,
+    model: str,
+    paired: bool = True,
+    developer: bool = True,
+    connected: bool = True,
+) -> dict:
     return {
         "identifier": identifier,
-        "connectionProperties": {"pairingState": "paired" if paired else "unpaired"},
+        "connectionProperties": {
+            "pairingState": "paired" if paired else "unpaired",
+            "tunnelState": "connected" if connected else "unavailable",
+        },
         "deviceProperties": {
             "developerModeStatus": "enabled" if developer else "disabled",
             "osVersionNumber": "26.5.2",
@@ -61,6 +71,13 @@ class SelectDeviceTests(unittest.TestCase):
         result, metadata = self.run_selector([
             device("unpaired", "iPhone", "Phone", paired=False),
             device("disabled", "iPad", "Tablet", developer=False),
+        ])
+        self.assertEqual(result.returncode, 1)
+        self.assertIsNone(metadata)
+
+    def test_rejects_disconnected_device(self) -> None:
+        result, metadata = self.run_selector([
+            device("disconnected", "iPhone", "Phone", connected=False),
         ])
         self.assertEqual(result.returncode, 1)
         self.assertIsNone(metadata)

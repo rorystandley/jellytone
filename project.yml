@@ -1,0 +1,70 @@
+name: JellyfinAudio
+options:
+  bundleIdPrefix: org.example.jellyfinaudio
+  deploymentTarget:
+    iOS: "18.4"
+  xcodeVersion: "26.6"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+    GENERATE_INFOPLIST_FILE: YES
+    PRODUCT_BUNDLE_IDENTIFIER: "$(APP_BUNDLE_ID)"
+    DEVELOPMENT_TEAM: "$(APP_TEAM_ID)"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  JellyfinAudio:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+      - Domain
+      - JellyfinGateway
+      - Playback
+      - Features
+    settings:
+      base:
+        PRODUCT_NAME: JellyfinAudio
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: App/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+  JellyfinAudioTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests/AppTests
+    dependencies:
+      - target: JellyfinAudio
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: "$(APP_BUNDLE_ID).tests"
+  JellyfinAudioUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - Tests/AppUITests
+    dependencies:
+      - target: JellyfinAudio
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: "$(APP_BUNDLE_ID).uitests"
+schemes:
+  JellyfinAudio:
+    build:
+      targets:
+        JellyfinAudio: all
+        JellyfinAudioTests: [test]
+    test:
+      targets:
+        - JellyfinAudioTests
+  JellyfinAudioUI:
+    build:
+      targets:
+        JellyfinAudio: all
+        JellyfinAudioUITests: [test]
+    test:
+      targets:
+        - JellyfinAudioUITests

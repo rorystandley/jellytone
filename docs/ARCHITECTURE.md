@@ -1,6 +1,6 @@
 # Architecture Plan
 
-Status: Pre-implementation architecture
+Status: Minimum Working App implementation in progress
 
 Last updated: 2026-07-16
 
@@ -40,6 +40,20 @@ state-ownership rules below.
 Versions and final persistence/project-generation choices require Phase 0
 decision records. UI and domain code must not depend on those replaceable
 details.
+
+## Current vertical slice
+
+The first runnable implementation keeps these boundaries as source folders in
+one generated application target. It includes AppShell composition, stable
+Domain models, a Keychain-backed JellyfinGateway, feature views, and one
+Playback controller. Persistence, downloads, extensions, and the full queue
+state machine remain future phase work.
+
+To shorten the path to a device-runnable app, the gateway currently implements
+only the required Jellyfin endpoints using `URLSession`. This is an interim
+adapter behind the gateway boundary, not a reversal of the official SDK
+decision. The replacement path is recorded in
+[ADR 0014](decisions/0014-minimum-working-app-sequencing.md).
 
 ## Module boundaries
 

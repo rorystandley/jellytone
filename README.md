@@ -1,9 +1,10 @@
 # Jellyfin iOS Music Player
 
-This repository is in Phase 0 product proof. It will become a native iPhone and
-iPad music-only client for personal Jellyfin servers, built and validated by AI
-coding agents. Production application scaffolding has intentionally not started
-until the Phase 0 evidence gate passes.
+This repository is building a native iPhone and iPad music-only client for
+personal Jellyfin servers. The current priority is a Minimum Working App that
+connects, authenticates, browses music, and plays a track. Earlier Phase 0 proof
+work remains as evidence and risk documentation, but exhaustive hardware gates
+no longer block the first usable vertical slice.
 
 Start here:
 
@@ -14,11 +15,31 @@ Start here:
 3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) defines state ownership, module
    boundaries, data flows, and the decisions that Phase 0 must prove.
 
-Implementation is active in Phase 0 of the product plan. Agents must not
-scaffold the production application before the playback, connectivity, offline,
-security, and automation decisions assigned to that phase have reproducible
-evidence.
+Implementation is active on the connected-playback vertical slice defined by
+the current delivery override in the product plan. Security and privacy
+decisions remain mandatory; deferred device and ecosystem proofs are not
+silently treated as passing.
 
 Current execution status and reproducible proof entry points are tracked in
 [docs/EXECUTION_CHECKLIST.md](docs/EXECUTION_CHECKLIST.md) and
 [docs/evidence/phase-0/README.md](docs/evidence/phase-0/README.md).
+
+## Run the app
+
+Generate the Xcode project and run the local unit/simulator gate:
+
+```sh
+./scripts/bootstrap.sh
+./scripts/test.sh
+```
+
+Open `JellyfinAudio.xcodeproj` to run in Xcode, or connect an unlocked, paired
+iPhone and install a signed development build directly:
+
+```sh
+./scripts/deploy-app.sh --launch
+```
+
+Enter the full base URL of a Jellyfin server, including any reverse-proxy path,
+then sign in. The current slice lists music libraries and albums, opens album
+tracks, and streams a selected track with play/pause and Now Playing info.

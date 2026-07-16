@@ -4,7 +4,7 @@ Status: Planning authority
 
 Last updated: 2026-07-16
 
-Implementation status: Phase 0 proof and decision records in progress
+Implementation status: Minimum Working App vertical slice in progress
 
 This document is the product and delivery source of truth for the repository. All
 implementation agents must read it before planning or changing code. If a task
@@ -260,6 +260,23 @@ server contracts change.
 
 Durations are estimates for sequencing, not exit criteria. Agents progress only
 when the phase gate is satisfied.
+
+### Current delivery override: Minimum Working App
+
+The product owner has prioritized a usable vertical slice over completing every
+Phase 0 hardware proof before application scaffolding. Existing Phase 0 evidence
+and open risks remain valid, but interruption restoration, background-download
+relaunch, Tailscale, CarPlay, accessory, and endurance gates are deferred until
+the corresponding production feature exists. The immediate acceptance path is:
+
+- connect to a manually entered Jellyfin server;
+- authenticate without persisting the password;
+- browse a music library, albums, and tracks; and
+- start, pause, and resume real audio on simulator or device.
+
+This override changes sequencing, not the security boundary: tokens remain in
+Keychain, TLS is not weakened, private server data is not committed or logged,
+and the application remains music-only.
 
 ### Phase 0: Product proof and decision records
 

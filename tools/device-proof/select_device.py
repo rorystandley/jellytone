@@ -21,6 +21,8 @@ for device in devices:
         continue
     if connection.get("pairingState") != "paired":
         continue
+    if connection.get("tunnelState") != "connected":
+        continue
     if properties.get("developerModeStatus") != "enabled":
         continue
     if hardware.get("reality") != "physical" or hardware.get("deviceType") not in {"iPhone", "iPad"}:

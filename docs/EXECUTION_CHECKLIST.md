@@ -19,6 +19,10 @@ for required real-device evidence.
   support it.
 - Evidence index: [Phase 0 README](evidence/phase-0/README.md)
 
+The remaining unchecked Phase 0 rows are deferred by the product owner's
+Minimum Working App sequencing decision; they remain open risks rather than a
+blocker to scaffolding the connected vertical slice.
+
 ## Phase 1: Deterministic foundation
 
 - [ ] A clean checkout bootstraps and runs the complete foundation suite with
