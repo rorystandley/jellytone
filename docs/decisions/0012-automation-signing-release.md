@@ -47,7 +47,7 @@ Secrets are injected at runtime and logs are redacted.
 redacted environment probe, and `.github/workflows/phase0.yml` establish the
 Phase 0 policy. The isolated `tools/device-proof` lane additionally proves a
 clean simulator test, development-signed build, and paired-device installation;
-The strengthened lane passes nine simulator XCTest cases and two summary-contract
+The strengthened lane passes ten simulator XCTest cases and five summary-contract
 tests, uses a neutral proof bundle prefix, and validates manifest-backed download
 state and exactly-once acknowledgement logic. Its single device launch remains
 blocked by the locked phone. Later release gates must prove

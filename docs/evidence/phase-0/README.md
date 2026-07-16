@@ -10,6 +10,7 @@ Evidence is grouped by independently reproducible workstream:
 - `connectivity/`: Jellyfin contracts, SDK, authentication, endpoints, and TLS.
 - `playback/`: codec, Direct Play/transcode, transition, and audio-system proofs.
 - `automation/`: disposable servers, fixtures, generation, CI, and validation.
+  It includes a complete fresh-clone validation record.
 - `platform/`: simulator, device, signing, background, and entitlement status.
 - `device/`: isolated signed harness, simulator logic, device install, and
   blocked runtime capability procedures.

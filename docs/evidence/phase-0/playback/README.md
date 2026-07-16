@@ -1,6 +1,6 @@
 # Phase 0 playback proof
 
-Status: partial proof; real-device and versioned Jellyfin-server gates remain open.
+Status: server delivery matrix proven; real-device playback and transition gates remain open.
 
 ## Reproduce host evidence
 

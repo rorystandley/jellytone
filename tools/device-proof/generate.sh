@@ -13,22 +13,20 @@ version=$($XCODEGEN_BIN --version | awk '{print $NF}')
   echo "XcodeGen 2.46.0 required, found $version" >&2
   exit 2
 }
-conflict_copy=$(find "$HARNESS" -maxdepth 2 \
-  \( -name 'DeviceProof [0-9]*.xcodeproj' -o -name 'Info [0-9]*.plist' \) \
-  -print -quit)
-if [[ -n "$conflict_copy" ]]; then
-  echo "unexpected generated conflict copy: $conflict_copy" >&2
-  echo "remove it before regenerating the isolated DeviceProof project" >&2
-  exit 2
-fi
-resources="$HARNESS/GeneratedResources"
-rm -rf "$resources"
-mkdir -p "$resources"
+case "$ARTIFACTS" in
+  "$ROOT"/*)
+    echo "device-proof generated artifacts must be outside the repository" >&2
+    exit 2
+    ;;
+esac
+rm -rf "$GENERATED_RESOURCES"
+mkdir -p "$GENERATED_RESOURCES"
 for fixture in tone-a.mp3 tone-a.m4a tone-a-alac.m4a tone-a.flac tone-a-vorbis.ogg tone-a-opus.ogg tone-a-opus.mp4; do
-  cp "$ROOT/Tests/Fixtures/Audio/$fixture" "$resources/$fixture"
+  cp "$ROOT/Tests/Fixtures/Audio/$fixture" "$GENERATED_RESOURCES/$fixture"
 done
-cp "$ROOT/Tests/Fixtures/Audio/manifest.json" "$resources/proof-media-manifest.json"
-xattr -cr "$resources"
+cp "$ROOT/Tests/Fixtures/Audio/manifest.json" "$GENERATED_RESOURCES/proof-media-manifest.json"
+xattr -cr "$GENERATED_RESOURCES"
+export DEVICE_PROOF_GENERATED_RESOURCES="$GENERATED_RESOURCES"
 rm -rf "$PROJECT"
 "$XCODEGEN_BIN" generate --spec "$HARNESS/project.yml" --project "$ARTIFACTS" --project-root "$HARNESS"
 [[ "$(plutil -extract NSAppTransportSecurity.NSAllowsLocalNetworking raw -o - "$HARNESS/Config/Info.plist")" == "true" ]]
@@ -37,11 +35,9 @@ if plutil -extract NSAppTransportSecurity.NSAllowsArbitraryLoads raw -o - "$HARN
   echo "unsafe broad ATS setting generated" >&2
   exit 2
 fi
-conflict_copy=$(find "$HARNESS" -maxdepth 2 \
-  \( -name 'DeviceProof [0-9]*.xcodeproj' -o -name 'Info [0-9]*.plist' \) \
-  -print -quit)
-if [[ -n "$conflict_copy" ]]; then
-  echo "generation created unexpected conflict copy: $conflict_copy" >&2
+resource_count=$(find "$GENERATED_RESOURCES" -maxdepth 1 -type f | wc -l | tr -d ' ')
+[[ "$resource_count" == "8" ]] || {
+  echo "expected exactly eight isolated DeviceProof resources, found $resource_count" >&2
   exit 2
-fi
-echo "generated isolated DeviceProof project with XcodeGen $version"
+}
+echo "generated isolated DeviceProof project with XcodeGen $version outside the repository"

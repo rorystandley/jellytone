@@ -27,6 +27,10 @@ tools/phase0/jellyfin.sh verify
 tools/phase0/probe-environment.sh
 ```
 
+The full gate has also passed from a fresh clone; see
+[`clean-checkout-validation.md`](clean-checkout-validation.md) for the exact
+command, commit, results, and limitations.
+
 The first command is the combined local gate and requires both Xcode and a
 running Docker daemon. The shared core runs ShellCheck, evidence-validator
 regression tests, deterministic synthetic-library generation, connectivity

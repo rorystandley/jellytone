@@ -14,7 +14,11 @@ Run the complete agent-operated lane:
 Individual noninteractive entry points are `generate.sh`, `test.sh`, `build.sh`,
 `install.sh`, `launch.sh`, `collect.sh`, and `privacy-scan.sh`. The complete run
 starts an ephemeral HTTP server on the active Mac LAN interface; its address is
-kept only in ignored runtime state. The app permits only ATS local networking,
+kept only in temporary runtime state outside the repository. Generated Xcode
+projects, bundled proof resources, signing selections, build products, and logs
+also stay in a checkout-keyed temporary directory outside the File Provider
+tree, preventing sync-conflict copies from entering or breaking the gate. The
+app permits only ATS local networking,
 not arbitrary loads or certificate bypasses. XcodeGen emits and the generation
 gate verifies `NSAllowsLocalNetworking`; the signed app also declares only the
 `audio` background mode. A fresh run clears prior event evidence before autorun
@@ -35,7 +39,7 @@ through suspension/relaunch, locked-screen playback duration, accessory remote
 commands, Bluetooth/AirPlay route behavior, and acoustic transition quality need
 the corresponding agent-operated hardware action and must remain open otherwise.
 
-As of 2026-07-16T11:29:33Z, nine simulator XCTest cases, two deterministic
+As of 2026-07-16T11:29:33Z, ten simulator XCTest cases, five deterministic
 summary-contract tests, a clean signed arm64 build, generated
 transport/background settings, privacy scanning, and device installation pass.
 The single bounded launch attempt is still blocked by CoreDevice 10002 because

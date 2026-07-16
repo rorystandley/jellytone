@@ -3,11 +3,14 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HARNESS="$ROOT/Prototypes/DeviceProof"
-ARTIFACTS="$ROOT/tools/device-proof/.artifacts"
+artifact_key=$(printf '%s' "$ROOT" | shasum -a 256 | awk '{print substr($1, 1, 12)}')
+ARTIFACTS="${DEVICE_PROOF_ARTIFACTS:-${TMPDIR:-/tmp}/jellyfin-ios-audio-device-proof-$artifact_key}"
+mkdir -p "$ARTIFACTS"
+ARTIFACTS="$(cd "$ARTIFACTS" && pwd -P)"
 DERIVED="$ARTIFACTS/Derived"
 PROJECT="$ARTIFACTS/DeviceProof.xcodeproj"
-export ROOT HARNESS ARTIFACTS DERIVED PROJECT
-mkdir -p "$ARTIFACTS"
+GENERATED_RESOURCES="$ARTIFACTS/GeneratedResources"
+export ROOT HARNESS ARTIFACTS DERIVED PROJECT GENERATED_RESOURCES
 
 redact_log() {
   local input="$1" output="$2"

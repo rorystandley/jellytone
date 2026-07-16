@@ -61,7 +61,7 @@ usernames, IDs, paths, item names, codes, secrets, and tokens.
 |---|---|---|---|
 | SDK 2.1.0 generated from 10.11 may differ on unexercised 10.10.7 APIs | Phase 2 JellyfinGateway | Expand contracts for every consumed endpoint during implementation | Do not advertise an untested API surface |
 | Local HTTP route classification may race network/VPN changes | Phase 1 JellyfinGateway | Device tests with path changes before auth and requests | HTTPS-only onboarding |
-| Paired iPhone 13 lacks a signed connectivity harness | Phase 0 platform / Phase 1 foundation | Build/sign a URLSession harness; run minimum/current OS ATS cases | HTTPS-only; no broad ATS exception |
+| Signed iPhone harness has no runtime connectivity result because launch is blocked while the device is locked | Phase 0 platform | Unlock, rebuild, and run the bounded URLSession/ATS device procedure | HTTPS-only; no broad ATS exception |
 | Self-signed and privately issued certificates | Phase 2 onboarding UX | Explain platform trust remediation without bypass | Reject connection; use trusted reverse proxy or Serve HTTPS |
 | Cross-origin proxy could mimic metadata except opaque ID | Phase 1 JellyfinGateway | Preserve first verified ID and require exact unauthenticated match before credentials | Block endpoint association |
 | UDP discovery and Local Network prompt not device-tested | Phase 2 connected slice | Device/simulator permission and subnet tests | Manual full URL |

@@ -21,7 +21,7 @@ targets:
     sources:
       - Sources
     resources:
-      - path: GeneratedResources
+      - path: "${DEVICE_PROOF_GENERATED_RESOURCES}"
     settings:
       base:
         PRODUCT_NAME: DeviceProof
