@@ -1,0 +1,62 @@
+{
+  "capturedAt": "2026-07-16T12:52:23Z",
+  "command": "python3 tools/playback/validate_session_order.py",
+  "environment": {
+    "clock": "event-order-only",
+    "runtime": "Python standard library"
+  },
+  "events": [
+    {
+      "event": "start",
+      "session": "synthetic-session-a"
+    },
+    {
+      "event": "progress",
+      "reason": "endpoint-failover",
+      "session": "synthetic-session-a"
+    },
+    {
+      "event": "stop",
+      "reason": "endpoint-failover",
+      "session": "synthetic-session-a"
+    },
+    {
+      "event": "start",
+      "session": "synthetic-session-b"
+    },
+    {
+      "event": "progress",
+      "reason": "queue-replacement",
+      "session": "synthetic-session-b"
+    },
+    {
+      "event": "stop",
+      "reason": "queue-replacement",
+      "session": "synthetic-session-b"
+    },
+    {
+      "event": "start",
+      "session": "synthetic-session-c"
+    }
+  ],
+  "limitations": [
+    "Prototype ordering invariant only; no Jellyfin server or AVFoundation player was contacted."
+  ],
+  "owner": {
+    "phase": "Phase 0",
+    "workstream": "playback"
+  },
+  "passed": true,
+  "privacy": {
+    "committedEvidenceContainsSecrets": false,
+    "notes": [
+      "Synthetic media and loopback transports only."
+    ],
+    "privateServerDataPersisted": false,
+    "redacted": true
+  },
+  "proofId": "phase0-playback-session-order",
+  "schemaVersion": 1,
+  "scope": "prototype ordering invariant; no Jellyfin server contacted",
+  "status": "pass"
+}

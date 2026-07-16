@@ -1,0 +1,16 @@
+name: Phase0GenerationProbe
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: "18.4"
+targets:
+  Phase0GenerationProbe:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jellyfin.phase0.generation-probe
+        CODE_SIGNING_ALLOWED: NO
+        GENERATE_INFOPLIST_FILE: YES

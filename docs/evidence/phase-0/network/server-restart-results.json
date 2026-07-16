@@ -1,0 +1,34 @@
+{
+  "authenticatedRequestSent": false,
+  "capturedAt": "2026-07-16T11:40:52Z",
+  "command": "PHASE0_NETWORK_PROVE_RESTART=1 tools/network-lab/run.sh",
+  "credentialsPersisted": false,
+  "disposableServerStopped": true,
+  "environment": {
+    "runtime": "docker-compose-loopback",
+    "upstream": "digest-pinned-disposable-jellyfin-current"
+  },
+  "evidenceDate": "2026-07-16",
+  "limitation": "This host-container proof does not replace iOS background playback recovery evidence.",
+  "limitations": [
+    "This host-container proof does not replace iOS background playback recovery evidence."
+  ],
+  "owner": {
+    "phase": "Phase 0",
+    "workstream": "network"
+  },
+  "privacy": {
+    "committedEvidenceContainsSecrets": false,
+    "privateServerDataPersisted": false,
+    "redacted": true
+  },
+  "proofId": "phase0-disposable-server-restart",
+  "publicIdentityStableAfterRestart": true,
+  "result": "PASS",
+  "schemaVersion": 1,
+  "serverAddressPersisted": false,
+  "serverIdentifierPersisted": false,
+  "serverRestartedAndReady": true,
+  "status": "pass",
+  "unavailableClassifiedAsTransportFailure": true
+}

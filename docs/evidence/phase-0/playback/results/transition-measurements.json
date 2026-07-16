@@ -1,0 +1,85 @@
+{
+  "acceptance": {
+    "durationErrorSamplesMax": 1,
+    "longestDigitalSilenceSamplesMax": 4
+  },
+  "capturedAt": "2026-07-16T12:52:23Z",
+  "command": "python3 tools/playback/render_transitions.py",
+  "environment": {
+    "renderer": "FFmpeg deterministic PCM render",
+    "sampleRate": 48000
+  },
+  "limitations": [
+    "Sample-domain fixture rendering is not AVPlayer acoustic, background, route, or device transition evidence."
+  ],
+  "owner": {
+    "phase": "Phase 0",
+    "workstream": "playback"
+  },
+  "privacy": {
+    "committedEvidenceContainsSecrets": false,
+    "notes": [
+      "Synthetic media and loopback transports only."
+    ],
+    "privateServerDataPersisted": false,
+    "redacted": true
+  },
+  "proofId": "phase0-playback-transition-measurements",
+  "results": {
+    "localLinearCrossfade250ms": {
+      "durationErrorSamples": 0,
+      "durationSeconds": 3.75,
+      "expectedDurationSeconds": 3.75,
+      "file": "transition-local-crossfade-250ms.wav",
+      "longestDigitalSilenceSamples": 2,
+      "sampleRate": 48000
+    },
+    "localPreparedHardCut": {
+      "durationErrorSamples": 0,
+      "durationSeconds": 4.0,
+      "expectedDurationSeconds": 4.0,
+      "file": "transition-local-hard.wav",
+      "longestDigitalSilenceSamples": 2,
+      "sampleRate": 48000
+    },
+    "remoteLoopbackLinearCrossfade250ms": {
+      "durationErrorSamples": 0,
+      "durationSeconds": 3.75,
+      "expectedDurationSeconds": 3.75,
+      "file": "transition-remote-crossfade-250ms.wav",
+      "longestDigitalSilenceSamples": 2,
+      "preload": [
+        {
+          "bytes": 384044,
+          "file": "tone-a.wav"
+        },
+        {
+          "bytes": 384044,
+          "file": "tone-b.wav"
+        }
+      ],
+      "sampleRate": 48000
+    },
+    "remoteLoopbackPreparedHardCut": {
+      "durationErrorSamples": 0,
+      "durationSeconds": 4.0,
+      "expectedDurationSeconds": 4.0,
+      "file": "transition-remote-hard.wav",
+      "longestDigitalSilenceSamples": 2,
+      "preload": [
+        {
+          "bytes": 384044,
+          "file": "tone-a.wav"
+        },
+        {
+          "bytes": 384044,
+          "file": "tone-b.wav"
+        }
+      ],
+      "sampleRate": 48000
+    }
+  },
+  "schemaVersion": 1,
+  "scope": "deterministic-render-algorithm-not-device-output",
+  "status": "pass"
+}

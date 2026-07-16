@@ -1,0 +1,52 @@
+name: DeviceProof
+options:
+  bundleIdPrefix: org.example.phase0
+  deploymentTarget:
+    iOS: "18.4"
+  xcodeVersion: "26.6"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    GENERATE_INFOPLIST_FILE: NO
+    CODE_SIGN_STYLE: Automatic
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1
+    PRODUCT_BUNDLE_IDENTIFIER: "$(DEVICE_PROOF_BUNDLE_ID)"
+    DEVELOPMENT_TEAM: "$(DEVICE_PROOF_TEAM_ID)"
+    INFOPLIST_FILE: "${HARNESS}/Config/Info.plist"
+targets:
+  DeviceProof:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    resources:
+      - path: GeneratedResources
+    settings:
+      base:
+        PRODUCT_NAME: DeviceProof
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    postBuildScripts:
+      - name: Strip file-provider metadata before signing
+        basedOnDependencyAnalysis: false
+        script: |
+          /usr/bin/xattr -cr "${TARGET_BUILD_DIR}/${WRAPPER_NAME}"
+  DeviceProofTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - ../../Tests/Phase0Device
+    dependencies:
+      - target: DeviceProof
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: "$(DEVICE_PROOF_BUNDLE_ID).tests"
+schemes:
+  DeviceProof:
+    build:
+      targets:
+        DeviceProof: all
+        DeviceProofTests: [test]
+    test:
+      targets:
+        - DeviceProofTests

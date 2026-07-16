@@ -1,0 +1,52 @@
+name: Phase 0 automation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  apple-frameworks:
+    name: Apple frameworks and simulator gate
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install portable Phase 0 prerequisites
+        run: brew install ffmpeg shellcheck
+      - name: Record proof-lab prerequisite versions
+        run: |
+          ffmpeg -version | head -1
+          shellcheck --version
+      - name: Run shared and Apple-hosted validation
+        run: tools/phase0/validate.sh apple
+      - name: Reject generated-artifact drift
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all)"
+
+  linux-container-contracts:
+    name: Linux containers, network lab, and live contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install portable Phase 0 prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg jq shellcheck uuid-runtime
+      - name: Record proof-lab prerequisite versions
+        run: |
+          ffmpeg -version | head -1
+          shellcheck --version
+      - name: Prove Docker daemon availability
+        run: docker info
+      - name: Run shared and Linux container validation
+        run: tools/phase0/validate.sh linux
+      - name: Reject generated-artifact drift
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all)"

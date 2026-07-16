@@ -1,0 +1,81 @@
+# Roadmap Execution Checklist
+
+Status: Active
+
+Source of truth: [PRODUCT_PLAN.md](../PRODUCT_PLAN.md)
+
+This file tracks execution evidence without replacing the product plan. A phase
+may be checked only when every exit-gate statement below is supported by a
+reproducible command or agent-operable evidence record. External dependencies
+remain unchecked and explicitly blocked; simulator evidence does not substitute
+for required real-device evidence.
+
+## Phase 0: Product proof and decision records
+
+- [ ] Every proof has a reproducible command or agent-operable procedure.
+- [ ] Results and limitations are committed under `docs/evidence/phase-0/`.
+- [ ] Every open risk has an owner phase and fallback behavior.
+- [ ] No critical capability is accepted solely because an API appears to
+  support it.
+- Evidence index: [Phase 0 README](evidence/phase-0/README.md)
+
+## Phase 1: Deterministic foundation
+
+- [ ] A clean checkout bootstraps and runs the complete foundation suite with
+  one documented command.
+- [ ] Regenerating the Xcode project produces no unexplained diff.
+- [ ] CI and local scripts execute the same gates.
+- [ ] Secrets and private server data cannot enter fixtures or logs.
+
+## Phase 2: Connected playback vertical slice
+
+- [ ] The vertical slice passes unit, contract, integration, UI, simulator, and
+  real-device playback tests.
+- [ ] Termination and relaunch restore the queue and position.
+- [ ] The test server records correct start, progress, and stop behavior.
+- [ ] One display and playback model drives both app and system Now Playing.
+
+## Phase 3: Complete music library experience
+
+- [ ] Fixtures cover large libraries, compilations, multi-disc albums, missing
+  artwork, duplicate names, unusual Unicode, and malformed metadata.
+- [ ] Every write operation has success, retry, conflict, and expired-auth tests.
+- [ ] Screenshot and accessibility suites cover every primary destination at
+  compact and regular widths.
+
+## Phase 4: Premium playback
+
+- [ ] Automated waveform fixtures measure unintended transition gaps and overlap.
+- [ ] Eight-hour locked-screen and network-transition scenarios pass on real
+  hardware.
+- [ ] Queue replacement cannot leave an orphan Jellyfin playback session.
+- [ ] Playback behavior is consistent across app, Lock Screen, accessories, and
+  AirPlay.
+
+## Phase 5: Offline and network resilience
+
+- [ ] Download tests cover suspension, eviction, relaunch, cancellation, range
+  support, content replacement, insufficient storage, and logout.
+- [ ] Offline cold launch passes with server and VPN unavailable.
+- [ ] Reconnection cannot double-apply playlist, favourite, or playback changes.
+- [ ] Corrupt and partial files are rejected before playback.
+
+## Phase 6: Apple ecosystem and release UX
+
+- [ ] CarPlay passes simulator and real compatible hardware checks when the
+  entitlement is available.
+- [ ] Intents and widgets work from cold, warm, authenticated, restoring, and
+  offline states.
+- [ ] Extensions use stable snapshots and commands instead of application-model
+  access.
+- [ ] Platform surfaces expose no credentials or private server details.
+
+## Phase 7: Autonomous beta and release hardening
+
+- [ ] Every 1.0 scope row traces to passing tests or captured agent-operated
+  evidence.
+- [ ] Release quality targets pass, or an explicit documented exception narrows
+  advertised behavior.
+- [ ] A release build is reproducible from a clean checkout.
+- [ ] External Apple statuses are recorded accurately without claiming release
+  before Apple acceptance.

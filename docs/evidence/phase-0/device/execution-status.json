@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "proofId": "phase0-device-execution-status",
+  "capturedAt": "2026-07-16T11:29:33Z",
+  "command": "./tools/device-proof/test.sh && ./tools/device-proof/build.sh && ./tools/device-proof/install.sh && ./tools/device-proof/launch.sh <ephemeral-redacted-lan-url> && ./tools/device-proof/privacy-scan.sh",
+  "environment": {"platform": "physical iOS device", "harnessType": "isolated non-production proof"},
+  "owner": {"phase": "Phase 0", "workstream": "device"},
+  "status": "blocked",
+  "limitations": ["The signed harness installed, but SpringBoard rejected the single bounded launch because the paired device was locked; no runtime capability evidence was collected."],
+  "harness": "isolated-phase0-device-proof",
+  "device": {
+    "identifier": "redacted",
+    "model": "iPhone 13",
+    "os": "iOS 26.5.2"
+  },
+  "results": [
+    {
+      "command": "./tools/device-proof/test.sh",
+      "status": "pass",
+      "evidence": "10 XCTest cases, 0 failures; covers redaction/reset, manifest payload validation, distinct concurrent staging paths, restoration state, monotonic phase handling, duplicate acknowledgement rejection, and bounded cancellation/resume policy"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s Tests/Phase0Device -p 'test_*.py' -v",
+      "status": "pass",
+      "evidence": "5 summary-contract tests, 0 failures; missing restoration, contradictory failure events, incomplete remote-codec evidence, and duplicate delegate acknowledgement all fail the summary"
+    },
+    {
+      "command": "./tools/device-proof/build.sh",
+      "status": "pass",
+      "evidence": "clean arm64 iOS 18.4 development-signed build using local signing state and neutral org.example proof bundle prefix; built Info.plist proves UIBackgroundModes=audio and NSAllowsLocalNetworking=true with no broad ATS override"
+    },
+    {
+      "command": "./tools/device-proof/install.sh",
+      "status": "pass",
+      "evidence": "devicectl installed the signed application on paired hardware"
+    },
+    {
+      "command": "./tools/device-proof/launch.sh <ephemeral-redacted-lan-url>",
+      "status": "blocked",
+      "reason": "CoreDevice 10002; one bounded launch attempt after a clean strengthened build/install was denied because the paired device was locked and could not be unlocked noninteractively; the final strengthened build was installed without repeating the prohibited launch loop"
+    },
+    {
+      "command": "./tools/device-proof/collect.sh",
+      "status": "blocked",
+      "reason": "CoreDevice 7000 reported that the expected device-proof-events.jsonl node did not exist; the blocked launch never created runtime evidence"
+    },
+    {
+      "command": "./tools/device-proof/privacy-scan.sh",
+      "status": "pass",
+      "evidence": "configured source/evidence targets passed the repository credential, private-endpoint, device-identifier, broad-ATS, and certificate-bypass pattern scan; runtime build/install logs were redacted"
+    }
+  ],
+  "capability_status": {
+    "background_audio": "blocked_on_device_launch",
+    "remote_commands": "blocked_on_device_launch",
+    "route_changes": "blocked_on_device_launch_and_external_route",
+    "background_download": "blocked_on_device_launch",
+    "ats_local_connectivity": "blocked_on_device_launch_and_local_network_consent",
+    "codec_preparation": "blocked_on_device_launch"
+  },
+  "harness_status": {
+    "required_local_codec_paths": ["mp3", "aac", "alac", "flac", "vorbis_ogg", "opus_ogg"],
+    "required_remote_http_codec_paths": ["mp3", "aac", "alac", "flac", "vorbis_ogg", "opus_ogg"],
+    "supplemental_codec_paths": ["opus_mp4"],
+    "background_manifest_task_count": 3,
+    "background_validation": ["http_status", "content_type", "byte_count", "sha256", "atomic_publication", "reopen", "avfoundation_audio_probe", "exactly_once_acknowledgement"],
+    "cancellation_resume": "operator_device_procedure_required"
+  },
+  "privacy": {
+    "redacted": true,
+    "committedEvidenceContainsSecrets": false,
+    "privateServerDataPersisted": false,
+    "omitted": ["device identifier", "device name", "team identifier", "provisioning profile", "runtime endpoint"],
+    "synthetic_media_only": true,
+    "portal_changes": false,
+    "entitlement_requests": false,
+    "arbitrary_ats_loads": false,
+    "certificate_bypass": false
+  },
+  "operation_timeout_seconds": 30
+}

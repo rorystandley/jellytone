@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "proofId": "phase0-playback-source-policy",
+  "capturedAt": "2026-07-16T12:52:23Z",
+  "command": "python3 tools/playback/run_codec_matrix.py",
+  "environment": {"policyBasis": "deterministic host codec matrix and documented provisional iOS baseline"},
+  "owner": {"phase": "Phase 0", "workstream": "playback"},
+  "status": "pass",
+  "limitations": ["This is a provisional selection policy, not an iOS/iPadOS device capability claim."],
+  "privacy": {"redacted": true, "committedEvidenceContainsSecrets": false, "privateServerDataPersisted": false, "notes": ["Contains codec policy classifications only."]},
+  "policyStatus": "provisional-until-iOS-device-matrix",
+  "minimumOSAssumption": "iOS 18.4",
+  "rows": [
+    {"codec":"mp3","container":"mp3","directPlayCandidate":true,"fallback":"AAC transcode"},
+    {"codec":"aac","container":"m4a/mp4","directPlayCandidate":true,"fallback":"AAC transcode"},
+    {"codec":"alac","container":"m4a/mp4","directPlayCandidate":true,"fallback":"AAC transcode"},
+    {"codec":"flac","container":"flac","directPlayCandidate":true,"fallback":"AAC transcode"},
+    {"codec":"vorbis","container":"ogg","directPlayCandidate":true,"minimumOS":"iOS 18.4","fallback":"AAC transcode"},
+    {"codec":"opus","container":"ogg","directPlayCandidate":true,"minimumOS":"iOS 18.4","fallback":"AAC transcode"},
+    {"codec":"opus","container":"mp4","directPlayCandidate":true,"minimumOS":"iOS 17","fallback":"AAC transcode"}
+  ],
+  "constraints": [
+    "A successful host AVURLAsset probe is evidence only, not an iOS device guarantee.",
+    "Route channel count, quality policy, constrained or expensive network policy, and failed asset preparation may force transcode.",
+    "Direct Play is not selected from filename extension alone; container, codec, stream properties, OS and a prepared playable asset must agree."
+  ],
+  "transcodeRequest": {
+    "preferredCodec":"aac",
+    "preferredContainer":"m4a-or-HLS-as-proven-against-supported-Jellyfin",
+    "serverContractStatus":"all-six-required-original-and-requested-aac-transcode-deliveries-pass-on-10.11.11-and-10.10.7-device-decode-open"
+  }
+}

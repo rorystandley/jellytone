@@ -1,0 +1,28 @@
+{
+  "fixturePolicy": "synthetic-redacted-no-private-data",
+  "declaredServerVersion": "10.11.11",
+  "publicSystemInfo": {
+    "LocalAddress": "http://192.0.2.10:8096/music",
+    "ServerName": "Synthetic Current Server",
+    "Version": "10.11.11",
+    "ProductName": "Jellyfin Server",
+    "OperatingSystem": "SyntheticOS",
+    "Id": "11111111111111111111111111111111",
+    "StartupWizardCompleted": true
+  },
+  "authenticationResult": {
+    "User": {"Name": "synthetic-user", "ServerId": "11111111111111111111111111111111", "Id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+    "SessionInfo": {"Id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+    "AccessToken": "synthetic-current-token-not-a-secret",
+    "ServerId": "11111111111111111111111111111111"
+  },
+  "quickConnectResult": {
+    "Authenticated": false,
+    "Secret": "synthetic-current-secret",
+    "Code": "ABC123",
+    "Authentication": null
+  },
+  "audioItems": [
+    {"Name": "Synthetic Track", "Id": "cccccccccccccccccccccccccccccccc", "MediaType": "Audio", "Type": "Audio", "RunTimeTicks": 1800000000, "Container": "flac"}
+  ]
+}
