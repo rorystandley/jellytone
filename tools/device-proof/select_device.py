@@ -7,6 +7,11 @@ from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument("inventory", type=Path)
 parser.add_argument("--metadata-output", type=Path)
+parser.add_argument(
+    "--allow-disconnected",
+    action="store_true",
+    help="select an eligible paired device before CoreDevice creates its tunnel",
+)
 arguments = parser.parse_args()
 
 inventory = json.loads(arguments.inventory.read_text(encoding="utf-8"))
@@ -21,7 +26,7 @@ for device in devices:
         continue
     if connection.get("pairingState") != "paired":
         continue
-    if connection.get("tunnelState") != "connected":
+    if not arguments.allow_disconnected and connection.get("tunnelState") != "connected":
         continue
     if properties.get("developerModeStatus") != "enabled":
         continue

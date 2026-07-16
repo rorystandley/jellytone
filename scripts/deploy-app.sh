@@ -24,8 +24,12 @@ if [[ $build_status -ne 0 ]]; then
   exit "$build_status"
 fi
 xcrun devicectl list devices --json-output "$ARTIFACTS/devices.json" >/dev/null
-device="$(python3 "$ROOT/tools/device-proof/select_device.py" "$ARTIFACTS/devices.json")"
+device="$(python3 "$ROOT/tools/device-proof/select_device.py" \
+  "$ARTIFACTS/devices.json" --allow-disconnected)"
 app="$ARTIFACTS/Derived/Build/Products/Debug-iphoneos/JellyfinAudio.app"
+# CoreDevice creates or refreshes the developer tunnel as part of this probe.
+# A paired wired phone can legitimately report a disconnected tunnel beforehand.
+xcrun devicectl device info details --device "$device" --timeout 15 >/dev/null
 set +e
 xcrun devicectl device install app --device "$device" --timeout 30 "$app" >"$ARTIFACTS/install.raw.log" 2>&1
 install_status=$?

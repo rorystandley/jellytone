@@ -39,13 +39,21 @@ def device(
 
 
 class SelectDeviceTests(unittest.TestCase):
-    def run_selector(self, devices: list[dict]) -> tuple[subprocess.CompletedProcess[str], dict | None]:
+    def run_selector(
+        self,
+        devices: list[dict],
+        *,
+        allow_disconnected: bool = False,
+    ) -> tuple[subprocess.CompletedProcess[str], dict | None]:
         with tempfile.TemporaryDirectory() as directory:
             inventory = Path(directory) / "inventory.json"
             metadata = Path(directory) / "metadata.json"
             inventory.write_text(json.dumps({"result": {"devices": devices}}), encoding="utf-8")
+            command = ["python3", str(SELECTOR), str(inventory), "--metadata-output", str(metadata)]
+            if allow_disconnected:
+                command.append("--allow-disconnected")
             result = subprocess.run(
-                ["python3", str(SELECTOR), str(inventory), "--metadata-output", str(metadata)],
+                command,
                 text=True,
                 capture_output=True,
                 check=False,
@@ -81,6 +89,15 @@ class SelectDeviceTests(unittest.TestCase):
         ])
         self.assertEqual(result.returncode, 1)
         self.assertIsNone(metadata)
+
+    def test_allows_device_operation_to_create_tunnel(self) -> None:
+        result, metadata = self.run_selector(
+            [device("disconnected", "iPhone", "Phone", connected=False)],
+            allow_disconnected=True,
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout.strip(), "disconnected")
+        self.assertIsNotNone(metadata)
 
 
 if __name__ == "__main__":
