@@ -3,6 +3,8 @@ import UIKit
 
 struct LibraryView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var searchText = ""
+    @State private var showingPlayer = false
 
     var body: some View {
         NavigationStack {
@@ -19,7 +21,7 @@ struct LibraryView: View {
                     albumGrid
                 }
             }
-            .navigationTitle(model.session?.serverName ?? "Music")
+            .navigationTitle("Albums")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if model.libraries.count > 1 {
@@ -36,8 +38,12 @@ struct LibraryView: View {
                 }
             }
             .navigationDestination(for: Album.self) { AlbumView(album: $0) }
+            .searchable(text: $searchText, prompt: "Albums and artists")
+            .sheet(isPresented: $showingPlayer) { NowPlayingView(playback: model.playback) }
             .safeAreaInset(edge: .bottom) {
-                if model.playback.currentTrack != nil { MiniPlayerView(playback: model.playback) }
+                if model.playback.currentTrack != nil {
+                    MiniPlayerView(playback: model.playback) { showingPlayer = true }
+                }
             }
         }
     }
@@ -45,7 +51,7 @@ struct LibraryView: View {
     private var albumGrid: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 20) {
-                ForEach(model.albums) { album in
+                ForEach(filteredAlbums) { album in
                     NavigationLink(value: album) {
                         VStack(alignment: .leading, spacing: 8) {
                             AuthenticatedArtworkView(itemID: album.id)
@@ -57,12 +63,24 @@ struct LibraryView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.plain)
+                    .task { await model.loadMoreAlbumsIfNeeded(after: album) }
                 }
             }
             .padding()
+            if model.isLoadingMoreAlbums {
+                ProgressView("Loading more albums…").padding(.bottom, 24)
+            }
         }
         .refreshable {
             try? await model.refreshAlbums(libraryID: model.selectedLibraryID)
+        }
+    }
+
+    private var filteredAlbums: [Album] {
+        guard !searchText.isEmpty else { return model.albums }
+        return model.albums.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText)
+                || $0.artist.localizedCaseInsensitiveContains(searchText)
         }
     }
 }

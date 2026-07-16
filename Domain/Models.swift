@@ -24,6 +24,11 @@ struct Album: Identifiable, Codable, Hashable, Sendable {
     let imageTag: String?
 }
 
+struct AlbumPage: Equatable, Sendable {
+    let albums: [Album]
+    let hasMore: Bool
+}
+
 struct Track: Identifiable, Codable, Hashable, Sendable {
     let id: String
     let name: String

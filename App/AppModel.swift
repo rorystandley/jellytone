@@ -8,6 +8,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var albums: [Album] = []
     @Published private(set) var tracksByAlbum: [String: [Track]] = [:]
     @Published private(set) var isLoading = false
+    @Published private(set) var isLoadingMoreAlbums = false
     @Published var errorMessage: String?
 
     let playback = PlaybackController()
@@ -15,6 +16,8 @@ final class AppModel: ObservableObject {
     private let defaults: UserDefaults
     private static let profileKey = "active-profile"
     private static let deviceIDKey = "installation-device-id"
+    private var hasMoreAlbums = true
+    private var albumLibraryID: String?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -83,8 +86,31 @@ final class AppModel: ObservableObject {
         guard let session, let api else { return }
         isLoading = true
         defer { isLoading = false }
-        albums = try await api.albums(userID: session.userID, libraryID: libraryID)
-        Diagnostics.event("albums_loaded", ["count": albums.count, "scoped": libraryID != nil])
+        albumLibraryID = libraryID
+        let page = try await api.albums(userID: session.userID, libraryID: libraryID)
+        albums = page.albums
+        hasMoreAlbums = page.hasMore
+        Diagnostics.event("albums_loaded", ["count": albums.count, "has_more": page.hasMore, "scoped": libraryID != nil])
+    }
+
+    func loadMoreAlbumsIfNeeded(after album: Album) async {
+        guard album.id == albums.last?.id, hasMoreAlbums, !isLoadingMoreAlbums,
+              let session, let api else { return }
+        isLoadingMoreAlbums = true
+        defer { isLoadingMoreAlbums = false }
+        do {
+            let page = try await api.albums(
+                userID: session.userID,
+                libraryID: albumLibraryID,
+                startIndex: albums.count
+            )
+            let existing = Set(albums.map(\.id))
+            albums.append(contentsOf: page.albums.filter { !existing.contains($0.id) })
+            hasMoreAlbums = page.hasMore
+            Diagnostics.event("albums_page_loaded", ["count": page.albums.count, "total": albums.count])
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func selectLibrary(_ id: String) async {
@@ -106,9 +132,9 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func play(_ track: Track) {
+    func play(_ track: Track, in queue: [Track]) {
         guard let api else { return }
-        playback.play(track, using: api)
+        playback.play(track, queue: queue, using: api)
     }
 
     func logout() {

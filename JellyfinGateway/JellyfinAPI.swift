@@ -64,13 +64,19 @@ struct JellyfinAPI: Sendable {
         }
     }
 
-    func albums(userID: String, libraryID: String?) async throws -> [Album] {
+    func albums(
+        userID: String,
+        libraryID: String?,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> AlbumPage {
         var query = [
             URLQueryItem(name: "userId", value: userID),
             URLQueryItem(name: "IncludeItemTypes", value: "MusicAlbum"),
             URLQueryItem(name: "Recursive", value: "true"),
             URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
-            URLQueryItem(name: "Limit", value: "100"),
+            URLQueryItem(name: "StartIndex", value: String(startIndex)),
+            URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
             URLQueryItem(name: "SortBy", value: "SortName"),
             URLQueryItem(name: "SortOrder", value: "Ascending"),
@@ -84,10 +90,12 @@ struct JellyfinAPI: Sendable {
             query: query,
             as: ItemsResponse<Item>.self
         )
-        return response.Items.map {
+        let albums = response.Items.map {
             Album(id: $0.Id, name: $0.Name, artist: $0.AlbumArtist ?? $0.Artists?.first ?? "Unknown Artist",
                   productionYear: $0.ProductionYear, imageTag: $0.ImageTags?["Primary"])
         }
+        let hasMore = response.TotalRecordCount.map { startIndex + albums.count < $0 } ?? (albums.count == limit)
+        return AlbumPage(albums: albums, hasMore: hasMore)
     }
 
     func tracks(userID: String, albumID: String) async throws -> [Track] {
@@ -216,6 +224,17 @@ struct JellyfinAPI: Sendable {
 
 private struct ItemsResponse<Value: Decodable>: Decodable {
     let Items: [Value]
+    let TotalRecordCount: Int?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        Items = try container.decode([Value].self, forKey: .Items)
+        TotalRecordCount = try container.decodeIfPresent(Int.self, forKey: .TotalRecordCount)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case Items, TotalRecordCount
+    }
 }
 
 private struct Item: Decodable {

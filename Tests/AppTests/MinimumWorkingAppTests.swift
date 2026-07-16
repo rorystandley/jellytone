@@ -91,9 +91,10 @@ final class MinimumWorkingAppTests: XCTestCase {
         }
         let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com/jellyfin")),
                               deviceID: "synthetic-device", token: "token", urlSession: makeSession())
-        let albums = try await api.albums(userID: "user", libraryID: nil)
-        XCTAssertEqual(albums.first?.name, "Synthetic Album")
-        XCTAssertEqual(albums.first?.artist, "Synthetic Artist")
+        let page = try await api.albums(userID: "user", libraryID: nil)
+        XCTAssertEqual(page.albums.first?.name, "Synthetic Album")
+        XCTAssertEqual(page.albums.first?.artist, "Synthetic Artist")
+        XCTAssertFalse(page.hasMore)
     }
 
     private func makeSession() -> URLSession {
