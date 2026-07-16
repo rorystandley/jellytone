@@ -76,8 +76,16 @@ struct MiniPlayerView: View {
         HStack(spacing: 12) {
             Button(action: showPlayer) {
                 HStack(spacing: 12) {
-                    Image(systemName: "music.note").frame(width: 40, height: 40)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                    Group {
+                        if let artwork = playback.artwork {
+                            Image(uiImage: artwork).resizable().scaledToFill()
+                        } else {
+                            Image(systemName: "music.note")
+                        }
+                    }
+                    .frame(width: 40, height: 40)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                     VStack(alignment: .leading) {
                         Text(playback.currentTrack?.name ?? "").font(.headline).lineLimit(1)
                         Text(playback.currentTrack?.artist ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -87,7 +95,11 @@ struct MiniPlayerView: View {
             .buttonStyle(.plain)
             Spacer()
             Button { playback.toggle() } label: {
-                Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill").font(.title2)
+                if playback.isPreparing {
+                    ProgressView()
+                } else {
+                    Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill").font(.title2)
+                }
             }
             .accessibilityLabel(playback.isPlaying ? "Pause" : "Play")
             Button { playback.next() } label: {
@@ -111,13 +123,18 @@ struct NowPlayingView: View {
             VStack(spacing: 28) {
                 Spacer(minLength: 12)
                 ZStack {
-                    RoundedRectangle(cornerRadius: 28)
-                        .fill(.linearGradient(colors: [.indigo, .purple, .black], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    Image(systemName: "music.note")
-                        .font(.system(size: 92, weight: .light))
-                        .foregroundStyle(.white.opacity(0.9))
+                    if let artwork = playback.artwork {
+                        Image(uiImage: artwork).resizable().scaledToFill()
+                    } else {
+                        RoundedRectangle(cornerRadius: 28)
+                            .fill(.linearGradient(colors: [.indigo, .purple, .black], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        Image(systemName: "music.note")
+                            .font(.system(size: 92, weight: .light))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
                 }
                 .aspectRatio(1, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 28))
                 .shadow(color: .black.opacity(0.3), radius: 24, y: 12)
 
                 VStack(spacing: 6) {
@@ -125,6 +142,8 @@ struct NowPlayingView: View {
                         .font(.title2.bold()).lineLimit(2).multilineTextAlignment(.center)
                     Text(playback.currentTrack?.artist ?? "")
                         .font(.headline).foregroundStyle(.secondary).lineLimit(1)
+                    Text(playback.qualityLabel)
+                        .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 }
 
                 VStack(spacing: 4) {

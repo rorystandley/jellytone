@@ -115,9 +115,78 @@ struct JellyfinAPI: Sendable {
         )
         return response.Items.map {
             Track(id: $0.Id, name: $0.Name, artist: $0.AlbumArtist ?? $0.Artists?.first ?? "Unknown Artist",
-                  album: $0.Album ?? "", index: $0.IndexNumber, disc: $0.ParentIndexNumber,
+                  album: $0.Album ?? "", albumID: $0.AlbumId, index: $0.IndexNumber, disc: $0.ParentIndexNumber,
                   durationTicks: $0.RunTimeTicks)
         }
+    }
+
+    func playbackPlan(itemID: String, userID: String) async throws -> PlaybackPlan {
+        let response = try await send(
+            operation: "playback_info",
+            path: ["Items", itemID, "PlaybackInfo"],
+            query: [URLQueryItem(name: "userId", value: userID)],
+            as: PlaybackInfoResponse.self
+        )
+        guard let source = response.MediaSources.first,
+              let mediaSourceID = source.Id,
+              let playSessionID = response.PlaySessionId else {
+            throw APIError.noPlayableSource
+        }
+        let direct = source.SupportsDirectPlay == true && supportsDirectPlay(source)
+        guard direct || source.SupportsTranscoding == true else { throw APIError.noPlayableSource }
+        return PlaybackPlan(
+            url: try direct
+                ? streamURL(itemID: itemID, mediaSourceID: mediaSourceID, playSessionID: playSessionID)
+                : transcodeURL(itemID: itemID, userID: userID, mediaSourceID: mediaSourceID, playSessionID: playSessionID),
+            mediaSourceID: mediaSourceID,
+            playSessionID: playSessionID,
+            method: direct ? .directPlay : .transcode
+        )
+    }
+
+    func reportStarted(itemID: String, plan: PlaybackPlan, position: TimeInterval, paused: Bool) async {
+        await report(
+            operation: "playback_started",
+            path: ["Sessions", "Playing"],
+            body: PlaybackReport(
+                ItemId: itemID,
+                MediaSourceId: plan.mediaSourceID,
+                PlaySessionId: plan.playSessionID,
+                PlayMethod: plan.method.rawValue,
+                CanSeek: true,
+                IsPaused: paused,
+                PositionTicks: ticks(position)
+            )
+        )
+    }
+
+    func reportProgress(itemID: String, plan: PlaybackPlan, position: TimeInterval, paused: Bool) async {
+        await report(
+            operation: "playback_progress",
+            path: ["Sessions", "Playing", "Progress"],
+            body: PlaybackReport(
+                ItemId: itemID,
+                MediaSourceId: plan.mediaSourceID,
+                PlaySessionId: plan.playSessionID,
+                PlayMethod: plan.method.rawValue,
+                CanSeek: true,
+                IsPaused: paused,
+                PositionTicks: ticks(position)
+            )
+        )
+    }
+
+    func reportStopped(itemID: String, plan: PlaybackPlan, position: TimeInterval) async {
+        await report(
+            operation: "playback_stopped",
+            path: ["Sessions", "Playing", "Stopped"],
+            body: PlaybackStopReport(
+                ItemId: itemID,
+                MediaSourceId: plan.mediaSourceID,
+                PlaySessionId: plan.playSessionID,
+                PositionTicks: ticks(position)
+            )
+        )
     }
 
     func artworkRequest(itemID: String, maxWidth: Int = 600) throws -> URLRequest {
@@ -129,6 +198,15 @@ struct JellyfinAPI: Sendable {
         return request
     }
 
+    func artworkData(itemID: String, maxWidth: Int = 1_200) async throws -> Data {
+        let request = try artworkRequest(itemID: itemID, maxWidth: maxWidth)
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
+            throw APIError.invalidResponse
+        }
+        return data
+    }
+
     func streamURL(itemID: String) throws -> URL {
         guard let token else { throw APIError.notAuthenticated }
         return try makeURL(
@@ -138,6 +216,90 @@ struct JellyfinAPI: Sendable {
                 URLQueryItem(name: "api_key", value: token),
             ]
         )
+    }
+
+    private func streamURL(itemID: String, mediaSourceID: String, playSessionID: String) throws -> URL {
+        guard let token else { throw APIError.notAuthenticated }
+        return try makeURL(
+            path: ["Audio", itemID, "stream"],
+            query: [
+                URLQueryItem(name: "static", value: "true"),
+                URLQueryItem(name: "mediaSourceId", value: mediaSourceID),
+                URLQueryItem(name: "playSessionId", value: playSessionID),
+                URLQueryItem(name: "api_key", value: token),
+            ]
+        )
+    }
+
+    private func transcodeURL(
+        itemID: String,
+        userID: String,
+        mediaSourceID: String,
+        playSessionID: String
+    ) throws -> URL {
+        guard let token else { throw APIError.notAuthenticated }
+        return try makeURL(
+            path: ["Audio", itemID, "universal"],
+            query: [
+                URLQueryItem(name: "userId", value: userID),
+                URLQueryItem(name: "deviceId", value: deviceID),
+                URLQueryItem(name: "mediaSourceId", value: mediaSourceID),
+                URLQueryItem(name: "playSessionId", value: playSessionID),
+                URLQueryItem(name: "container", value: "mp4"),
+                URLQueryItem(name: "audioCodec", value: "aac"),
+                URLQueryItem(name: "maxAudioChannels", value: "2"),
+                URLQueryItem(name: "transcodingAudioChannels", value: "2"),
+                URLQueryItem(name: "maxStreamingBitrate", value: "128000"),
+                URLQueryItem(name: "audioBitRate", value: "128000"),
+                URLQueryItem(name: "transcodingContainer", value: "mp4"),
+                URLQueryItem(name: "transcodingProtocol", value: "http"),
+                URLQueryItem(name: "enableDirectPlay", value: "false"),
+                URLQueryItem(name: "enableDirectStream", value: "false"),
+                URLQueryItem(name: "enableTranscoding", value: "true"),
+                URLQueryItem(name: "enableRedirection", value: "false"),
+                URLQueryItem(name: "api_key", value: token),
+            ]
+        )
+    }
+
+    private func supportsDirectPlay(_ source: PlaybackInfoResponse.MediaSource) -> Bool {
+        guard let codec = source.MediaStreams?.first(where: { $0.type?.lowercased() == "audio" })?.codec?.lowercased()
+        else { return false }
+        let containers = Set((source.Container ?? "").lowercased().split(separator: ",").map(String.init))
+        switch codec {
+        case "mp3": return containers.isEmpty || containers.contains("mp3")
+        case "flac": return containers.isEmpty || containers.contains("flac")
+        case "aac": return !containers.isDisjoint(with: ["aac", "m4a", "mp4"])
+        case "alac": return !containers.isDisjoint(with: ["m4a", "mp4"])
+        case "vorbis", "opus": return !containers.isDisjoint(with: ["ogg", "oga", "webm"])
+        default: return false
+        }
+    }
+
+    private func report<Body: Encodable>(operation: String, path: [String], body: Body) async {
+        do {
+            var request = URLRequest(url: try makeURL(path: path))
+            request.httpMethod = "POST"
+            request.httpBody = try JSONEncoder().encode(body)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            addAuthorization(to: &request)
+            try await executeNoContent(request, operation: operation)
+        } catch {
+            let failure = error as NSError
+            Diagnostics.event("report_failed", ["code": failure.code, "operation": operation])
+        }
+    }
+
+    private func executeNoContent(_ request: URLRequest, operation: String) async throws {
+        Diagnostics.event("request_started", ["operation": operation])
+        let (_, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        Diagnostics.event("response_received", ["operation": operation, "status": http.statusCode])
+        guard 200..<300 ~= http.statusCode else { throw APIError.httpStatus(http.statusCode) }
+    }
+
+    private func ticks(_ seconds: TimeInterval) -> Int64 {
+        Int64(max(0, seconds) * 10_000_000)
     }
 
     private func send<Response: Decodable>(
@@ -244,11 +406,50 @@ private struct Item: Decodable {
     let AlbumArtist: String?
     let Artists: [String]?
     let Album: String?
+    let AlbumId: String?
     let ProductionYear: Int?
     let ImageTags: [String: String]?
     let IndexNumber: Int?
     let ParentIndexNumber: Int?
     let RunTimeTicks: Int64?
+}
+
+private struct PlaybackInfoResponse: Decodable {
+    struct MediaSource: Decodable {
+        struct MediaStream: Decodable {
+            let type: String?
+            let codec: String?
+
+            enum CodingKeys: String, CodingKey {
+                case type = "Type"
+                case codec = "Codec"
+            }
+        }
+        let Id: String?
+        let Container: String?
+        let SupportsDirectPlay: Bool?
+        let SupportsTranscoding: Bool?
+        let MediaStreams: [MediaStream]?
+    }
+    let MediaSources: [MediaSource]
+    let PlaySessionId: String?
+}
+
+private struct PlaybackReport: Encodable {
+    let ItemId: String
+    let MediaSourceId: String
+    let PlaySessionId: String
+    let PlayMethod: String
+    let CanSeek: Bool
+    let IsPaused: Bool
+    let PositionTicks: Int64
+}
+
+private struct PlaybackStopReport: Encodable {
+    let ItemId: String
+    let MediaSourceId: String
+    let PlaySessionId: String
+    let PositionTicks: Int64
 }
 
 enum APIError: LocalizedError, Equatable {
@@ -257,6 +458,7 @@ enum APIError: LocalizedError, Equatable {
     case invalidPayload
     case httpStatus(Int)
     case notAuthenticated
+    case noPlayableSource
 
     var errorDescription: String? {
         switch self {
@@ -266,6 +468,7 @@ enum APIError: LocalizedError, Equatable {
         case .httpStatus(401): "The username or password was rejected."
         case let .httpStatus(status): "The server returned HTTP \(status)."
         case .notAuthenticated: "Connect to Jellyfin before playing music."
+        case .noPlayableSource: "Jellyfin did not return a playable audio source."
         }
     }
 }

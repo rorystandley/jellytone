@@ -97,6 +97,66 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertFalse(page.hasMore)
     }
 
+    func testPlaybackInfoSelectsSupportedDirectSource() async throws {
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/jellyfin/Items/track/PlaybackInfo")
+            return Self.response(
+                for: request,
+                json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"session"}"#
+            )
+        }
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com/jellyfin")),
+                              deviceID: "device", token: "token", urlSession: makeSession())
+        let plan = try await api.playbackPlan(itemID: "track", userID: "user")
+        XCTAssertEqual(plan.method, .directPlay)
+        XCTAssertEqual(plan.url.path, "/jellyfin/Audio/track/stream")
+        let query = try XCTUnwrap(URLComponents(url: plan.url, resolvingAgainstBaseURL: false)?.queryItems)
+        XCTAssertEqual(query.first(where: { $0.name == "mediaSourceId" })?.value, "source")
+        XCTAssertEqual(query.first(where: { $0.name == "playSessionId" })?.value, "session")
+    }
+
+    func testPlaybackInfoFallsBackToProvenAACTranscode() async throws {
+        MockURLProtocol.handler = { request in
+            Self.response(
+                for: request,
+                json: #"{"MediaSources":[{"Id":"source","Container":"wma","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"wmav2"}]}],"PlaySessionId":"session"}"#
+            )
+        }
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+                              deviceID: "device", token: "token", urlSession: makeSession())
+        let plan = try await api.playbackPlan(itemID: "track", userID: "user")
+        XCTAssertEqual(plan.method, .transcode)
+        XCTAssertEqual(plan.url.path, "/Audio/track/universal")
+        let query = try XCTUnwrap(URLComponents(url: plan.url, resolvingAgainstBaseURL: false)?.queryItems)
+        XCTAssertEqual(query.first(where: { $0.name == "audioCodec" })?.value, "aac")
+        XCTAssertEqual(query.first(where: { $0.name == "enableDirectPlay" })?.value, "false")
+    }
+
+    func testPlaybackStartReportUsesJellyfinTicks() async throws {
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/Sessions/Playing")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let body = try Self.bodyData(from: request)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["PlayMethod"] as? String, "DirectPlay")
+            XCTAssertEqual(json["PositionTicks"] as? Int64, 125_000_000)
+            XCTAssertEqual(json["IsPaused"] as? Bool, false)
+            return Self.response(for: request, status: 204, json: "")
+        }
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+                              deviceID: "device", token: "token", urlSession: makeSession())
+        let plan = PlaybackPlan(url: try XCTUnwrap(URL(string: "https://example.com/audio")),
+                                mediaSourceID: "source", playSessionID: "session", method: .directPlay)
+        await api.reportStarted(itemID: "track", plan: plan, position: 12.5, paused: false)
+    }
+
+    func testPlaybackSnapshotRoundTripsQueueAndPosition() throws {
+        let track = Track(id: "track", name: "Track", artist: "Artist", album: "Album",
+                          albumID: "album", index: 1, disc: 1, durationTicks: 600_000_000)
+        let snapshot = PlaybackSnapshot(scope: "server:user", queue: [track], currentIndex: 0, position: 42.5)
+        XCTAssertEqual(try JSONDecoder().decode(PlaybackSnapshot.self, from: JSONEncoder().encode(snapshot)), snapshot)
+    }
+
     private func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
@@ -104,7 +164,11 @@ final class MinimumWorkingAppTests: XCTestCase {
     }
 
     private static func response(for request: URLRequest, json: String) -> (HTTPURLResponse, Data) {
-        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+        response(for: request, status: 200, json: json)
+    }
+
+    private static func response(for request: URLRequest, status: Int, json: String) -> (HTTPURLResponse, Data) {
+        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
                                        headerFields: ["Content-Type": "application/json"])!
         return (response, Data(json.utf8))
     }

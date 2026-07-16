@@ -11,7 +11,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var isLoadingMoreAlbums = false
     @Published var errorMessage: String?
 
-    let playback = PlaybackController()
+    let playback: PlaybackController
 
     private let defaults: UserDefaults
     private static let profileKey = "active-profile"
@@ -21,6 +21,7 @@ final class AppModel: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        self.playback = PlaybackController(defaults: defaults)
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
             defaults.removeObject(forKey: Self.profileKey)
             KeychainTokenStore.delete()
@@ -133,8 +134,14 @@ final class AppModel: ObservableObject {
     }
 
     func play(_ track: Track, in queue: [Track]) {
-        guard let api else { return }
-        playback.play(track, queue: queue, using: api)
+        guard let api, let session else { return }
+        playback.play(
+            track,
+            queue: queue,
+            using: api,
+            userID: session.userID,
+            scope: playbackScope(for: session)
+        )
     }
 
     func logout() {
@@ -196,6 +203,9 @@ final class AppModel: ObservableObject {
                               userID: profile.userID, username: profile.username,
                               accessToken: token, deviceID: profile.deviceID)
         Diagnostics.event("session_restored")
+        if let session, let api {
+            playback.restore(using: api, userID: session.userID, scope: playbackScope(for: session))
+        }
         Task {
             do { try await refreshLibraries() }
             catch {
@@ -204,5 +214,9 @@ final class AppModel: ObservableObject {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+
+    private func playbackScope(for session: UserSession) -> String {
+        "\(session.serverID):\(session.userID)"
     }
 }

@@ -12,12 +12,20 @@ struct RootView: View {
             }
         }
         .alert("Something went wrong", isPresented: Binding(
-            get: { model.errorMessage != nil },
-            set: { if !$0 { model.errorMessage = nil } }
+            get: { model.errorMessage != nil || model.playback.errorMessage != nil },
+            set: {
+                if !$0 {
+                    model.errorMessage = nil
+                    model.playback.clearError()
+                }
+            }
         )) {
-            Button("OK", role: .cancel) { model.errorMessage = nil }
+            Button("OK", role: .cancel) {
+                model.errorMessage = nil
+                model.playback.clearError()
+            }
         } message: {
-            Text(model.errorMessage ?? "Unknown error")
+            Text(model.errorMessage ?? model.playback.errorMessage ?? "Unknown error")
         }
     }
 }

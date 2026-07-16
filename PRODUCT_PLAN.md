@@ -4,7 +4,7 @@ Status: Planning authority
 
 Last updated: 2026-07-16
 
-Implementation status: Minimum Working App vertical slice in progress
+Implementation status: Phase 2 connected-playback reliability in progress
 
 This document is the product and delivery source of truth for the repository. All
 implementation agents must read it before planning or changing code. If a task
