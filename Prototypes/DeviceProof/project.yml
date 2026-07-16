@@ -20,8 +20,8 @@ targets:
     platform: iOS
     sources:
       - Sources
-    resources:
       - path: "${DEVICE_PROOF_GENERATED_RESOURCES}"
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: DeviceProof

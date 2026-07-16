@@ -17,5 +17,12 @@ if [[ $status -ne 0 ]]; then
   tail -100 "$ARTIFACTS/build.log" >&2
   exit "$status"
 fi
-test -d "$DERIVED/Build/Products/Debug-iphoneos/DeviceProof.app"
+app="$DERIVED/Build/Products/Debug-iphoneos/DeviceProof.app"
+test -d "$app"
+for fixture in tone-a.mp3 tone-a.m4a tone-a-alac.m4a tone-a.flac tone-a-vorbis.ogg tone-a-opus.ogg tone-a-opus.mp4 proof-media-manifest.json; do
+  test -f "$app/$fixture" || {
+    echo "signed DeviceProof app omitted required resource: $fixture" >&2
+    exit 2
+  }
+done
 echo "signed device build passed (identifiers redacted)"

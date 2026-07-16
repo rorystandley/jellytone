@@ -24,6 +24,12 @@ gate verifies `NSAllowsLocalNetworking`; the signed app also declares only the
 `audio` background mode. A fresh run clears prior event evidence before autorun
 so stale launches cannot satisfy the current device gate.
 
+For a repeatable direct deployment to an unlocked paired device, run
+`./scripts/deploy-device.sh`. Add `--launch` to open the installed synthetic
+proof app, or `--probe-url URL` to launch its autorun against a synthetic fixture
+endpoint. This uses local development signing and does not export an Ad Hoc
+distribution IPA or change Apple Developer portal state.
+
 The harness bundles manifest-pinned MP3, AAC, ALAC, FLAC, Vorbis/Ogg,
 Opus/Ogg, and Opus/MP4 fixtures. A runtime lane prepares every fixture both
 locally and over the ephemeral HTTP server. Its background session schedules
@@ -45,8 +51,11 @@ evidence. After a passing run, the coordinator reviews the redacted summary and
 updates the registered Phase 0 records intentionally.
 
 The current focused lane passes twelve simulator XCTest cases and ten deterministic
-Python device-contract tests, a clean signed arm64 build, generated
-transport/background settings, privacy scanning, and device installation pass.
-The single bounded launch attempt is still blocked by CoreDevice 10002 because
-SpringBoard reports that the paired iPhone is locked. No runtime events were
-collected and none of the hardware capabilities are promoted from that install.
+Python device-contract tests, a clean signed arm64 build whose bundle contains
+all eight manifest-pinned resources, generated transport/background settings,
+privacy scanning, and repeatable device installation through
+`scripts/deploy-device.sh`. An unlocked launch reached the synthetic harness and
+exposed the resource-packaging and Local Network permission gates; the packaging
+defect is fixed. The subsequent fixture relaunch was blocked by CoreDevice 10002
+after the iPhone relocked. No hardware capability is promoted until a fresh
+unlocked run satisfies the strict collected-event summary.

@@ -40,4 +40,10 @@ resource_count=$(find "$GENERATED_RESOURCES" -maxdepth 1 -type f | wc -l | tr -d
   echo "expected exactly eight isolated DeviceProof resources, found $resource_count" >&2
   exit 2
 }
+for fixture in tone-a.mp3 tone-a.m4a tone-a-alac.m4a tone-a.flac tone-a-vorbis.ogg tone-a-opus.ogg tone-a-opus.mp4 proof-media-manifest.json; do
+  grep -q "$fixture in Resources" "$PROJECT/project.pbxproj" || {
+    echo "generated project omitted DeviceProof resource: $fixture" >&2
+    exit 2
+  }
+done
 echo "generated isolated DeviceProof project with XcodeGen $version outside the repository"
