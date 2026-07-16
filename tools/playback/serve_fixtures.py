@@ -6,6 +6,7 @@ import argparse
 import http.server
 import pathlib
 import re
+import time
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -38,13 +39,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def copyfile(self, source, outputfile):
         remaining = getattr(self, "_remaining", None)
+        rate = getattr(self.server, "bytes_per_second", 0)
         while remaining is None or remaining > 0:
-            chunk = source.read(64 * 1024 if remaining is None else min(64 * 1024, remaining))
+            maximum = 64 * 1024
+            if rate:
+                maximum = max(1, min(maximum, rate // 10))
+            chunk = source.read(maximum if remaining is None else min(maximum, remaining))
             if not chunk:
                 break
             outputfile.write(chunk)
             if remaining is not None:
                 remaining -= len(chunk)
+            if rate:
+                time.sleep(len(chunk) / rate)
 
     def log_message(self, *_):
         pass

@@ -12,9 +12,11 @@ from serve_fixtures import Handler  # noqa: E402
 
 p = argparse.ArgumentParser()
 p.add_argument("--root", required=True); p.add_argument("--state", required=True)
+p.add_argument("--bytes-per-second", type=int, default=0)
 args = p.parse_args()
 
 server = ThreadingHTTPServer(("0.0.0.0", 0), partial(Handler, directory=args.root))
+server.bytes_per_second = args.bytes_per_second
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 try:
     s.connect(("192.0.2.1", 9)); address = s.getsockname()[0]

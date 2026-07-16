@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 import urllib.request
 
 
@@ -36,6 +37,30 @@ class FixtureServerTests(unittest.TestCase):
                     self.assertEqual(response.headers["Content-Length"], "2")
                     self.assertEqual(response.headers["Content-Range"], "bytes 10-11/64")
                     self.assertEqual(response.read(), payload[10:12])
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_configured_rate_throttles_response_chunks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            payload = bytes(range(64))
+            (Path(directory) / "fixture.bin").write_bytes(payload)
+            server = ThreadingHTTPServer(
+                ("127.0.0.1", 0),
+                partial(Handler, directory=directory),
+            )
+            server.bytes_per_second = 100
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                with mock.patch("serve_fixtures.time.sleep") as sleep:
+                    with urllib.request.urlopen(
+                        f"http://127.0.0.1:{server.server_port}/fixture.bin"
+                    ) as response:
+                        self.assertEqual(response.read(), payload)
+                    self.assertGreater(sleep.call_count, 0)
+                    self.assertAlmostEqual(sum(call.args[0] for call in sleep.call_args_list), 0.64)
             finally:
                 server.shutdown()
                 server.server_close()
