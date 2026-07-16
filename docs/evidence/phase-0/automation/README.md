@@ -37,6 +37,11 @@ regression tests, deterministic synthetic-library generation, connectivity
 policy/contracts, and portable playback unit tests. The `apple` lane
 adds deterministic XcodeGen generation, simulator build/tests, host
 AVFoundation codec preparation, transition measurements, and session ordering.
+It also clones the pinned Jellyfin Swift SDK tag, verifies its exact commit, and
+runs the package tests. Machine-specific playback reports are regenerated in a
+temporary directory; clean-tree CI still rejects deterministic fixture-byte
+drift without requiring the runner to reproduce the capture Mac's environment
+strings.
 The `linux` lane resets both digest-pinned Jellyfin containers, performs the
 authenticated live contracts against both supported versions, and runs the host
 network lab including disposable-server restart. `evidence` runs only the
@@ -46,6 +51,6 @@ CI runs `apple` on `macos-26` and `linux` on `ubuntu-24.04`. The macOS job does
 not install a Docker client without a daemon; the Linux job proves daemon
 availability before invoking the same repository lane used locally. Container
 cleanup is automatic on success, failure, or interruption. These host and
-simulator results do not claim physical-device behavior. Network SDK cloning,
-device install/launch, external routes, and entitlement operations remain
+simulator results do not claim physical-device behavior. Device install/launch,
+external routes, and entitlement operations remain
 separate explicitly authorized procedures.

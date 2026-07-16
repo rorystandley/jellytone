@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -15,7 +16,11 @@ from evidence_envelope import playback_envelope
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIX = ROOT / "Tests/Fixtures/Audio"
-OUT = ROOT / "docs/evidence/phase-0/playback/results/transition-measurements.json"
+RESULTS = pathlib.Path(os.environ.get(
+    "PHASE0_PLAYBACK_EVIDENCE_DIR",
+    ROOT / "docs/evidence/phase-0/playback/results",
+))
+OUT = RESULTS / "transition-measurements.json"
 RATE = 48_000
 
 

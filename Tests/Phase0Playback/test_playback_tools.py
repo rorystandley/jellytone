@@ -1,6 +1,7 @@
 import json
 import hashlib
 import pathlib
+import os
 import shutil
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 RESULTS = ROOT / "docs/evidence/phase-0/playback/results"
+GENERATED_RESULTS = pathlib.Path(os.environ.get("PHASE0_PLAYBACK_EVIDENCE_DIR", RESULTS))
 COMMON_FIELDS = {
     "schemaVersion", "proofId", "capturedAt", "command", "environment",
     "owner", "status", "limitations", "privacy",
@@ -42,7 +44,7 @@ class PlaybackProofTests(unittest.TestCase):
     @unittest.skipUnless(APPLE_HOST, "regenerates macOS-captured playback evidence")
     def test_transition_measurement_is_sample_bounded(self):
         subprocess.run([sys.executable, str(ROOT / "tools/playback/render_transitions.py")], check=True)
-        report = json.loads((ROOT / "docs/evidence/phase-0/playback/results/transition-measurements.json").read_text())
+        report = json.loads((GENERATED_RESULTS / "transition-measurements.json").read_text())
         limits = report["acceptance"]
         for result in report["results"].values():
             self.assertLessEqual(result["durationErrorSamples"], limits["durationErrorSamplesMax"])
@@ -81,15 +83,15 @@ class PlaybackProofTests(unittest.TestCase):
                     ROOT / "tools/playback/validate_session_order.py"]
         for script in sequence:
             subprocess.run([sys.executable, str(script)], check=True)
-        report = json.loads((ROOT / "docs/evidence/phase-0/playback/results/codec-matrix.json").read_text())
+        report = json.loads((GENERATED_RESULTS / "codec-matrix.json").read_text())
         fixture_dir = ROOT / "Tests/Fixtures/Audio"
         for row in report["results"]:
             self.assertEqual(row["sha256"], hashlib.sha256((fixture_dir / row["file"]).read_bytes()).hexdigest())
             transcode = row["aacTranscodeSurrogate"]
             self.assertEqual(transcode["sha256"], hashlib.sha256((fixture_dir / transcode["file"]).read_bytes()).hexdigest())
-        evidence_paths = [ROOT / "docs/evidence/phase-0/playback/results/codec-matrix.json",
-                          ROOT / "docs/evidence/phase-0/playback/results/transition-measurements.json",
-                          ROOT / "docs/evidence/phase-0/playback/results/session-order.json"]
+        evidence_paths = [GENERATED_RESULTS / "codec-matrix.json",
+                          GENERATED_RESULTS / "transition-measurements.json",
+                          GENERATED_RESULTS / "session-order.json"]
         first_evidence = {path.name: path.read_bytes() for path in evidence_paths}
         first_media = {path.name: path.read_bytes() for path in fixture_dir.iterdir() if path.is_file()}
         for script in sequence:
@@ -99,7 +101,7 @@ class PlaybackProofTests(unittest.TestCase):
 
     def test_replacement_closes_previous_session_before_start(self):
         subprocess.run([sys.executable, str(ROOT / "tools/playback/validate_session_order.py")], check=True)
-        report = json.loads((ROOT / "docs/evidence/phase-0/playback/results/session-order.json").read_text())
+        report = json.loads((GENERATED_RESULTS / "session-order.json").read_text())
         self.assertTrue(report["passed"])
         self.assertEqual(["start", "progress", "stop", "start", "progress", "stop", "start"],
                          [event["event"] for event in report["events"]])

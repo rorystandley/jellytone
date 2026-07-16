@@ -10,6 +10,7 @@ fixture_repeat=
 live_report=
 network_report=
 restart_report=
+playback_output=
 containers_started=0
 
 cleanup() {
@@ -21,7 +22,7 @@ cleanup() {
     fi
     tools/phase0/jellyfin.sh down >/dev/null 2>&1 || true
   fi
-  for directory in "$fixture_output" "$fixture_repeat"; do
+  for directory in "$fixture_output" "$fixture_repeat" "$playback_output"; do
     if [ -n "$directory" ] && [ -d "$directory" ]; then
       find "$directory" -mindepth 1 -delete
       rmdir "$directory"
@@ -96,6 +97,8 @@ run_common_core() {
 run_apple_gate() {
   require_commands xcrun xcodebuild
 
+  tools/connectivity/verify_sdk_pin.sh
+
   xcodegen_binary="$ROOT/tools/phase0/.cache/xcodegen-2.46.0/unpacked/xcodegen/bin/xcodegen"
   if [ ! -x "$xcodegen_binary" ]; then
     tools/phase0/fetch-xcodegen.sh >/dev/null
@@ -143,15 +146,21 @@ run_evidence_gate() {
 
 case "${1:-all}" in
   common)
+    playback_output=$(mktemp -d "${TMPDIR:-/tmp}/phase0-playback.XXXXXX")
+    export PHASE0_PLAYBACK_EVIDENCE_DIR="$playback_output"
     run_common_core
     run_evidence_gate
     ;;
   apple)
+    playback_output=$(mktemp -d "${TMPDIR:-/tmp}/phase0-playback.XXXXXX")
+    export PHASE0_PLAYBACK_EVIDENCE_DIR="$playback_output"
     run_common_core
     run_apple_gate
     run_evidence_gate
     ;;
   linux)
+    playback_output=$(mktemp -d "${TMPDIR:-/tmp}/phase0-playback.XXXXXX")
+    export PHASE0_PLAYBACK_EVIDENCE_DIR="$playback_output"
     run_common_core
     run_linux_container_gate
     run_evidence_gate
@@ -162,6 +171,8 @@ case "${1:-all}" in
     run_evidence_gate
     ;;
   all)
+    playback_output=$(mktemp -d "${TMPDIR:-/tmp}/phase0-playback.XXXXXX")
+    export PHASE0_PLAYBACK_EVIDENCE_DIR="$playback_output"
     run_common_core
     run_apple_gate
     run_linux_container_gate

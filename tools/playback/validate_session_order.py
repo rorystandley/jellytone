@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 
 from evidence_envelope import playback_envelope
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-OUT = ROOT / "docs/evidence/phase-0/playback/results/session-order.json"
+RESULTS = pathlib.Path(os.environ.get(
+    "PHASE0_PLAYBACK_EVIDENCE_DIR",
+    ROOT / "docs/evidence/phase-0/playback/results",
+))
+OUT = RESULTS / "session-order.json"
 
 
 class SessionProbe:

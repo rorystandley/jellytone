@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import pathlib
 import platform
 import subprocess
@@ -15,7 +16,11 @@ from evidence_envelope import playback_envelope
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "Tests/Fixtures/Audio"
-OUT = ROOT / "docs/evidence/phase-0/playback/results/codec-matrix.json"
+RESULTS = pathlib.Path(os.environ.get(
+    "PHASE0_PLAYBACK_EVIDENCE_DIR",
+    ROOT / "docs/evidence/phase-0/playback/results",
+))
+OUT = RESULTS / "codec-matrix.json"
 
 
 def capture(command: list[str]) -> str:
