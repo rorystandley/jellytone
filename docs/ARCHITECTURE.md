@@ -103,6 +103,13 @@ Owns:
 The gateway is protocol-driven so contract tests can exercise generated-client
 changes without rewriting feature code.
 
+Read-only favourites use three independently paginated, application-owned page
+contracts: artists and albums deduplicate only by stable server ID, while audio
+tracks retain response-position occurrence identity so repeated tracks remain
+playable in their displayed order. Queries are always scoped to the active
+server, account, and selected music library; an explicit contradictory favourite
+marker is rejected, while omitted optional user data remains compatible.
+
 ### LibraryStore
 
 Owns the SQLite-backed cache and search index:

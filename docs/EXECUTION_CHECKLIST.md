@@ -53,6 +53,10 @@ diagnostics privacy gate remains authoritative. Full Phase 1 remains open.
 - [x] Read-only genre list/detail paging uses stable genre identity, preserves
   ordered duplicate track occurrences, and routes play actions through the
   authoritative queue.
+- [x] Read-only favourites browse independently paged artists, albums, and
+  tracks within the active server/account/music-library scope, preserve stable
+  identities and duplicate track occurrences, and route play actions through
+  the authoritative queue.
 - [ ] Every write operation has success, retry, conflict, and expired-auth tests.
 - [ ] Screenshot and accessibility suites cover every primary destination at
   compact and regular widths.
@@ -79,7 +83,12 @@ is committed. Read-only genre fixtures and state/controller tests additionally
 cover duplicate display names with separate identities, Unicode, missing art,
 empty and non-playable genres, independently paged albums and tracks, malformed
 rows, scope changes, stale-response suppression, and adaptive accessible
-presentation.
+presentation. Read-only favourites fixtures and state/controller tests cover
+favourite-filter contradictions, omitted optional user data, exact music-only
+gateway queries, independent section pagination and partial failures, stale scope
+suppression, duplicate names and track occurrences, playback routing, and
+redacted diagnostics. UI runtime evidence remains blocked by the local Xcode
+DebuggerLLDB result-store failure before tests start; the UI bundle compiles.
 The full Phase 3 matrix remains open.
 
 ## Phase 4: Premium playback

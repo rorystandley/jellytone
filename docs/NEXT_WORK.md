@@ -18,20 +18,20 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## NEXT
 
-### 1. Add read-only favourites browsing
+### 1. Add read-only downloads browsing
 
 - State: `READY`.
 - Phase: Phase 3.
-- Outcome: add a native read-only favourites destination through the existing
+- Outcome: add a native read-only downloads destination through the existing
   gateway/domain boundaries and authoritative playback flow.
 - Acceptance focus: the next unimplemented Phase 3 library destination.
-- Owned surface: scoped favourite artist/album/track mapping, adaptive browsing,
+- Owned surface: scoped downloaded-music mapping, adaptive browsing,
   deterministic fixtures, and focused state/playback/UI/accessibility tests.
 - Read after selection: Product Plan Phase 3; Architecture Domain models,
   JellyfinGateway, state ownership, and Testing architecture.
 - Proof: focused mapping/state/UI tests followed by `./scripts/test.sh`,
   `./scripts/test-integration.sh`, and `./scripts/test-ui.sh`.
-- Non-goals: favourite mutations, downloads, offline sync, playlist writes, or
+- Non-goals: download mutation, offline sync changes, playlist writes, or
   playback-engine changes.
 
 ## BLOCKED
@@ -50,6 +50,10 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## RECENTLY COMPLETED
 
+- Read-only favourites browsing: added active server/account/music-library scoped
+  favourite artists, albums, and tracks with independent paging, stale-response
+  protection, authoritative-queue playback, adaptive accessibility coverage,
+  synthetic mappings, and disposable-server query contracts.
 - Read-only genre browsing: added scoped paginated genre library/detail screens,
   stable identity and occurrence semantics, authoritative-queue play actions,
   deterministic gateway/state/playback/privacy tests, disposable-server

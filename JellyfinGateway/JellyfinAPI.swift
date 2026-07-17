@@ -150,6 +150,82 @@ struct JellyfinAPI: Sendable {
         )
     }
 
+    func favouriteArtists(
+        userID: String,
+        libraryID: String,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> FavouriteArtistPage {
+        let response = try await favouriteItems(
+            operation: "favourite_artists",
+            userID: userID,
+            libraryID: libraryID,
+            itemType: "MusicArtist",
+            startIndex: startIndex,
+            limit: limit
+        )
+        return FavouriteArtistPage(
+            artists: response.Items.compactMap { item in
+                guard item.isFavourite, item.`Type` == "MusicArtist",
+                      let identity = item.validatedIdentity else { return nil }
+                return Artist(id: identity.id, name: identity.name, imageTag: item.ImageTags?["Primary"])
+            },
+            hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
+            nextStartIndex: startIndex + response.receivedItemCount
+        )
+    }
+
+    func favouriteAlbums(
+        userID: String,
+        libraryID: String,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> FavouriteAlbumPage {
+        let response = try await favouriteItems(
+            operation: "favourite_albums",
+            userID: userID,
+            libraryID: libraryID,
+            itemType: "MusicAlbum",
+            startIndex: startIndex,
+            limit: limit
+        )
+        return FavouriteAlbumPage(
+            albums: response.Items.compactMap { item in
+                guard item.isFavourite, item.`Type` == "MusicAlbum" else { return nil }
+                return mapAlbum(item)
+            },
+            hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
+            nextStartIndex: startIndex + response.receivedItemCount
+        )
+    }
+
+    func favouriteTracks(
+        userID: String,
+        libraryID: String,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> FavouriteTrackPage {
+        let response = try await favouriteItems(
+            operation: "favourite_tracks",
+            userID: userID,
+            libraryID: libraryID,
+            itemType: "Audio",
+            startIndex: startIndex,
+            limit: limit
+        )
+        let occurrences = response.wireItems.enumerated().compactMap { offset, item -> FavouriteTrackOccurrence? in
+            guard let item, item.isFavourite, item.`Type` == "Audio", let track = mapTrack(item) else {
+                return nil
+            }
+            return FavouriteTrackOccurrence(id: "favourite:\(startIndex + offset):\(track.id)", track: track)
+        }
+        return FavouriteTrackPage(
+            occurrences: occurrences,
+            hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
+            nextStartIndex: startIndex + response.receivedItemCount
+        )
+    }
+
     func playlists(
         userID: String,
         libraryID: String?,
@@ -596,6 +672,32 @@ struct JellyfinAPI: Sendable {
         )
     }
 
+    private func favouriteItems(
+        operation: String,
+        userID: String,
+        libraryID: String,
+        itemType: String,
+        startIndex: Int,
+        limit: Int
+    ) async throws -> ItemsResponse<Item> {
+        try await send(
+            operation: operation,
+            path: ["Items"],
+            query: [
+                URLQueryItem(name: "userId", value: userID),
+                URLQueryItem(name: "ParentId", value: libraryID),
+                URLQueryItem(name: "IncludeItemTypes", value: itemType),
+                URLQueryItem(name: "IsFavorite", value: "true"),
+                URLQueryItem(name: "Recursive", value: "true"),
+                URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,UserData,RunTimeTicks"),
+                URLQueryItem(name: "StartIndex", value: String(startIndex)),
+                URLQueryItem(name: "Limit", value: String(limit)),
+                URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
+            ],
+            as: ItemsResponse<Item>.self
+        )
+    }
+
     private func mapTrack(_ item: Item) -> Track? {
         guard let identity = item.validatedIdentity else { return nil }
         return Track(
@@ -769,6 +871,9 @@ private struct ItemsResponse<Value: Decodable>: Decodable {
 }
 
 private struct Item: Decodable {
+    private struct UserData: Decodable {
+        let IsFavorite: Bool?
+    }
     let Id: String?
     let Name: String?
     let `Type`: String?
@@ -787,6 +892,13 @@ private struct Item: Decodable {
     let SongCount: Int?
     let AlbumCount: Int?
     let PlaylistItemId: String?
+    private let userData: UserData?
+
+    var isFavourite: Bool {
+        // IsFavorite=true was requested. Missing UserData remains compatible
+        // with older Jellyfin responses; an explicit false is contradictory.
+        userData?.IsFavorite != false
+    }
 
     var validatedIdentity: (id: String, name: String)? {
         guard let id = Id?.nonEmpty, let name = Name?.nonEmpty else { return nil }
@@ -813,12 +925,13 @@ private struct Item: Decodable {
         SongCount = container.lossy(Int.self, forKey: .SongCount)
         AlbumCount = container.lossy(Int.self, forKey: .AlbumCount)
         PlaylistItemId = container.lossy(String.self, forKey: .PlaylistItemId)
+        userData = container.lossy(UserData.self, forKey: .UserData)
     }
 
     private enum CodingKeys: String, CodingKey {
         case Id, Name, `Type`, CollectionType, AlbumArtist, Artists, Album, AlbumId
         case ProductionYear, ImageTags, IndexNumber, ParentIndexNumber, RunTimeTicks
-        case ChildCount, RecursiveItemCount, SongCount, AlbumCount, PlaylistItemId
+        case ChildCount, RecursiveItemCount, SongCount, AlbumCount, PlaylistItemId, UserData
     }
 }
 

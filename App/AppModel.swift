@@ -36,7 +36,8 @@ final class AppModel: ObservableObject {
 #if DEBUG
         if arguments.contains("--ui-testing-music-shell")
             || arguments.contains("--ui-testing-playlists")
-            || arguments.contains("--ui-testing-genres") {
+            || arguments.contains("--ui-testing-genres")
+            || arguments.contains("--ui-testing-favourites") {
             configureUITestMusicShell()
             return
         }
@@ -329,6 +330,85 @@ final class AppModel: ObservableObject {
         )
     }
 
+    func favouriteArtistsPage(startIndex: Int = 0) async throws -> FavouriteArtistPage {
+#if DEBUG
+        try await favouriteUITestDelayIfNeeded(startIndex: startIndex)
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-favourites-error") {
+            throw APIError.httpStatus(503)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-favourites-empty") {
+            return FavouriteArtistPage(artists: [], hasMore: false, nextStartIndex: 0)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-favourites") {
+            let artists = [
+                Artist(id: "artist-favourite", name: "Favourite Artist", imageTag: nil),
+                Artist(id: "artist-favourite-duplicate-name", name: "Favourite Artist", imageTag: nil),
+            ]
+            return FavouriteArtistPage(artists: startIndex == 0 ? artists : [], hasMore: false,
+                                       nextStartIndex: artists.count)
+        }
+#endif
+        guard let session, let api, let libraryID = selectedLibraryID else { throw APIError.notAuthenticated }
+        return try await api.favouriteArtists(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+    }
+
+    func favouriteAlbumsPage(startIndex: Int = 0) async throws -> FavouriteAlbumPage {
+#if DEBUG
+        try await favouriteUITestDelayIfNeeded(startIndex: startIndex)
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-favourites-error") {
+            throw APIError.httpStatus(503)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-favourites-empty") {
+            return FavouriteAlbumPage(albums: [], hasMore: false, nextStartIndex: 0)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-favourites") {
+            let albums = [
+                Album(id: "album-favourite", name: "Favourite Album", artist: "Favourite Artist",
+                      productionYear: 2026, imageTag: nil),
+                Album(id: "album-favourite-compilation", name: "Favourite Album", artist: "Various Artists",
+                      productionYear: nil, imageTag: nil),
+            ]
+            return FavouriteAlbumPage(albums: startIndex == 0 ? albums : [], hasMore: false,
+                                      nextStartIndex: albums.count)
+        }
+#endif
+        guard let session, let api, let libraryID = selectedLibraryID else { throw APIError.notAuthenticated }
+        return try await api.favouriteAlbums(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+    }
+
+    func favouriteTracksPage(startIndex: Int = 0) async throws -> FavouriteTrackPage {
+#if DEBUG
+        try await favouriteUITestDelayIfNeeded(startIndex: startIndex)
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-favourites-error") {
+            throw APIError.httpStatus(503)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-favourites-empty") {
+            return FavouriteTrackPage(occurrences: [], hasMore: false, nextStartIndex: 0)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-favourites") {
+            let duplicate = Track(id: "track-favourite-shared", name: "Repeated Favourite", artist: "Favourite Artist",
+                                  album: "Favourite Album", albumID: "album-favourite", index: 1, disc: 1,
+                                  durationTicks: 1_800_000_000)
+            let occurrences = [
+                FavouriteTrackOccurrence(id: "favourite-occurrence-1", track: duplicate),
+                FavouriteTrackOccurrence(id: "favourite-occurrence-2", track: Track(
+                    id: "track-favourite-unicode", name: "夜の音", artist: "Unknown Artist", album: "Favourite Album",
+                    albumID: "album-favourite", index: 2, disc: 2, durationTicks: nil
+                )),
+                FavouriteTrackOccurrence(id: "favourite-occurrence-3", track: duplicate),
+            ]
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing-favourites-pagination-error") {
+                if startIndex > 0 { throw APIError.httpStatus(503) }
+                return FavouriteTrackPage(occurrences: [occurrences[0]], hasMore: true, nextStartIndex: 1)
+            }
+            return FavouriteTrackPage(occurrences: startIndex == 0 ? occurrences : [], hasMore: false,
+                                      nextStartIndex: occurrences.count)
+        }
+#endif
+        guard let session, let api, let libraryID = selectedLibraryID else { throw APIError.notAuthenticated }
+        return try await api.favouriteTracks(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+    }
+
     func play(_ track: Track, in queue: [Track]) {
         guard let api, let session else { return }
         playback.play(
@@ -383,6 +463,30 @@ final class AppModel: ObservableObject {
     }
 
     func shuffle(_ occurrences: [GenreTrackOccurrence]) {
+        guard !occurrences.isEmpty else { return }
+        playAll(occurrences)
+        playback.toggleShuffle()
+    }
+
+    func play(_ occurrence: FavouriteTrackOccurrence, in occurrences: [FavouriteTrackOccurrence]) {
+        guard let api, let session,
+              let selectedIndex = occurrences.firstIndex(where: { $0.id == occurrence.id }) else { return }
+        let queue = occurrences.map { QueueEntry(track: $0.track) }
+        playback.play(
+            entries: queue,
+            startingAt: queue[selectedIndex].id,
+            using: api,
+            userID: session.userID,
+            scope: playbackScope(for: session)
+        )
+    }
+
+    func playAll(_ occurrences: [FavouriteTrackOccurrence]) {
+        guard let first = occurrences.first else { return }
+        play(first, in: occurrences)
+    }
+
+    func shuffle(_ occurrences: [FavouriteTrackOccurrence]) {
         guard !occurrences.isEmpty else { return }
         playAll(occurrences)
         playback.toggleShuffle()
@@ -505,6 +609,13 @@ final class AppModel: ObservableObject {
     }
 
 #if DEBUG
+    private func favouriteUITestDelayIfNeeded(startIndex: Int) async throws {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing-favourites-loading"), startIndex == 0 {
+            try await Task.sleep(for: .seconds(5))
+        }
+    }
+
     private func configureUITestMusicShell() {
         guard let serverURL = URL(string: "https://example.invalid") else { return }
         session = UserSession(

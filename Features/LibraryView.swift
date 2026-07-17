@@ -65,6 +65,55 @@ struct LibraryView: View {
 
                 Divider()
 
+                NavigationLink {
+                    FavouritesLibraryView(
+                        scope: FavouritesFeatureScope(
+                            serverID: model.session?.serverID ?? "",
+                            accountID: model.session?.userID ?? "",
+                            libraryID: model.selectedLibraryID
+                        ),
+                        loadArtists: { startIndex in
+                            try await model.favouriteArtistsPage(startIndex: startIndex)
+                        },
+                        loadAlbums: { startIndex in
+                            try await model.favouriteAlbumsPage(startIndex: startIndex)
+                        },
+                        loadTracks: { startIndex in
+                            try await model.favouriteTracksPage(startIndex: startIndex)
+                        },
+                        artistDestination: { ArtistView(artist: $0) },
+                        albumDestination: { AlbumView(album: $0) },
+                        play: { model.play($0, in: $1) },
+                        playAll: { model.playAll($0) },
+                        shuffle: { model.shuffle($0) }
+                    )
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "heart.fill")
+                            .font(.title2)
+                            .foregroundStyle(.tint)
+                            .frame(width: 36, height: 36)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Favourites").font(.headline)
+                            Text("Browse this music library's favourite artists, albums, and tracks")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.forward")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(minHeight: 56)
+                    .contentShape(Rectangle())
+                    .padding(.horizontal)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("library-favourites-link")
+                .accessibilityLabel("Browse favourites")
+
+                Divider()
+
                 Group {
                     if model.isLoading && model.albums.isEmpty {
                         ProgressView("Loading music…")

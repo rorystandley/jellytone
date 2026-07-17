@@ -43,6 +43,32 @@ struct MusicSearchPage: Equatable, Sendable {
     let nextStartIndex: Int
 }
 
+// Favourite pages intentionally remain independently paginated.  A favourite
+// track can occur more than once in a server response, so tracks use a
+// response-position identity while artists and albums retain their item IDs.
+struct FavouriteArtistPage: Equatable, Sendable {
+    let artists: [Artist]
+    let hasMore: Bool
+    let nextStartIndex: Int
+}
+
+struct FavouriteAlbumPage: Equatable, Sendable {
+    let albums: [Album]
+    let hasMore: Bool
+    let nextStartIndex: Int
+}
+
+struct FavouriteTrackOccurrence: Identifiable, Codable, Hashable, Sendable {
+    let id: String
+    let track: Track
+}
+
+struct FavouriteTrackPage: Equatable, Sendable {
+    let occurrences: [FavouriteTrackOccurrence]
+    let hasMore: Bool
+    let nextStartIndex: Int
+}
+
 struct Genre: Identifiable, Codable, Hashable, Sendable {
     let id: String
     let name: String
