@@ -378,7 +378,12 @@ Phase 2 or Phase 3. Read-only playlist-library and playlist-detail browsing was
 then added as a bounded destination slice. It preserves duplicate occurrences
 and server order and delegates Play, Play All, Shuffle, and selected-occurrence
 playback to the authoritative queue; playlist writes, caching, downloads, and
-offline sync remain open.
+offline sync remain open. Read-only genre-library and genre-detail browsing was
+then added as the next bounded destination slice. Genre identity remains
+separate from display name, album and playable-track contents are selected by
+stable server genre identity within the active music-library scope, and genre
+play actions use the same authoritative queue. Genre writes, caching,
+downloads, favourites, and offline sync remain open.
 
 Phase 2 lifecycle note (2026-07-17): reporting is serialized for start,
 progress, pause/resume, seek, replacement, natural completion, playback error,

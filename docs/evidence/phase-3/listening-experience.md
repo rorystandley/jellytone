@@ -49,6 +49,12 @@ Last updated: 2026-07-17
   preserves duplicate track occurrences and server order, handles empty and
   non-playable collections honestly, and sends Play, Play All, Shuffle, and a
   selected occurrence through the authoritative playback queue.
+- Library now includes paginated read-only genre browsing. Genre detail loads
+  albums and playable track occurrences by stable genre identity within the
+  selected music-library scope, preserves duplicate occurrences, and routes
+  selected-track, Play All, and Shuffle actions through the authoritative
+  playback queue. Detailed executable evidence is recorded in
+  [read-only-genres.md](read-only-genres.md).
 
 ## Automated evidence
 
@@ -202,7 +208,7 @@ verified, but its launch is not promoted to final-build device evidence.
 
 ## Deliberately not claimed
 
-- Genre, favourites, downloads, or multi-profile screens. Playlist writes,
+- Favourites, downloads, or multi-profile screens. Playlist and genre writes,
   caching, downloads, and offline sync also remain unimplemented.
 - Full screenshot/accessibility matrix coverage for every Phase 3 destination.
 - Completion of Phase 2 or Phase 3.

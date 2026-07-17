@@ -27,6 +27,8 @@ ROOT = Path(__file__).resolve().parents[2]
 VERSIONS_FILE = ROOT / "infra" / "jellyfin" / "versions.env"
 STATE_ROOT = ROOT / "infra" / "jellyfin" / ".state"
 FIXTURE_MARKER = "Phase Two Unsupported Source"
+GENRE_MARKER = "Phase Three Fixture Genre"
+GENRE_TRACK_MARKER = "Phase Three Genre Track"
 PRIVATE_KEYS = {
     "accesstoken", "password", "pw", "token", "secret", "code", "url",
     "address", "serverid", "userid", "itemid", "mediasourceid", "playsessionid",
@@ -61,11 +63,23 @@ def require_prerequisites() -> None:
 
 
 def run(command: list[str], *, capture: bool = False) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        command, cwd=ROOT, check=True, text=True,
+    completed = subprocess.run(
+        command, cwd=ROOT, check=False, text=True,
         stdout=subprocess.PIPE if capture else None,
         stderr=subprocess.STDOUT if capture else None,
     )
+    if completed.returncode:
+        if capture:
+            output = completed.stdout or ""
+            for failure in (
+                "versionMismatch", "fixtureMissing", "genreListEmpty", "genreMarkerMissing",
+                "genreAlbumMissing", "genreTrackMissing",
+                "wrongPlaybackMethod", "deliveryFailed", "reportingFailed",
+            ):
+                if failure in output:
+                    raise IntegrationFailure(f"production gateway harness reported {failure}")
+        raise subprocess.CalledProcessError(completed.returncode, command)
+    return completed
 
 
 def build_harness(output: Path) -> None:
@@ -107,7 +121,20 @@ def add_unsupported_fixture() -> None:
         "-metadata", "album=Phase Two Integration",
         "-metadata", "artist=Fixture Artist",
         "-metadata", "album_artist=Fixture Artist",
+        "-metadata", f"genre={GENRE_MARKER}",
         "-metadata", "disc=1", "-metadata", "track=1", str(destination),
+    ])
+    genre_destination = destination.with_name("02 Genre.mp3")
+    run([
+        "ffmpeg", "-nostdin", "-y", "-hide_banner", "-loglevel", "error",
+        "-f", "lavfi", "-i", "sine=frequency=1015:sample_rate=48000:duration=1",
+        "-map_metadata", "-1", "-ac", "2", "-c:a", "libmp3lame", "-b:a", "128k",
+        "-metadata", f"title={GENRE_TRACK_MARKER}",
+        "-metadata", "album=Phase Three Genre Album",
+        "-metadata", "artist=Fixture Artist",
+        "-metadata", "album_artist=Fixture Artist",
+        "-metadata", f"genre={GENRE_MARKER}",
+        "-metadata", "disc=1", "-metadata", "track=2", str(genre_destination),
     ])
 
 
@@ -290,7 +317,7 @@ def main() -> int:
                     completed = run([
                         str(harness), endpoint, version, str(password_file), str(output), FIXTURE_MARKER,
                     ], capture=True)
-                    if "LIVE_GATEWAY_RESULT version=pass transcode=aac-mp4 lifecycle=complete" not in completed.stdout:
+                    if "LIVE_GATEWAY_RESULT version=pass genre=complete transcode=aac-mp4 lifecycle=complete" not in completed.stdout:
                         raise IntegrationFailure("production gateway harness omitted its fixed success marker")
                     validate_lifecycle(proxy.events)
                     if not proxy.transcode_requested:
@@ -298,6 +325,7 @@ def main() -> int:
                 results.append({
                     "serverLabel": label,
                     "version": version,
+                    "genreBrowsing": "complete",
                     "lifecycle": [event["event"] for event in proxy.events],
                     "transcode": inspect_transcode(output),
                 })

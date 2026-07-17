@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 
@@ -41,6 +42,16 @@ class LivePlaybackSupportTests(unittest.TestCase):
         })
         with self.assertRaisesRegex(live_playback.IntegrationFailure, "private field"):
             live_playback.validate_redacted_result({"token": "private"})
+
+    def test_harness_failure_exposes_only_allowlisted_category(self) -> None:
+        with self.assertRaisesRegex(
+            live_playback.IntegrationFailure,
+            "production gateway harness reported genreTrackMissing",
+        ):
+            live_playback.run(
+                [sys.executable, "-c", 'print("genreTrackMissing private-runtime-detail") or exit(1)'],
+                capture=True,
+            )
 
 
 if __name__ == "__main__":

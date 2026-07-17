@@ -18,21 +18,21 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## NEXT
 
-### 1. Add read-only genre browsing
+### 1. Add read-only favourites browsing
 
 - State: `READY`.
 - Phase: Phase 3.
-- Outcome: add native genre-library and genre-detail browsing through the
-  existing gateway/domain boundaries and authoritative playback flow.
+- Outcome: add a native read-only favourites destination through the existing
+  gateway/domain boundaries and authoritative playback flow.
 - Acceptance focus: the next unimplemented Phase 3 library destination.
-- Owned surface: genre domain mapping, read-only gateway queries, adaptive
-  genre screens, deterministic fixtures, and focused UI/accessibility tests.
+- Owned surface: scoped favourite artist/album/track mapping, adaptive browsing,
+  deterministic fixtures, and focused state/playback/UI/accessibility tests.
 - Read after selection: Product Plan Phase 3; Architecture Domain models,
   JellyfinGateway, state ownership, and Testing architecture.
 - Proof: focused mapping/state/UI tests followed by `./scripts/test.sh`,
   `./scripts/test-integration.sh`, and `./scripts/test-ui.sh`.
-- Non-goals: favourites, downloads, offline sync, playlist writes, or playback
-  changes.
+- Non-goals: favourite mutations, downloads, offline sync, playlist writes, or
+  playback-engine changes.
 
 ## BLOCKED
 
@@ -50,6 +50,10 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## RECENTLY COMPLETED
 
+- Read-only genre browsing: added scoped paginated genre library/detail screens,
+  stable identity and occurrence semantics, authoritative-queue play actions,
+  deterministic gateway/state/playback/privacy tests, disposable-server
+  contracts, and adaptive UI/accessibility coverage.
 - Read-only playlist browsing: added paginated playlist library/detail screens,
   stable occurrence identities, authoritative-queue play actions, deterministic
   gateway/state/playback/privacy tests, and adaptive UI/accessibility coverage.

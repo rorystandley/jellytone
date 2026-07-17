@@ -36,6 +36,35 @@ struct LibraryView: View {
 
                 Divider()
 
+                NavigationLink {
+                    GenreLibraryView()
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "guitars")
+                            .font(.title2)
+                            .foregroundStyle(.tint)
+                            .frame(width: 36, height: 36)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Genres").font(.headline)
+                            Text("Browse genres in this music library")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.forward")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(minHeight: 56)
+                    .contentShape(Rectangle())
+                    .padding(.horizontal)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("library-genres-link")
+                .accessibilityLabel("Browse genres")
+
+                Divider()
+
                 Group {
                     if model.isLoading && model.albums.isEmpty {
                         ProgressView("Loading music…")

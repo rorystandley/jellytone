@@ -1,0 +1,31 @@
+{
+  "Items": [
+    {
+      "Id": "genre-album-a",
+      "Name": "Shared Album",
+      "Type": "MusicAlbum",
+      "AlbumArtist": "Various Artists",
+      "ProductionYear": 2025,
+      "ImageTags": { "Primary": "genre-album-art-a" }
+    },
+    23,
+    {
+      "Id": "genre-album-b",
+      "Name": "Shared Album",
+      "Type": "MusicAlbum",
+      "Artists": ["Second Artist"],
+      "ProductionYear": 2024
+    },
+    { "Id": "video-a", "Name": "Not Music", "Type": "Movie" },
+    {
+      "Id": "genre-album-unicode",
+      "Name": "Café 東京",
+      "Type": "MusicAlbum",
+      "AlbumArtist": 17,
+      "ProductionYear": "old",
+      "ImageTags": ["invalid"]
+    },
+    { "Id": "missing-name", "Type": "MusicAlbum" }
+  ],
+  "TotalRecordCount": 6
+}

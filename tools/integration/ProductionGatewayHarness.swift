@@ -14,6 +14,10 @@ enum HarnessFailure: Error {
     case invalidArguments
     case versionMismatch
     case fixtureMissing
+    case genreListEmpty
+    case genreMarkerMissing
+    case genreAlbumMissing
+    case genreTrackMissing
     case wrongPlaybackMethod
     case deliveryFailed
     case reportingFailed
@@ -44,6 +48,7 @@ struct ProductionGatewayHarness {
 
         let libraries = try await api.musicLibraries(userID: authentication.userID)
         var selectedTrack: Track?
+        var selectedLibrary: MusicLibrary?
         for _ in 0..<30 where selectedTrack == nil {
             for library in libraries {
                 let albums = try await api.albums(userID: authentication.userID, libraryID: library.id)
@@ -51,6 +56,7 @@ struct ProductionGatewayHarness {
                     let tracks = try await api.tracks(userID: authentication.userID, albumID: album.id)
                     if let match = tracks.first(where: { $0.name == fixtureMarker }) {
                         selectedTrack = match
+                        selectedLibrary = library
                         break
                     }
                 }
@@ -58,7 +64,45 @@ struct ProductionGatewayHarness {
             }
             if selectedTrack == nil { try await Task.sleep(for: .seconds(1)) }
         }
-        guard let selectedTrack else { throw HarnessFailure.fixtureMissing }
+        guard let selectedTrack, let selectedLibrary else { throw HarnessFailure.fixtureMissing }
+
+        var observedGenres = false
+        var observedFixtureGenre = false
+        var observedGenreTrack = false
+        var observedGenreAlbum = false
+        for _ in 0..<30 where !observedGenreAlbum {
+            let genres = try await api.genres(
+                userID: authentication.userID,
+                libraryID: selectedLibrary.id
+            )
+            observedGenres = observedGenres || !genres.genres.isEmpty
+            if let fixtureGenre = genres.genres.first(where: { $0.name == "Phase Three Fixture Genre" }) {
+                observedFixtureGenre = true
+                let genreAlbums = try await api.genreAlbums(
+                    userID: authentication.userID,
+                    genreID: fixtureGenre.id,
+                    libraryID: selectedLibrary.id
+                )
+                let genreTracks = try await api.genreTracks(
+                    userID: authentication.userID,
+                    genreID: fixtureGenre.id,
+                    libraryID: selectedLibrary.id
+                )
+                if let genreTrack = genreTracks.occurrences.first(where: {
+                    $0.track.name == "Phase Three Genre Track"
+                }) {
+                    observedGenreTrack = true
+                    if let genreAlbumID = genreTrack.track.albumID {
+                        observedGenreAlbum = genreAlbums.albums.contains { $0.id == genreAlbumID }
+                    }
+                }
+            }
+            if !observedGenreAlbum { try await Task.sleep(for: .seconds(1)) }
+        }
+        guard observedGenres else { throw HarnessFailure.genreListEmpty }
+        guard observedFixtureGenre else { throw HarnessFailure.genreMarkerMissing }
+        guard observedGenreTrack else { throw HarnessFailure.genreTrackMissing }
+        guard observedGenreAlbum else { throw HarnessFailure.genreAlbumMissing }
         let plan = try await api.playbackPlan(itemID: selectedTrack.id, userID: authentication.userID)
         guard plan.method == .transcode else { throw HarnessFailure.wrongPlaybackMethod }
 
@@ -91,7 +135,7 @@ struct ProductionGatewayHarness {
 
         // Only fixed allowlisted values reach stdout. Production diagnostics also
         // emit operation/status metadata, never credentials, endpoints or identity.
-        print("LIVE_GATEWAY_RESULT version=pass transcode=aac-mp4 lifecycle=complete")
+        print("LIVE_GATEWAY_RESULT version=pass genre=complete transcode=aac-mp4 lifecycle=complete")
     }
 
     private static func requireAccepted(_ outcome: PlaybackReportOutcome) throws {

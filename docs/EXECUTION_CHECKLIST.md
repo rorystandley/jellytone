@@ -50,6 +50,9 @@ diagnostics privacy gate remains authoritative. Full Phase 1 remains open.
   artwork, duplicate names, unusual Unicode, and malformed metadata.
 - [x] Read-only playlist list/detail paging preserves ordered duplicate
   occurrences and routes play actions through the authoritative queue.
+- [x] Read-only genre list/detail paging uses stable genre identity, preserves
+  ordered duplicate track occurrences, and routes play actions through the
+  authoritative queue.
 - [ ] Every write operation has success, retry, conflict, and expired-auth tests.
 - [ ] Screenshot and accessibility suites cover every primary destination at
   compact and regular widths.
@@ -72,7 +75,11 @@ suite. Read-only playlist fixtures and controller tests additionally cover
 pagination, per-occurrence identity, scope changes, stale-response suppression,
 malformed rows, authentication expiry, empty/non-playable states, and adaptive
 accessible presentation. No generated large JSON corpus or private library data
-is committed.
+is committed. Read-only genre fixtures and state/controller tests additionally
+cover duplicate display names with separate identities, Unicode, missing art,
+empty and non-playable genres, independently paged albums and tracks, malformed
+rows, scope changes, stale-response suppression, and adaptive accessible
+presentation.
 The full Phase 3 matrix remains open.
 
 ## Phase 4: Premium playback

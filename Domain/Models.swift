@@ -43,6 +43,31 @@ struct MusicSearchPage: Equatable, Sendable {
     let nextStartIndex: Int
 }
 
+struct Genre: Identifiable, Codable, Hashable, Sendable {
+    let id: String
+    let name: String
+    let imageTag: String?
+    let itemCount: Int?
+    let albumCount: Int?
+}
+
+struct GenrePage: Equatable, Sendable {
+    let genres: [Genre]
+    let hasMore: Bool
+    let nextStartIndex: Int
+}
+
+struct GenreTrackOccurrence: Identifiable, Codable, Hashable, Sendable {
+    let id: String
+    let track: Track
+}
+
+struct GenreTrackPage: Equatable, Sendable {
+    let occurrences: [GenreTrackOccurrence]
+    let hasMore: Bool
+    let nextStartIndex: Int
+}
+
 struct Playlist: Identifiable, Codable, Hashable, Sendable {
     let id: String
     let name: String

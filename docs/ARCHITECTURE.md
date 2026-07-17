@@ -46,17 +46,19 @@ details.
 The first runnable implementation keeps these boundaries as source folders in
 one generated application target. It includes AppShell composition, stable
 Domain models, a Keychain-backed JellyfinGateway, cancellable feature-owned
-search state, feature views, and one Playback controller. Search, artist, and
-read-only playlist browsing consume application-owned models and paged results;
-wire response models remain private to the gateway. Playlist entries preserve
-server order and use occurrence identity independent of track identity before
-they enter the existing authoritative playback queue. Playlist writes,
-playlist caching/offline sync, downloads, and extensions remain future work.
+search state, feature views, and one Playback controller. Search, artist,
+read-only playlist browsing, and read-only genre browsing consume
+application-owned models and paged results; wire response models remain private
+to the gateway. Playlist entries and genre tracks preserve occurrence identity
+independent of track identity before they enter the existing authoritative
+playback queue. Playlist and genre writes, caching/offline sync, downloads, and
+extensions remain future work.
 
 To shorten the path to a device-runnable app, the gateway currently implements
 only the required Jellyfin endpoints using `URLSession`, including music-only
 artist/album search, artist-album queries, global read-only playlist listing,
-and ordered playlist-entry loading. Playlist paging advances by raw response
+ordered playlist-entry loading, music-genre listing, and genre album/track
+queries by stable genre ID. Playlist and genre paging advance by raw response
 rows so malformed or non-audio entries cannot stall or reorder later pages.
 This is an interim adapter behind the gateway boundary, not a reversal of the
 official SDK decision. The replacement path is recorded in
@@ -208,6 +210,14 @@ playlist collection is account-global. It does not persist playlists or issue
 mutations. `AppModel` converts selected playlist occurrences to `QueueEntry`
 values, and `PlaybackController` remains the only queue and playback owner.
 
+`GenreLibraryState` and `GenreDetailState` own cancellable,
+generation-guarded genre requests. Their scope includes server, account, and
+selected-library identity; detail ownership additionally includes stable genre
+identity. Album and playable-track pagination advance independently. Genre
+names are presentation only and never select server content. Track occurrences
+remain distinct through pagination; `AppModel` converts them to queue entries,
+and `PlaybackController` remains the only queue and playback owner.
+
 ## Core data models
 
 At minimum, stable domain identities are required for:
@@ -219,6 +229,7 @@ At minimum, stable domain identities are required for:
 - `Album` with discs and ordered tracks.
 - `Track` with media-source and audio-format summaries.
 - `Playlist` and ordered playlist entries.
+- `Genre`, paged genre albums, and ordered genre-track occurrences.
 - `PlaybackQueue` and `QueueEntry` with original and shuffled order.
 - `PlaybackSnapshot` for restoration and platform donation.
 - `DownloadRecord` and versioned `DownloadManifest`.

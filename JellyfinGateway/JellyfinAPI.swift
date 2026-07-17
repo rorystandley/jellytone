@@ -192,6 +192,132 @@ struct JellyfinAPI: Sendable {
         )
     }
 
+    func genres(
+        userID: String,
+        libraryID: String?,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> GenrePage {
+        var query = [
+            URLQueryItem(name: "userId", value: userID),
+            // Jellyfin 10.10.7 and 10.11.11 return no music genres when
+            // IncludeItemTypes is supplied here. ParentId is the compatible
+            // music-only scope; detail queries retain their explicit types.
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,ItemCounts"),
+            URLQueryItem(name: "StartIndex", value: String(startIndex)),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
+            URLQueryItem(name: "SortBy", value: "SortName"),
+            URLQueryItem(name: "SortOrder", value: "Ascending"),
+        ]
+        if let libraryID {
+            query.append(URLQueryItem(name: "ParentId", value: libraryID))
+        }
+        let response = try await send(
+            operation: "genres",
+            path: ["Genres"],
+            query: query,
+            as: ItemsResponse<Item>.self
+        )
+        let genres = response.Items.compactMap { item -> Genre? in
+            guard item.`Type` == nil || item.`Type` == "MusicGenre",
+                  let identity = item.validatedIdentity else { return nil }
+            return Genre(
+                id: identity.id,
+                name: identity.name,
+                imageTag: item.ImageTags?["Primary"],
+                itemCount: item.SongCount ?? item.RecursiveItemCount ?? item.ChildCount,
+                albumCount: item.AlbumCount
+            )
+        }
+        return GenrePage(
+            genres: genres,
+            hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
+            nextStartIndex: startIndex + response.receivedItemCount
+        )
+    }
+
+    func genreAlbums(
+        userID: String,
+        genreID: String,
+        libraryID: String?,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> AlbumPage {
+        var query = [
+            URLQueryItem(name: "userId", value: userID),
+            URLQueryItem(name: "GenreIds", value: genreID),
+            URLQueryItem(name: "IncludeItemTypes", value: "MusicAlbum"),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
+            URLQueryItem(name: "StartIndex", value: String(startIndex)),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
+            URLQueryItem(name: "SortBy", value: "ProductionYear,SortName"),
+            URLQueryItem(name: "SortOrder", value: "Descending"),
+        ]
+        if let libraryID {
+            query.append(URLQueryItem(name: "ParentId", value: libraryID))
+        }
+        let response = try await send(
+            operation: "genre_albums",
+            path: ["Items"],
+            query: query,
+            as: ItemsResponse<Item>.self
+        )
+        return AlbumPage(
+            albums: response.Items.compactMap { item in
+                item.`Type` == nil || item.`Type` == "MusicAlbum" ? mapAlbum(item) : nil
+            },
+            hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
+            nextStartIndex: startIndex + response.receivedItemCount
+        )
+    }
+
+    func genreTracks(
+        userID: String,
+        genreID: String,
+        libraryID: String?,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> GenreTrackPage {
+        var query = [
+            URLQueryItem(name: "userId", value: userID),
+            URLQueryItem(name: "GenreIds", value: genreID),
+            URLQueryItem(name: "IncludeItemTypes", value: "Audio"),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "RunTimeTicks"),
+            URLQueryItem(name: "StartIndex", value: String(startIndex)),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
+            URLQueryItem(name: "SortBy", value: "Album,ParentIndexNumber,IndexNumber,SortName"),
+            URLQueryItem(name: "SortOrder", value: "Ascending"),
+        ]
+        if let libraryID {
+            query.append(URLQueryItem(name: "ParentId", value: libraryID))
+        }
+        let response = try await send(
+            operation: "genre_tracks",
+            path: ["Items"],
+            query: query,
+            as: ItemsResponse<Item>.self
+        )
+        let occurrences = response.wireItems.enumerated().compactMap { offset, item -> GenreTrackOccurrence? in
+            guard let item, item.`Type` == nil || item.`Type` == "Audio",
+                  let track = mapTrack(item) else { return nil }
+            return GenreTrackOccurrence(
+                id: "\(genreID):\(startIndex + offset):\(track.id)",
+                track: track
+            )
+        }
+        return GenreTrackPage(
+            occurrences: occurrences,
+            hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
+            nextStartIndex: startIndex + response.receivedItemCount
+        )
+    }
+
     func playlistEntries(
         userID: String,
         playlistID: String,
@@ -657,6 +783,9 @@ private struct Item: Decodable {
     let ParentIndexNumber: Int?
     let RunTimeTicks: Int64?
     let ChildCount: Int?
+    let RecursiveItemCount: Int?
+    let SongCount: Int?
+    let AlbumCount: Int?
     let PlaylistItemId: String?
 
     var validatedIdentity: (id: String, name: String)? {
@@ -680,13 +809,16 @@ private struct Item: Decodable {
         ParentIndexNumber = container.lossy(Int.self, forKey: .ParentIndexNumber)
         RunTimeTicks = container.lossy(Int64.self, forKey: .RunTimeTicks)
         ChildCount = container.lossy(Int.self, forKey: .ChildCount)
+        RecursiveItemCount = container.lossy(Int.self, forKey: .RecursiveItemCount)
+        SongCount = container.lossy(Int.self, forKey: .SongCount)
+        AlbumCount = container.lossy(Int.self, forKey: .AlbumCount)
         PlaylistItemId = container.lossy(String.self, forKey: .PlaylistItemId)
     }
 
     private enum CodingKeys: String, CodingKey {
         case Id, Name, `Type`, CollectionType, AlbumArtist, Artists, Album, AlbumId
         case ProductionYear, ImageTags, IndexNumber, ParentIndexNumber, RunTimeTicks
-        case ChildCount, PlaylistItemId
+        case ChildCount, RecursiveItemCount, SongCount, AlbumCount, PlaylistItemId
     }
 }
 

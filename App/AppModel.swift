@@ -34,7 +34,9 @@ final class AppModel: ObservableObject {
             defaults.set(UUID().uuidString, forKey: Self.deviceIDKey)
         }
 #if DEBUG
-        if arguments.contains("--ui-testing-music-shell") || arguments.contains("--ui-testing-playlists") {
+        if arguments.contains("--ui-testing-music-shell")
+            || arguments.contains("--ui-testing-playlists")
+            || arguments.contains("--ui-testing-genres") {
             configureUITestMusicShell()
             return
         }
@@ -239,6 +241,94 @@ final class AppModel: ObservableObject {
         )
     }
 
+    func genrePage(startIndex: Int = 0) async throws -> GenrePage {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing-genres-loading") {
+            try await Task.sleep(for: .seconds(5))
+        }
+        if arguments.contains("--ui-testing-genres-error") { throw APIError.httpStatus(503) }
+        if arguments.contains("--ui-testing-genres-pagination-error"), startIndex > 0 {
+            throw APIError.httpStatus(503)
+        }
+        if arguments.contains("--ui-testing-genres-empty") {
+            return GenrePage(genres: [], hasMore: false, nextStartIndex: 0)
+        }
+        if arguments.contains("--ui-testing-genres") {
+            let genres = [
+                Genre(id: "genre-rock", name: "Rock", imageTag: nil, itemCount: 4, albumCount: 2),
+                Genre(id: "genre-rock-b", name: "Rock", imageTag: nil, itemCount: 1, albumCount: 1),
+                Genre(id: "genre-empty", name: "日本の音楽 🎧", imageTag: nil, itemCount: 0, albumCount: 0),
+                Genre(id: "genre-nonplayable", name: "Unsupported Collection", imageTag: nil,
+                      itemCount: 2, albumCount: 0),
+            ]
+            if arguments.contains("--ui-testing-genres-pagination-error") {
+                return GenrePage(genres: startIndex == 0 ? [genres[0]] : [], hasMore: startIndex == 0,
+                                 nextStartIndex: startIndex == 0 ? 1 : startIndex)
+            }
+            return GenrePage(genres: startIndex == 0 ? genres : [], hasMore: false,
+                             nextStartIndex: genres.count)
+        }
+#endif
+        guard let session, let api else { throw APIError.notAuthenticated }
+        return try await api.genres(
+            userID: session.userID,
+            libraryID: selectedLibraryID,
+            startIndex: startIndex
+        )
+    }
+
+    func genreAlbums(for genre: Genre, startIndex: Int = 0) async throws -> AlbumPage {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-genres") {
+            let albums = [
+                Album(id: "genre-album-1", name: "Synthetic Compilation", artist: "Various Artists",
+                      productionYear: 2026, imageTag: nil),
+                Album(id: "genre-album-2", name: "Second Record", artist: "Synthetic Artist",
+                      productionYear: nil, imageTag: nil),
+            ]
+            let values = ["genre-empty", "genre-nonplayable"].contains(genre.id) ? [] : albums
+            return AlbumPage(albums: startIndex == 0 ? values : [], hasMore: false,
+                             nextStartIndex: values.count)
+        }
+#endif
+        guard let session, let api else { throw APIError.notAuthenticated }
+        return try await api.genreAlbums(
+            userID: session.userID,
+            genreID: genre.id,
+            libraryID: selectedLibraryID,
+            startIndex: startIndex
+        )
+    }
+
+    func genreTracks(for genre: Genre, startIndex: Int = 0) async throws -> GenreTrackPage {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-genres") {
+            let duplicate = Track(id: "genre-track-shared", name: "Repeated Song", artist: "Synthetic Artist",
+                                  album: "Synthetic Compilation", albumID: "genre-album-1", index: 1, disc: 1,
+                                  durationTicks: 1_800_000_000)
+            let occurrences = ["genre-empty", "genre-nonplayable"].contains(genre.id) ? [] : [
+                GenreTrackOccurrence(id: "genre-occurrence-1", track: duplicate),
+                GenreTrackOccurrence(id: "genre-occurrence-2", track: Track(
+                    id: "genre-track-unicode", name: "夜の音", artist: "Unknown Artist",
+                    album: "Synthetic Compilation", albumID: "genre-album-1", index: 2, disc: 2,
+                    durationTicks: nil
+                )),
+                GenreTrackOccurrence(id: "genre-occurrence-3", track: duplicate),
+            ]
+            return GenreTrackPage(occurrences: startIndex == 0 ? occurrences : [], hasMore: false,
+                                  nextStartIndex: occurrences.count)
+        }
+#endif
+        guard let session, let api else { throw APIError.notAuthenticated }
+        return try await api.genreTracks(
+            userID: session.userID,
+            genreID: genre.id,
+            libraryID: selectedLibraryID,
+            startIndex: startIndex
+        )
+    }
+
     func play(_ track: Track, in queue: [Track]) {
         guard let api, let session else { return }
         playback.play(
@@ -271,6 +361,30 @@ final class AppModel: ObservableObject {
     func shuffle(_ playlistEntries: [PlaylistEntry]) {
         guard !playlistEntries.isEmpty else { return }
         playAll(playlistEntries)
+        playback.toggleShuffle()
+    }
+
+    func play(_ occurrence: GenreTrackOccurrence, in occurrences: [GenreTrackOccurrence]) {
+        guard let api, let session,
+              let selectedIndex = occurrences.firstIndex(where: { $0.id == occurrence.id }) else { return }
+        let queue = occurrences.map { QueueEntry(track: $0.track) }
+        playback.play(
+            entries: queue,
+            startingAt: queue[selectedIndex].id,
+            using: api,
+            userID: session.userID,
+            scope: playbackScope(for: session)
+        )
+    }
+
+    func playAll(_ occurrences: [GenreTrackOccurrence]) {
+        guard let first = occurrences.first else { return }
+        play(first, in: occurrences)
+    }
+
+    func shuffle(_ occurrences: [GenreTrackOccurrence]) {
+        guard !occurrences.isEmpty else { return }
+        playAll(occurrences)
         playback.toggleShuffle()
     }
 
