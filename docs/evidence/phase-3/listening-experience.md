@@ -48,7 +48,7 @@ Last updated: 2026-07-17
 
 ## Automated evidence
 
-`./scripts/test.sh` passes 56 tests. In addition to deterministic queue coverage,
+`./scripts/test.sh` passes 66 tests. In addition to deterministic queue coverage,
 gateway tests prove reverse-proxy-safe search and artist-album request
 construction, selected-library scoping, Unicode/query encoding, music-only
 filtering, pagination offsets, artwork/year mapping, and rejection of injected
@@ -79,6 +79,30 @@ tests, and `./scripts/build-release.sh` produces the simulator release build.
 No device run was added because this slice changes metadata persistence and
 search orchestration, for which the simulator is representative; the audible
 Phase 2 real-device blocker remains unchanged.
+
+The deterministic edge-case batch adds three privacy-safe, file-backed Jellyfin
+responses under `Tests/Fixtures/Jellyfin/Phase3`: `albums.json`, `search.json`,
+and `tracks.json`. They cover compilation album artists and per-track artists,
+shuffled multi-disc tracks with stable tie-breakers, missing art, duplicate
+artist/album names with distinct IDs, composed and decomposed Unicode plus
+non-Latin text and emoji, absent optional metadata, wrong-typed optional values,
+blank/missing required values, scalar/null records, and valid siblings around
+malformed records. Mapping rejects records without a usable ID and name, degrades
+malformed optional fields to supported nil/unknown fallbacks, advances paging by
+the raw server row count, and never lets one bad row invalidate valid siblings.
+
+Persistence coverage proves exact Unicode and nil-metadata round-trip, folded
+local search, duplicate-name identity preservation, invalid-write filtering,
+malformed-row isolation, repeat-refresh/upsert idempotence, and isolation of the
+same item IDs across servers, accounts, and libraries. The focused mapping suite
+passes 3 tests and the focused `LibraryStoreTests` suite passes 15 tests. The
+final integrated run passed `./scripts/test.sh` with 66 tests and zero failures,
+`./scripts/test-integration.sh` across both the fixture and disposable Jellyfin
+lanes, `./scripts/test-ui.sh` with 5 tests and zero failures, and
+`./scripts/build-release.sh` with `BUILD SUCCEEDED`. No device test is required
+because this batch changes deterministic response mapping and metadata tests
+only; the
+blocked audible Phase 2 real-device gate remains open.
 
 ## Device state
 

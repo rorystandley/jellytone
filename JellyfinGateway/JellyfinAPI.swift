@@ -60,7 +60,8 @@ struct JellyfinAPI: Sendable {
             as: ItemsResponse<Item>.self
         )
         return response.Items.compactMap { item in
-            item.CollectionType == "music" ? MusicLibrary(id: item.Id, name: item.Name) : nil
+            guard item.CollectionType == "music", let identity = item.validatedIdentity else { return nil }
+            return MusicLibrary(id: identity.id, name: identity.name)
         }
     }
 
@@ -90,17 +91,14 @@ struct JellyfinAPI: Sendable {
             query: query,
             as: ItemsResponse<Item>.self
         )
-        let albums = response.Items.map {
-            Album(id: $0.Id, name: $0.Name, artist: $0.AlbumArtist ?? $0.Artists?.first ?? "Unknown Artist",
-                  productionYear: $0.ProductionYear, imageTag: $0.ImageTags?["Primary"])
-        }
-        let hasMore = !response.Items.isEmpty
-            && (response.TotalRecordCount.map { startIndex + response.Items.count < $0 }
-                ?? (response.Items.count == limit))
+        let albums = response.Items.compactMap(mapAlbum)
+        let hasMore = response.receivedItemCount > 0
+            && (response.TotalRecordCount.map { startIndex + response.receivedItemCount < $0 }
+                ?? (response.receivedItemCount == limit))
         return AlbumPage(
             albums: albums,
             hasMore: hasMore,
-            nextStartIndex: startIndex + response.Items.count
+            nextStartIndex: startIndex + response.receivedItemCount
         )
     }
 
@@ -134,20 +132,21 @@ struct JellyfinAPI: Sendable {
         )
         let artists = response.Items.compactMap { item -> Artist? in
             guard item.`Type` == "MusicArtist" else { return nil }
-            return Artist(id: item.Id, name: item.Name, imageTag: item.ImageTags?["Primary"])
+            guard let identity = item.validatedIdentity else { return nil }
+            return Artist(id: identity.id, name: identity.name, imageTag: item.ImageTags?["Primary"])
         }
         let albums = response.Items.compactMap { item -> Album? in
             guard item.`Type` == "MusicAlbum" else { return nil }
             return mapAlbum(item)
         }
-        let hasMore = !response.Items.isEmpty
-            && (response.TotalRecordCount.map { startIndex + response.Items.count < $0 }
-                ?? (response.Items.count == limit))
+        let hasMore = response.receivedItemCount > 0
+            && (response.TotalRecordCount.map { startIndex + response.receivedItemCount < $0 }
+                ?? (response.receivedItemCount == limit))
         return MusicSearchPage(
             artists: artists,
             albums: albums,
             hasMore: hasMore,
-            nextStartIndex: startIndex + response.Items.count
+            nextStartIndex: startIndex + response.receivedItemCount
         )
     }
 
@@ -182,13 +181,13 @@ struct JellyfinAPI: Sendable {
         let albums = response.Items.compactMap { item in
             item.`Type` == nil || item.`Type` == "MusicAlbum" ? mapAlbum(item) : nil
         }
-        let hasMore = !response.Items.isEmpty
-            && (response.TotalRecordCount.map { startIndex + response.Items.count < $0 }
-                ?? (response.Items.count == limit))
+        let hasMore = response.receivedItemCount > 0
+            && (response.TotalRecordCount.map { startIndex + response.receivedItemCount < $0 }
+                ?? (response.receivedItemCount == limit))
         return AlbumPage(
             albums: albums,
             hasMore: hasMore,
-            nextStartIndex: startIndex + response.Items.count
+            nextStartIndex: startIndex + response.receivedItemCount
         )
     }
 
@@ -207,11 +206,20 @@ struct JellyfinAPI: Sendable {
             ],
             as: ItemsResponse<Item>.self
         )
-        return response.Items.map {
-            Track(id: $0.Id, name: $0.Name, artist: $0.AlbumArtist ?? $0.Artists?.first ?? "Unknown Artist",
-                  album: $0.Album ?? "", albumID: $0.AlbumId, index: $0.IndexNumber, disc: $0.ParentIndexNumber,
-                  durationTicks: $0.RunTimeTicks)
+        return response.Items.compactMap { item in
+            guard let identity = item.validatedIdentity else { return nil }
+            return Track(
+                id: identity.id,
+                name: identity.name,
+                artist: item.Artists?.first?.nonEmpty ?? item.AlbumArtist?.nonEmpty ?? "Unknown Artist",
+                album: item.Album?.nonEmpty ?? "",
+                albumID: item.AlbumId?.nonEmpty,
+                index: item.IndexNumber,
+                disc: item.ParentIndexNumber,
+                durationTicks: item.RunTimeTicks
+            )
         }
+        .sorted(by: trackPrecedes)
     }
 
     func playbackPlan(itemID: String, userID: String) async throws -> PlaybackPlan {
@@ -373,14 +381,33 @@ struct JellyfinAPI: Sendable {
         }
     }
 
-    private func mapAlbum(_ item: Item) -> Album {
-        Album(
-            id: item.Id,
-            name: item.Name,
-            artist: item.AlbumArtist ?? item.Artists?.first ?? "Unknown Artist",
+    private func mapAlbum(_ item: Item) -> Album? {
+        guard let identity = item.validatedIdentity else { return nil }
+        return Album(
+            id: identity.id,
+            name: identity.name,
+            artist: item.AlbumArtist?.nonEmpty ?? item.Artists?.first?.nonEmpty ?? "Unknown Artist",
             productionYear: item.ProductionYear,
             imageTag: item.ImageTags?["Primary"]
         )
+    }
+
+    private func trackPrecedes(_ lhs: Track, _ rhs: Track) -> Bool {
+        if lhs.disc != rhs.disc { return optionalIndex(lhs.disc, precedes: rhs.disc) }
+        if lhs.index != rhs.index { return optionalIndex(lhs.index, precedes: rhs.index) }
+        let lhsName = lhs.name.precomposedStringWithCanonicalMapping
+        let rhsName = rhs.name.precomposedStringWithCanonicalMapping
+        if lhsName != rhsName { return lhsName < rhsName }
+        return lhs.id < rhs.id
+    }
+
+    private func optionalIndex(_ lhs: Int?, precedes rhs: Int?) -> Bool {
+        switch (lhs, rhs) {
+        case let (lhs?, rhs?): lhs < rhs
+        case (_?, nil): true
+        case (nil, _?): false
+        case (nil, nil): false
+        }
     }
 
     private func report<Body: Encodable>(operation: String, path: [String], body: Body) async -> PlaybackReportOutcome {
@@ -500,11 +527,14 @@ struct JellyfinAPI: Sendable {
 private struct ItemsResponse<Value: Decodable>: Decodable {
     let Items: [Value]
     let TotalRecordCount: Int?
+    let receivedItemCount: Int
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        Items = try container.decode([Value].self, forKey: .Items)
-        TotalRecordCount = try container.decodeIfPresent(Int.self, forKey: .TotalRecordCount)
+        let receivedItems = try container.decode([LossyDecodable<Value>].self, forKey: .Items)
+        Items = receivedItems.compactMap(\.value)
+        receivedItemCount = receivedItems.count
+        TotalRecordCount = try? container.decodeIfPresent(Int.self, forKey: .TotalRecordCount)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -513,8 +543,8 @@ private struct ItemsResponse<Value: Decodable>: Decodable {
 }
 
 private struct Item: Decodable {
-    let Id: String
-    let Name: String
+    let Id: String?
+    let Name: String?
     let `Type`: String?
     let CollectionType: String?
     let AlbumArtist: String?
@@ -526,6 +556,53 @@ private struct Item: Decodable {
     let IndexNumber: Int?
     let ParentIndexNumber: Int?
     let RunTimeTicks: Int64?
+
+    var validatedIdentity: (id: String, name: String)? {
+        guard let id = Id?.nonEmpty, let name = Name?.nonEmpty else { return nil }
+        return (id, name)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        Id = container.lossy(String.self, forKey: .Id)
+        Name = container.lossy(String.self, forKey: .Name)
+        Type = container.lossy(String.self, forKey: .Type)
+        CollectionType = container.lossy(String.self, forKey: .CollectionType)
+        AlbumArtist = container.lossy(String.self, forKey: .AlbumArtist)
+        Artists = container.lossy([String].self, forKey: .Artists)
+        Album = container.lossy(String.self, forKey: .Album)
+        AlbumId = container.lossy(String.self, forKey: .AlbumId)
+        ProductionYear = container.lossy(Int.self, forKey: .ProductionYear)
+        ImageTags = container.lossy([String: String].self, forKey: .ImageTags)
+        IndexNumber = container.lossy(Int.self, forKey: .IndexNumber)
+        ParentIndexNumber = container.lossy(Int.self, forKey: .ParentIndexNumber)
+        RunTimeTicks = container.lossy(Int64.self, forKey: .RunTimeTicks)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case Id, Name, `Type`, CollectionType, AlbumArtist, Artists, Album, AlbumId
+        case ProductionYear, ImageTags, IndexNumber, ParentIndexNumber, RunTimeTicks
+    }
+}
+
+private struct LossyDecodable<Value: Decodable>: Decodable {
+    let value: Value?
+
+    init(from decoder: Decoder) throws {
+        value = try? Value(from: decoder)
+    }
+}
+
+private extension KeyedDecodingContainer {
+    func lossy<Value: Decodable>(_ type: Value.Type, forKey key: Key) -> Value? {
+        try? decodeIfPresent(type, forKey: key)
+    }
+}
+
+private extension String {
+    var nonEmpty: String? {
+        trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self
+    }
 }
 
 private struct PlaybackInfoResponse: Decodable {

@@ -4,7 +4,7 @@ Status: Live work-order authority
 
 Last updated: 2026-07-17
 
-- Last reconciled commit: `2789dd3`
+- Last reconciled commit: `61509d0`
 - Active roadmap boundary: Phase 2 remains open; explicitly brought-forward
   Phase 3 listening slices are allowed without claiming either phase complete.
 - Selection rule: finish `NOW`; otherwise take the first unblocked `NEXT` item.
@@ -19,17 +19,17 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## NEXT
 
-### 1. Expand deterministic Phase 3 library fixtures
+### 1. Prove deterministic large-library fixture scale
 
 - State: `READY`.
 - Phase: Phase 3.
-- Outcome: cover compilations, multi-disc albums, missing artwork, duplicate
-  names, unusual Unicode, and malformed metadata through synthetic fixtures.
+- Outcome: add a generated synthetic large-library corpus and bounded mapping,
+  refresh, local-search, memory, and timing assertions.
 - Acceptance focus: the first Phase 3 exit-gate row.
-- Owned surface: synthetic fixtures, mapping tests, and evidence only.
-- Proof: focused mapping/fixture tests plus `./scripts/test.sh` and
-  `./scripts/test-integration.sh`.
-- Non-goals: production UI redesign or new playback behavior.
+- Owned surface: deterministic fixture generation, scale tests, and evidence.
+- Proof: reproducibility/hash checks, focused scale tests, `./scripts/test.sh`,
+  and `./scripts/test-integration.sh`.
+- Non-goals: UI redesign, playback behavior, or new Phase 3 destinations.
 
 ## BLOCKED
 
@@ -47,6 +47,9 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## RECENTLY COMPLETED
 
+- After `61509d0`: expanded deterministic Phase 3 mapping and persistence
+  fixtures for compilations, multi-disc ordering, metadata fallbacks, duplicate
+  names, Unicode, malformed records, refresh idempotence, and scope isolation.
 - After `2789dd3`: added scoped GRDB artist/album caching, cache-first repeat
   launch, and deterministic local/server search merging.
 - `2789dd3`: expanded validation workflow and hardened playback diagnostics.

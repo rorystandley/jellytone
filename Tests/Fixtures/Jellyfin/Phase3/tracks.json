@@ -1,0 +1,102 @@
+{
+  "Items": [
+    {
+      "Id": "track-disc-2-02",
+      "Name": "Second Disc Second",
+      "Type": "Audio",
+      "Artists": ["Disc Artist"],
+      "AlbumArtist": "Album Artist",
+      "Album": "Two Disc Synthetic Album",
+      "AlbumId": "album-multidisc",
+      "ParentIndexNumber": 2,
+      "IndexNumber": 2,
+      "RunTimeTicks": 1200000000
+    },
+    {
+      "Id": "track-disc-1-02",
+      "Name": "First Disc Second",
+      "Type": "Audio",
+      "Artists": ["Track Artist"],
+      "AlbumArtist": "Various Artists",
+      "Album": "Synthetic Sampler",
+      "AlbumId": "album-compilation-001",
+      "ParentIndexNumber": 1,
+      "IndexNumber": 2,
+      "RunTimeTicks": 900000000
+    },
+    {
+      "Id": "track-missing-index-b",
+      "Name": "Zulu Unnumbered",
+      "Type": "Audio",
+      "AlbumArtist": "Fallback Album Artist",
+      "Album": "Two Disc Synthetic Album",
+      "AlbumId": "album-multidisc"
+    },
+    {
+      "Id": "track-disc-1-01-b",
+      "Name": "Alpha Tie",
+      "Type": "Audio",
+      "Artists": ["Compilation Soloist"],
+      "AlbumArtist": "Various Artists",
+      "Album": "Synthetic Sampler",
+      "AlbumId": "album-compilation-001",
+      "ParentIndexNumber": 1,
+      "IndexNumber": 1
+    },
+    {
+      "Id": "track-disc-1-01-a",
+      "Name": "Alpha Tie",
+      "Type": "Audio",
+      "Artists": ["Compilation Soloist"],
+      "AlbumArtist": "Various Artists",
+      "Album": "Synthetic Sampler",
+      "AlbumId": "album-compilation-001",
+      "ParentIndexNumber": 1,
+      "IndexNumber": 1
+    },
+    {
+      "Id": "track-disc-2-01",
+      "Name": "Second Disc First",
+      "Type": "Audio",
+      "AlbumArtist": "Album Artist",
+      "Album": "Two Disc Synthetic Album",
+      "AlbumId": "album-multidisc",
+      "ParentIndexNumber": 2,
+      "IndexNumber": 1
+    },
+    {
+      "Id": "track-missing-index-a",
+      "Name": "Cafe\u0301 Unnumbered",
+      "Type": "Audio",
+      "Artists": [],
+      "AlbumArtist": "Unicode Fallback",
+      "Album": "Unicode Synthetic Album",
+      "AlbumId": "album-unicode-decomposed",
+      "RunTimeTicks": "invalid-duration"
+    },
+    {
+      "Id": "track-malformed-optionals",
+      "Name": "Malformed Optional Track",
+      "Type": "Audio",
+      "Artists": 123,
+      "AlbumArtist": false,
+      "Album": ["invalid"],
+      "AlbumId": 123,
+      "ParentIndexNumber": "disc-one",
+      "IndexNumber": "track-three",
+      "RunTimeTicks": {}
+    },
+    {
+      "Id": " ",
+      "Name": "Blank Identity Is Rejected",
+      "Type": "Audio"
+    },
+    {
+      "Id": "track-invalid-name",
+      "Name": {"not": "text"},
+      "Type": "Audio"
+    },
+    null
+  ],
+  "TotalRecordCount": 11
+}

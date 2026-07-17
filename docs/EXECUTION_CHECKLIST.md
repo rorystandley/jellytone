@@ -56,6 +56,11 @@ Current Phase 3 evidence: repeat launches restore scoped cached albums before
 refresh, and deterministic cached artist/album search merges with server results
 without duplicate identities or changing server pagination. Offline transport
 failures return cache-only results; authentication/server errors remain visible.
+Synthetic file-backed Jellyfin fixtures now cover compilation album/track artist
+semantics, multi-disc ordering, missing artwork and optional metadata, duplicate
+display names with stable IDs, normalization-sensitive Unicode, malformed
+optional values, and invalid partial records. Store tests prove exact round-trip,
+normalized local search, idempotent refresh, and server/account/library isolation.
 The full Phase 3 matrix remains open.
 
 ## Phase 4: Premium playback
