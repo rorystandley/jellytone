@@ -45,6 +45,10 @@ Last updated: 2026-07-17
 - On iOS 26, the persistent mini-player uses SwiftUI's tab-view bottom accessory
   and disables tab-bar minimization so Home, Library, and Search remain visible.
   Earlier supported iOS releases retain the safe-area inset fallback.
+- Library now includes paginated read-only playlist browsing. Playlist detail
+  preserves duplicate track occurrences and server order, handles empty and
+  non-playable collections honestly, and sends Play, Play All, Shuffle, and a
+  selected occurrence through the authoritative playback queue.
 
 ## Automated evidence
 
@@ -198,6 +202,7 @@ verified, but its launch is not promoted to final-build device evidence.
 
 ## Deliberately not claimed
 
-- Playlist, genre, favourites, downloads, or multi-profile screens.
+- Genre, favourites, downloads, or multi-profile screens. Playlist writes,
+  caching, downloads, and offline sync also remain unimplemented.
 - Full screenshot/accessibility matrix coverage for every Phase 3 destination.
 - Completion of Phase 2 or Phase 3.

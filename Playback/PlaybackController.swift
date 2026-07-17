@@ -143,9 +143,28 @@ final class PlaybackController: ObservableObject {
         scope: String
     ) {
         let tracks = queue.isEmpty ? [track] : queue
-        self.queue = tracks.map { QueueEntry(track: $0) }
+        let entries = tracks.map { QueueEntry(track: $0) }
+        let selectedIndex = tracks.firstIndex(of: track) ?? 0
+        play(
+            entries: entries,
+            startingAt: entries[selectedIndex].id,
+            using: api,
+            userID: userID,
+            scope: scope
+        )
+    }
+
+    func play(
+        entries: [QueueEntry],
+        startingAt entryID: QueueEntry.ID,
+        using api: JellyfinAPI,
+        userID: String,
+        scope: String
+    ) {
+        guard let selectedIndex = entries.firstIndex(where: { $0.id == entryID }) else { return }
+        self.queue = entries
         originalQueue = self.queue
-        currentIndex = tracks.firstIndex(of: track) ?? 0
+        currentIndex = selectedIndex
         isShuffled = false
         repeatMode = .off
         self.api = api

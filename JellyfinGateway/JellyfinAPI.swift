@@ -150,6 +150,84 @@ struct JellyfinAPI: Sendable {
         )
     }
 
+    func playlists(
+        userID: String,
+        libraryID: String?,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> PlaylistPage {
+        let query = [
+            URLQueryItem(name: "userId", value: userID),
+            URLQueryItem(name: "IncludeItemTypes", value: "Playlist"),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,ChildCount"),
+            URLQueryItem(name: "StartIndex", value: String(startIndex)),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
+            URLQueryItem(name: "SortBy", value: "SortName"),
+            URLQueryItem(name: "SortOrder", value: "Ascending"),
+        ]
+        // Jellyfin playlists are user-global and are not children of music views.
+        _ = libraryID
+        let response = try await send(
+            operation: "playlists",
+            path: ["Items"],
+            query: query,
+            as: ItemsResponse<Item>.self
+        )
+        let playlists = response.Items.compactMap { item -> Playlist? in
+            guard item.`Type` == nil || item.`Type` == "Playlist",
+                  let identity = item.validatedIdentity else { return nil }
+            return Playlist(
+                id: identity.id,
+                name: identity.name,
+                imageTag: item.ImageTags?["Primary"],
+                itemCount: item.ChildCount
+            )
+        }
+        return PlaylistPage(
+            playlists: playlists,
+            hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
+            nextStartIndex: startIndex + response.receivedItemCount
+        )
+    }
+
+    func playlistEntries(
+        userID: String,
+        playlistID: String,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> PlaylistEntryPage {
+        let response = try await send(
+            operation: "playlist_entries",
+            path: ["Playlists", playlistID, "Items"],
+            query: [
+                URLQueryItem(name: "userId", value: userID),
+                URLQueryItem(name: "Fields", value: "RunTimeTicks"),
+                URLQueryItem(name: "StartIndex", value: String(startIndex)),
+                URLQueryItem(name: "Limit", value: String(limit)),
+                URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
+            ],
+            as: ItemsResponse<Item>.self
+        )
+        let entries = response.wireItems.enumerated().compactMap { offset, item -> PlaylistEntry? in
+            guard let item, item.`Type` == "Audio", let track = mapTrack(item) else { return nil }
+            let wireIdentity = item.PlaylistItemId?.nonEmpty
+            let occurrenceID = wireIdentity != track.id
+                ? wireIdentity
+                : nil
+            return PlaylistEntry(
+                id: occurrenceID ?? "\(playlistID):\(startIndex + offset):\(track.id)",
+                track: track
+            )
+        }
+        return PlaylistEntryPage(
+            entries: entries,
+            hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
+            nextStartIndex: startIndex + response.receivedItemCount
+        )
+    }
+
     func albums(
         userID: String,
         artistID: String,
@@ -392,6 +470,26 @@ struct JellyfinAPI: Sendable {
         )
     }
 
+    private func mapTrack(_ item: Item) -> Track? {
+        guard let identity = item.validatedIdentity else { return nil }
+        return Track(
+            id: identity.id,
+            name: identity.name,
+            artist: item.Artists?.first?.nonEmpty ?? item.AlbumArtist?.nonEmpty ?? "Unknown Artist",
+            album: item.Album?.nonEmpty ?? "",
+            albumID: item.AlbumId?.nonEmpty,
+            index: item.IndexNumber,
+            disc: item.ParentIndexNumber,
+            durationTicks: item.RunTimeTicks
+        )
+    }
+
+    private func hasMore<Value>(response: ItemsResponse<Value>, startIndex: Int, limit: Int) -> Bool {
+        response.receivedItemCount > 0
+            && (response.TotalRecordCount.map { startIndex + response.receivedItemCount < $0 }
+                ?? (response.receivedItemCount == limit))
+    }
+
     private func trackPrecedes(_ lhs: Track, _ rhs: Track) -> Bool {
         if lhs.disc != rhs.disc { return optionalIndex(lhs.disc, precedes: rhs.disc) }
         if lhs.index != rhs.index { return optionalIndex(lhs.index, precedes: rhs.index) }
@@ -526,13 +624,15 @@ struct JellyfinAPI: Sendable {
 
 private struct ItemsResponse<Value: Decodable>: Decodable {
     let Items: [Value]
+    let wireItems: [Value?]
     let TotalRecordCount: Int?
     let receivedItemCount: Int
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let receivedItems = try container.decode([LossyDecodable<Value>].self, forKey: .Items)
-        Items = receivedItems.compactMap(\.value)
+        wireItems = receivedItems.map(\.value)
+        Items = wireItems.compactMap { $0 }
         receivedItemCount = receivedItems.count
         TotalRecordCount = try? container.decodeIfPresent(Int.self, forKey: .TotalRecordCount)
     }
@@ -556,6 +656,8 @@ private struct Item: Decodable {
     let IndexNumber: Int?
     let ParentIndexNumber: Int?
     let RunTimeTicks: Int64?
+    let ChildCount: Int?
+    let PlaylistItemId: String?
 
     var validatedIdentity: (id: String, name: String)? {
         guard let id = Id?.nonEmpty, let name = Name?.nonEmpty else { return nil }
@@ -577,11 +679,14 @@ private struct Item: Decodable {
         IndexNumber = container.lossy(Int.self, forKey: .IndexNumber)
         ParentIndexNumber = container.lossy(Int.self, forKey: .ParentIndexNumber)
         RunTimeTicks = container.lossy(Int64.self, forKey: .RunTimeTicks)
+        ChildCount = container.lossy(Int.self, forKey: .ChildCount)
+        PlaylistItemId = container.lossy(String.self, forKey: .PlaylistItemId)
     }
 
     private enum CodingKeys: String, CodingKey {
         case Id, Name, `Type`, CollectionType, AlbumArtist, Artists, Album, AlbumId
         case ProductionYear, ImageTags, IndexNumber, ParentIndexNumber, RunTimeTicks
+        case ChildCount, PlaylistItemId
     }
 }
 

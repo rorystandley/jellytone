@@ -374,7 +374,11 @@ cached/local result merging, the remaining destinations, and the full Phase 3
 acceptance matrix remain open. Durable queue editing was then added with stable
 per-occurrence identity, tap-to-jump, reorder, individual removal, and Clear Up
 Next. These additions advance the queue deliverable only and do not complete
-Phase 2 or Phase 3.
+Phase 2 or Phase 3. Read-only playlist-library and playlist-detail browsing was
+then added as a bounded destination slice. It preserves duplicate occurrences
+and server order and delegates Play, Play All, Shuffle, and selected-occurrence
+playback to the authoritative queue; playlist writes, caching, downloads, and
+offline sync remain open.
 
 Phase 2 lifecycle note (2026-07-17): reporting is serialized for start,
 progress, pause/resume, seek, replacement, natural completion, playback error,

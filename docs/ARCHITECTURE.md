@@ -46,16 +46,20 @@ details.
 The first runnable implementation keeps these boundaries as source folders in
 one generated application target. It includes AppShell composition, stable
 Domain models, a Keychain-backed JellyfinGateway, cancellable feature-owned
-search state, feature views, and one Playback controller. Search and artist
-browsing consume application-owned `Artist`, `Album`, and paged result models;
-wire response models remain private to the gateway. Persistence, downloads,
-extensions, and the full queue state machine remain future phase work.
+search state, feature views, and one Playback controller. Search, artist, and
+read-only playlist browsing consume application-owned models and paged results;
+wire response models remain private to the gateway. Playlist entries preserve
+server order and use occurrence identity independent of track identity before
+they enter the existing authoritative playback queue. Playlist writes,
+playlist caching/offline sync, downloads, and extensions remain future work.
 
 To shorten the path to a device-runnable app, the gateway currently implements
 only the required Jellyfin endpoints using `URLSession`, including music-only
-artist/album search and artist-album queries. This is an interim adapter behind
-the gateway boundary, not a reversal of the official SDK decision. The
-replacement path is recorded in
+artist/album search, artist-album queries, global read-only playlist listing,
+and ordered playlist-entry loading. Playlist paging advances by raw response
+rows so malformed or non-audio entries cannot stall or reorder later pages.
+This is an interim adapter behind the gateway boundary, not a reversal of the
+official SDK decision. The replacement path is recorded in
 [ADR 0014](decisions/0014-minimum-working-app-sequencing.md).
 
 ## Module boundaries
@@ -196,6 +200,13 @@ state and send intents; they do not perform API requests directly.
 `LibraryStore` owns cached rows while `AppModel` owns presented domain arrays.
 Views never observe GRDB records; cache and server paths converge through
 `Artist`, `Album`, and `MusicSearchPage` values.
+
+`PlaylistFeatureState` owns cancellable, generation-guarded playlist list and
+detail requests. Its scope includes server, account, and selected-library
+identity so a scope change invalidates in-flight results even though Jellyfin's
+playlist collection is account-global. It does not persist playlists or issue
+mutations. `AppModel` converts selected playlist occurrences to `QueueEntry`
+values, and `PlaybackController` remains the only queue and playback owner.
 
 ## Core data models
 

@@ -24,6 +24,7 @@ final class ConnectionScreenUITests: XCTestCase {
 
     func testQueueProtectsCurrentTrackAndClearUpNextKeepsItVisible() {
         let app = XCUIApplication()
+        XCUIDevice.shared.orientation = .portrait
         app.launchArguments = ["--ui-testing", "--ui-testing-music-shell"]
         app.launch()
 

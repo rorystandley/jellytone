@@ -2,6 +2,25 @@ import XCTest
 @testable import JellyfinAudio
 
 final class DiagnosticsPrivacyTests: XCTestCase {
+    func testPlaylistOperationsRetainOnlyAllowlistedDiagnosticMetadata() {
+        XCTAssertEqual(
+            Diagnostics.renderedEvent("request_started", [
+                "operation": "playlists",
+                "item_id": "private-playlist-id",
+                "url": "https://private.example.invalid/jellyfin",
+            ]),
+            "JA_DIAG request_started operation=playlists"
+        )
+        XCTAssertEqual(
+            Diagnostics.renderedEvent("response_received", [
+                "operation": "playlist_entries",
+                "status": 200,
+                "username": "private-user",
+            ]),
+            "JA_DIAG response_received operation=playlist_entries status=200"
+        )
+    }
+
     func testExistingDiagnosticShapeKeepsOnlyBoundedAllowlistedFields() {
         let message = Diagnostics.renderedEvent("response_received", [
             "bytes": 1_500_000_000,

@@ -91,6 +91,8 @@ enum Diagnostics {
         "playback_progress",
         "playback_started",
         "playback_stopped",
+        "playlist_entries",
+        "playlists",
         "public_info",
         "tracks",
     ]

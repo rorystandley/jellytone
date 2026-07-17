@@ -6,20 +6,52 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if model.isLoading && model.albums.isEmpty {
-                    ProgressView("Loading music…")
-                } else if model.albums.isEmpty {
-                    ContentUnavailableView(
-                        "No albums found",
-                        systemImage: "music.note.house",
-                        description: Text("Pull to refresh or check this user's Jellyfin library access.")
-                    )
-                } else {
-                    albumGrid
+            VStack(spacing: 0) {
+                NavigationLink {
+                    PlaylistLibraryView()
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "music.note.list")
+                            .font(.title2)
+                            .foregroundStyle(.tint)
+                            .frame(width: 36, height: 36)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Playlists").font(.headline)
+                            Text("Browse this account's playlists")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.forward")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(minHeight: 56)
+                    .contentShape(Rectangle())
+                    .padding(.horizontal)
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("library-playlists-link")
+                .accessibilityLabel("Browse playlists")
+
+                Divider()
+
+                Group {
+                    if model.isLoading && model.albums.isEmpty {
+                        ProgressView("Loading music…")
+                    } else if model.albums.isEmpty {
+                        ContentUnavailableView(
+                            "No albums found",
+                            systemImage: "music.note.house",
+                            description: Text("Pull to refresh or check this user's Jellyfin library access.")
+                        )
+                    } else {
+                        albumGrid
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .navigationTitle("Albums")
+            .navigationTitle("Library")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if model.libraries.count > 1 {

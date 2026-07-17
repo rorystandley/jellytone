@@ -34,7 +34,7 @@ final class AppModel: ObservableObject {
             defaults.set(UUID().uuidString, forKey: Self.deviceIDKey)
         }
 #if DEBUG
-        if arguments.contains("--ui-testing-music-shell") {
+        if arguments.contains("--ui-testing-music-shell") || arguments.contains("--ui-testing-playlists") {
             configureUITestMusicShell()
             return
         }
@@ -188,6 +188,57 @@ final class AppModel: ObservableObject {
         )
     }
 
+    func playlistPage(startIndex: Int = 0) async throws -> PlaylistPage {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing-playlists-error") { throw APIError.httpStatus(503) }
+        if arguments.contains("--ui-testing-playlists-empty") {
+            return PlaylistPage(playlists: [], hasMore: false, nextStartIndex: 0)
+        }
+        if arguments.contains("--ui-testing-playlists") {
+            let playlists = [
+                Playlist(id: "playlist-road", name: "Road Mix 🎧", imageTag: nil, itemCount: 3),
+                Playlist(id: "playlist-empty", name: "Quiet Queue", imageTag: nil, itemCount: 0),
+                Playlist(id: "playlist-nonplayable", name: "Unsupported Items", imageTag: nil, itemCount: 2),
+            ]
+            return PlaylistPage(playlists: startIndex == 0 ? playlists : [], hasMore: false,
+                                nextStartIndex: playlists.count)
+        }
+#endif
+        guard let session, let api else { throw APIError.notAuthenticated }
+        return try await api.playlists(
+            userID: session.userID,
+            libraryID: selectedLibraryID,
+            startIndex: startIndex
+        )
+    }
+
+    func playlistEntries(for playlist: Playlist, startIndex: Int = 0) async throws -> PlaylistEntryPage {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-playlists") {
+            let duplicate = Track(id: "track-shared", name: "Repeated Song", artist: "Synthetic Artist",
+                                  album: "Synthetic Playlist Album", index: nil, disc: nil,
+                                  durationTicks: 1_800_000_000)
+            let entries = ["playlist-empty", "playlist-nonplayable"].contains(playlist.id) ? [] : [
+                PlaylistEntry(id: "occurrence-1", track: duplicate),
+                PlaylistEntry(id: "occurrence-2", track: Track(
+                    id: "track-unicode", name: "夜の音", artist: "Unknown Artist",
+                    album: "Unknown Album", index: nil, disc: nil, durationTicks: nil
+                )),
+                PlaylistEntry(id: "occurrence-3", track: duplicate),
+            ]
+            return PlaylistEntryPage(entries: startIndex == 0 ? entries : [], hasMore: false,
+                                     nextStartIndex: entries.count)
+        }
+#endif
+        guard let session, let api else { throw APIError.notAuthenticated }
+        return try await api.playlistEntries(
+            userID: session.userID,
+            playlistID: playlist.id,
+            startIndex: startIndex
+        )
+    }
+
     func play(_ track: Track, in queue: [Track]) {
         guard let api, let session else { return }
         playback.play(
@@ -197,6 +248,30 @@ final class AppModel: ObservableObject {
             userID: session.userID,
             scope: playbackScope(for: session)
         )
+    }
+
+    func play(_ entry: PlaylistEntry, in playlistEntries: [PlaylistEntry]) {
+        guard let api, let session,
+              let selectedIndex = playlistEntries.firstIndex(where: { $0.id == entry.id }) else { return }
+        let queue = playlistEntries.map { QueueEntry(track: $0.track) }
+        playback.play(
+            entries: queue,
+            startingAt: queue[selectedIndex].id,
+            using: api,
+            userID: session.userID,
+            scope: playbackScope(for: session)
+        )
+    }
+
+    func playAll(_ playlistEntries: [PlaylistEntry]) {
+        guard let first = playlistEntries.first else { return }
+        play(first, in: playlistEntries)
+    }
+
+    func shuffle(_ playlistEntries: [PlaylistEntry]) {
+        guard !playlistEntries.isEmpty else { return }
+        playAll(playlistEntries)
+        playback.toggleShuffle()
     }
 
     func playNext(_ track: Track) {

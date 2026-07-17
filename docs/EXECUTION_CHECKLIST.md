@@ -48,6 +48,8 @@ diagnostics privacy gate remains authoritative. Full Phase 1 remains open.
 
 - [x] Fixtures cover large libraries, compilations, multi-disc albums, missing
   artwork, duplicate names, unusual Unicode, and malformed metadata.
+- [x] Read-only playlist list/detail paging preserves ordered duplicate
+  occurrences and routes play actions through the authoritative queue.
 - [ ] Every write operation has success, retry, conflict, and expired-auth tests.
 - [ ] Screenshot and accessibility suites cover every primary destination at
   compact and regular widths.
@@ -66,7 +68,11 @@ albums, and 23,040 tracks. Its canonical SHA-256, paginated gateway mapping,
 cache insertion/upsert/replacement, account/server isolation, stable local
 search and merge ordering, uniqueness, and bounded host resource measurements
 are executable evidence. Library isolation remains covered by the focused store
-suite. No generated large JSON corpus or private library data is committed.
+suite. Read-only playlist fixtures and controller tests additionally cover
+pagination, per-occurrence identity, scope changes, stale-response suppression,
+malformed rows, authentication expiry, empty/non-playable states, and adaptive
+accessible presentation. No generated large JSON corpus or private library data
+is committed.
 The full Phase 3 matrix remains open.
 
 ## Phase 4: Premium playback
