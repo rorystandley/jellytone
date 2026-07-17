@@ -28,6 +28,54 @@ enum NowPlayingArtworkFactory {
     }
 }
 
+enum PlaybackRemoteCommand: Equatable {
+    case play
+    case pause
+    case previous
+    case next
+    case seek(TimeInterval)
+}
+
+@MainActor
+protocol RemoteCommandRouting: AnyObject {
+    func register(handler: @escaping @MainActor (PlaybackRemoteCommand) -> Void)
+    func updateAvailability(canGoPrevious: Bool, canGoNext: Bool)
+}
+
+@MainActor
+final class SystemRemoteCommandRouter: RemoteCommandRouting {
+    func register(handler: @escaping @MainActor (PlaybackRemoteCommand) -> Void) {
+        let commands = MPRemoteCommandCenter.shared()
+        commands.playCommand.addTarget { _ in
+            Task { @MainActor in handler(.play) }
+            return .success
+        }
+        commands.pauseCommand.addTarget { _ in
+            Task { @MainActor in handler(.pause) }
+            return .success
+        }
+        commands.previousTrackCommand.addTarget { _ in
+            Task { @MainActor in handler(.previous) }
+            return .success
+        }
+        commands.nextTrackCommand.addTarget { _ in
+            Task { @MainActor in handler(.next) }
+            return .success
+        }
+        commands.changePlaybackPositionCommand.addTarget { event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+            Task { @MainActor in handler(.seek(event.positionTime)) }
+            return .success
+        }
+    }
+
+    func updateAvailability(canGoPrevious: Bool, canGoNext: Bool) {
+        let commands = MPRemoteCommandCenter.shared()
+        commands.previousTrackCommand.isEnabled = canGoPrevious
+        commands.nextTrackCommand.isEnabled = canGoNext
+    }
+}
+
 @MainActor
 final class PlaybackController: ObservableObject {
     @Published private(set) var currentTrack: Track?
@@ -47,6 +95,8 @@ final class PlaybackController: ObservableObject {
 
     private let defaults: UserDefaults
     private let audioSession: AudioSessionManaging
+    private let remoteCommands: RemoteCommandRouting
+    private let notificationCenter: NotificationCenter
     private let snapshotKey = "active-playback-snapshot-v1"
     private var player: AVPlayer?
     private var timeObserver: Any?
@@ -60,14 +110,24 @@ final class PlaybackController: ObservableObject {
     private var generation = UUID()
     private var lastProgressBucket = -1
     private var lastPersistenceBucket = -1
+    private var lifecycleObservers: [NSObjectProtocol] = []
+    private var wasPlayingBeforeInterruption = false
+    private var audioInterruptionIsActive = false
+    private var playbackRequested = false
+    var shouldStartPreparedPlayer: Bool { playbackRequested && !audioInterruptionIsActive }
 
     init(
         defaults: UserDefaults = .standard,
-        audioSession: AudioSessionManaging = SystemAudioSessionManager()
+        audioSession: AudioSessionManaging = SystemAudioSessionManager(),
+        remoteCommands: RemoteCommandRouting = SystemRemoteCommandRouter(),
+        notificationCenter: NotificationCenter = .default
     ) {
         self.defaults = defaults
         self.audioSession = audioSession
+        self.remoteCommands = remoteCommands
+        self.notificationCenter = notificationCenter
         configureRemoteCommands()
+        observeAudioLifecycle()
     }
 
     func play(
@@ -115,12 +175,38 @@ final class PlaybackController: ObservableObject {
         canGoPrevious = false
         canGoNext = false
     }
+
+    func configureForLifecycleTesting(
+        queue: [Track],
+        currentIndex: Int,
+        elapsed: TimeInterval,
+        isPlaying: Bool,
+        isPreparing: Bool = false,
+        playbackRequested: Bool? = nil,
+        playerAvailable: Bool = true,
+        scope: String = "test:scope"
+    ) {
+        self.queue = queue
+        originalQueue = queue
+        self.currentIndex = currentIndex
+        currentTrack = queue[currentIndex]
+        duration = currentTrack?.duration ?? 0
+        self.elapsed = elapsed
+        self.isPlaying = isPlaying
+        self.isPreparing = isPreparing
+        self.playbackRequested = playbackRequested ?? isPlaying
+        self.scope = scope
+        player = playerAvailable ? AVPlayer() : nil
+        updateQueueControls()
+        updateNowPlaying(track: queue[currentIndex])
+    }
 #endif
 
     func toggle() {
         guard let player else { return }
         if isPlaying { player.pause() } else { player.play() }
         isPlaying.toggle()
+        playbackRequested = isPlaying
         updatePlaybackRate()
         reportProgress()
         persistState()
@@ -200,6 +286,7 @@ final class PlaybackController: ObservableObject {
         }
         player?.pause()
         isPlaying = false
+        playbackRequested = false
         reportProgress()
         updatePlaybackRate()
         persistState()
@@ -250,6 +337,7 @@ final class PlaybackController: ObservableObject {
         elapsed = 0
         duration = 0
         isPlaying = false
+        playbackRequested = false
         isPreparing = false
         qualityLabel = ""
         updateQueueControls()
@@ -273,6 +361,7 @@ final class PlaybackController: ObservableObject {
         elapsed = max(0, resumeAt)
         duration = currentTrack?.duration ?? 0
         isPlaying = false
+        playbackRequested = autoPlay
         isPreparing = true
         errorMessage = nil
         qualityLabel = "Preparing…"
@@ -297,6 +386,7 @@ final class PlaybackController: ObservableObject {
                 let selectedPlan = try await api.playbackPlan(itemID: track.id, userID: userID)
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
                 plan = selectedPlan
+                Diagnostics.event("playback_plan_selected", ["method_code": selectedPlan.method.diagnosticCode])
                 qualityLabel = selectedPlan.method == .directPlay ? "Direct Play" : "AAC transcode"
                 let player = AVPlayer(url: selectedPlan.url)
                 self.player = player
@@ -307,11 +397,12 @@ final class PlaybackController: ObservableObject {
                     await player.seek(to: CMTime(seconds: resumeAt, preferredTimescale: 600))
                 }
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
-                if autoPlay { player.play() }
-                isPlaying = autoPlay
+                let shouldPlay = shouldStartPreparedPlayer
+                if shouldPlay { player.play() }
+                isPlaying = shouldPlay
                 isPreparing = false
                 updateNowPlaying(track: track)
-                Task { await api.reportStarted(itemID: track.id, plan: selectedPlan, position: elapsed, paused: !autoPlay) }
+                Task { await api.reportStarted(itemID: track.id, plan: selectedPlan, position: elapsed, paused: !shouldPlay) }
                 if let albumID = track.albumID,
                    let data = try? await api.artworkData(itemID: albumID),
                    let image = UIImage(data: data), generation == expectedGeneration {
@@ -387,9 +478,10 @@ final class PlaybackController: ObservableObject {
     private func updateQueueControls() {
         canGoPrevious = currentIndex > 0 || elapsed > 0
         canGoNext = currentIndex + 1 < queue.count
-        let commands = MPRemoteCommandCenter.shared()
-        commands.previousTrackCommand.isEnabled = currentIndex > 0
-        commands.nextTrackCommand.isEnabled = canGoNext || (repeatMode == .all && !queue.isEmpty)
+        remoteCommands.updateAvailability(
+            canGoPrevious: currentIndex > 0,
+            canGoNext: canGoNext || (repeatMode == .all && !queue.isEmpty)
+        )
     }
 
     private func insertIntoOriginalQueue(_ track: Track) {
@@ -402,27 +494,153 @@ final class PlaybackController: ObservableObject {
     }
 
     private func configureRemoteCommands() {
-        let commands = MPRemoteCommandCenter.shared()
-        commands.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in if self?.isPlaying == false { self?.toggle() } }
-            return .success
+        remoteCommands.register { [weak self] command in
+            self?.handleRemoteCommand(command)
         }
-        commands.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in if self?.isPlaying == true { self?.toggle() } }
-            return .success
+    }
+
+    private func handleRemoteCommand(_ command: PlaybackRemoteCommand) {
+        Diagnostics.event("playback_remote_command", ["code": command.diagnosticCode])
+        switch command {
+        case .play:
+            if !isPlaying { toggle() }
+        case .pause:
+            if isPlaying { toggle() }
+        case .previous:
+            previous()
+        case .next:
+            next()
+        case let .seek(position):
+            seek(to: position)
         }
-        commands.previousTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.previous() }
-            return .success
+    }
+
+    private func observeAudioLifecycle() {
+        lifecycleObservers = [
+            notificationCenter.addObserver(
+                forName: AVAudioSession.interruptionNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+                let rawOptions = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+                let fieldCount = notification.userInfo?.count ?? 0
+                Task { @MainActor in
+                    self?.handleInterruption(rawType: rawType, rawOptions: rawOptions, fieldCount: fieldCount)
+                }
+            },
+            notificationCenter.addObserver(
+                forName: AVAudioSession.routeChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                let rawReason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt ?? 0
+                Task { @MainActor in self?.handleRouteChange(rawReason: rawReason) }
+            },
+            notificationCenter.addObserver(
+                forName: AVAudioSession.mediaServicesWereResetNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.handleMediaServicesReset() }
+            },
+        ]
+    }
+
+    private func handleInterruption(rawType: UInt?, rawOptions: UInt, fieldCount: Int) {
+        guard let rawType,
+              let type = AVAudioSession.InterruptionType(rawValue: rawType) else {
+            Diagnostics.event("playback_interruption_invalid", ["field_count": fieldCount])
+            return
         }
-        commands.nextTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.next() }
-            return .success
+        switch type {
+        case .began:
+            handleInterruptionBegan()
+        case .ended:
+            handleInterruptionEnded(shouldResume: AVAudioSession.InterruptionOptions(rawValue: rawOptions).contains(.shouldResume))
+        @unknown default:
+            Diagnostics.event("playback_interruption_unknown", ["code": rawType])
         }
-        commands.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            Task { @MainActor in self?.seek(to: event.positionTime) }
-            return .success
+    }
+
+    func handleInterruptionBegan() {
+        audioInterruptionIsActive = true
+        wasPlayingBeforeInterruption = isPlaying || (isPreparing && playbackRequested)
+        if isPlaying {
+            player?.pause()
+            isPlaying = false
+            updatePlaybackRate()
+            reportProgress()
+            persistState()
+        }
+        Diagnostics.event("playback_interruption_began", ["was_playing": wasPlayingBeforeInterruption ? 1 : 0])
+    }
+
+    func handleInterruptionEnded(shouldResume: Bool) {
+        audioInterruptionIsActive = false
+        playbackRequested = shouldResume && wasPlayingBeforeInterruption
+        let resume = playbackRequested && player != nil
+        wasPlayingBeforeInterruption = false
+        if playbackRequested {
+            do {
+                try audioSession.activateForPlayback()
+                if resume {
+                    player?.play()
+                    isPlaying = true
+                    updatePlaybackRate()
+                    reportProgress()
+                    persistState()
+                }
+            } catch {
+                isPlaying = false
+                playbackRequested = false
+                errorMessage = "Playback could not resume after an audio interruption."
+                Diagnostics.event("playback_audio_session_failed", ["code": (error as NSError).code, "operation": 1])
+            }
+        }
+        Diagnostics.event("playback_interruption_ended", ["allowed": shouldResume ? 1 : 0, "resumed": resume && isPlaying ? 1 : 0])
+    }
+
+    private func handleRouteChange(rawReason: UInt) {
+        let reason = AVAudioSession.RouteChangeReason(rawValue: rawReason) ?? .unknown
+        handleRouteChange(reason: reason)
+    }
+
+    func handleRouteChange(reason: AVAudioSession.RouteChangeReason) {
+        let shouldPause = reason == .oldDeviceUnavailable && (isPlaying || (isPreparing && playbackRequested))
+        if shouldPause {
+            player?.pause()
+            isPlaying = false
+            playbackRequested = false
+            updatePlaybackRate()
+            reportProgress()
+            persistState()
+        }
+        Diagnostics.event("playback_route_changed", ["code": reason.rawValue, "paused": shouldPause ? 1 : 0])
+    }
+
+    func handleMediaServicesReset() {
+        guard currentTrack != nil else {
+            Diagnostics.event("playback_media_services_reset", ["active": 0, "resumed": 0])
+            return
+        }
+        let shouldContinue = playbackRequested && !audioInterruptionIsActive
+        do {
+            try audioSession.activateForPlayback()
+            if shouldContinue { player?.play() }
+            updatePlaybackRate()
+            reportProgress()
+            persistState()
+            Diagnostics.event("playback_media_services_reset", ["active": 1, "resumed": shouldContinue ? 1 : 0])
+        } catch {
+            player?.pause()
+            isPlaying = false
+            playbackRequested = false
+            updatePlaybackRate()
+            reportProgress()
+            persistState()
+            errorMessage = "Playback could not recover after the audio system restarted."
+            Diagnostics.event("playback_audio_session_failed", ["code": (error as NSError).code, "operation": 2])
         }
     }
 
@@ -455,5 +673,26 @@ final class PlaybackController: ObservableObject {
         guard currentTrack != nil else { return }
         MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueIndex] = currentIndex
         MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] = queue.count
+    }
+}
+
+private extension PlaybackRemoteCommand {
+    var diagnosticCode: Int {
+        switch self {
+        case .play: 1
+        case .pause: 2
+        case .previous: 3
+        case .next: 4
+        case .seek: 5
+        }
+    }
+}
+
+private extension PlaybackMethod {
+    var diagnosticCode: Int {
+        switch self {
+        case .directPlay: 1
+        case .transcode: 2
+        }
     }
 }

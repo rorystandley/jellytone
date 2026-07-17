@@ -72,6 +72,23 @@ SpringBoard because the phone was locked, and no acoustic capture path exists.
 The hardware rows therefore remain blocked without being replaced by simulator
 or install evidence.
 
+The Phase 2 application now observes audio-session interruptions, route changes,
+and media-services reset at the authoritative playback controller. Deterministic
+tests prove that interruption begin pauses and persists, resume requires both
+the system `shouldResume` option and prior playback intent, a pending preparation
+cannot escape interruption or headphone-loss policy, old-device-unavailable
+pauses, media-services reset reactivates or fails paused, and system remote
+commands route to that controller. `./scripts/test.sh` passes all 24 tests.
+
+A bounded 2026-07-17 production-app exercise passed approximately 60 seconds
+locked and 60 seconds backgrounded on the paired iPhone. Lock Screen metadata
+and play, pause, seek, next, and previous were physically confirmed; redacted
+diagnostics captured four corresponding command codes, successful progress, and
+ordered stop/start around next. The final installed build recorded Direct Play
+method code `1` and no new crash. This advances background and remote-command
+validation but does not prove eight-hour endurance, acoustic transitions,
+physical interruptions, Bluetooth, wired output, AirPlay, or a transcode row.
+
 Apple primary references:
 
 - <https://developer.apple.com/documentation/avfoundation/avqueueplayer>

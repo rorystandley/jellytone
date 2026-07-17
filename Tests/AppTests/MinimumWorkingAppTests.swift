@@ -355,11 +355,189 @@ final class MinimumWorkingAppTests: XCTestCase {
         )
 
         playback.play(track, queue: [track], using: api, userID: "user", scope: "server:user")
-        for _ in 0..<20 where session.activationCount == 0 { await Task.yield() }
+        for _ in 0..<100 where playback.isPreparing {
+            try await Task.sleep(for: .milliseconds(1))
+        }
 
         XCTAssertEqual(session.activationCount, 1)
+        XCTAssertFalse(playback.isPreparing)
         playback.stop()
         XCTAssertEqual(session.deactivationCount, 1)
+    }
+
+    @MainActor
+    func testInterruptionPausesPersistsAndResumesOnlyWhenSystemAllows() throws {
+        let session = RecordingAudioSession()
+        let commands = RecordingRemoteCommandRouter()
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        let playback = PlaybackController(
+            defaults: defaults,
+            audioSession: session,
+            remoteCommands: commands,
+            notificationCenter: NotificationCenter()
+        )
+        let tracks = Self.lifecycleTracks()
+        playback.configureForLifecycleTesting(
+            queue: tracks,
+            currentIndex: 0,
+            elapsed: 23,
+            isPlaying: true
+        )
+
+        playback.handleInterruptionBegan()
+
+        XCTAssertFalse(playback.isPlaying)
+        let data = try XCTUnwrap(defaults.data(forKey: "active-playback-snapshot-v1"))
+        XCTAssertEqual(try JSONDecoder().decode(PlaybackSnapshot.self, from: data).position, 23)
+
+        playback.handleInterruptionEnded(shouldResume: false)
+        XCTAssertFalse(playback.isPlaying)
+        XCTAssertEqual(session.activationCount, 0)
+
+        playback.handleInterruptionBegan()
+        playback.handleInterruptionEnded(shouldResume: true)
+        XCTAssertFalse(playback.isPlaying, "A player paused before interruption must not auto-resume")
+        XCTAssertEqual(session.activationCount, 0)
+
+        playback.configureForLifecycleTesting(
+            queue: tracks,
+            currentIndex: 0,
+            elapsed: 23,
+            isPlaying: true
+        )
+        playback.handleInterruptionBegan()
+        playback.handleInterruptionEnded(shouldResume: true)
+        XCTAssertTrue(playback.isPlaying)
+        XCTAssertEqual(session.activationCount, 1)
+    }
+
+    @MainActor
+    func testInterruptionAndHeadphoneLossCannotStartAPlayerStillPreparing() throws {
+        let session = RecordingAudioSession()
+        let playback = PlaybackController(
+            defaults: try XCTUnwrap(UserDefaults(suiteName: #function)),
+            audioSession: session,
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        let tracks = Self.lifecycleTracks()
+        playback.configureForLifecycleTesting(
+            queue: tracks,
+            currentIndex: 0,
+            elapsed: 0,
+            isPlaying: false,
+            isPreparing: true,
+            playbackRequested: true,
+            playerAvailable: false
+        )
+
+        XCTAssertTrue(playback.shouldStartPreparedPlayer)
+        playback.handleInterruptionBegan()
+        XCTAssertFalse(playback.shouldStartPreparedPlayer)
+        playback.handleInterruptionEnded(shouldResume: false)
+        XCTAssertFalse(playback.shouldStartPreparedPlayer)
+
+        playback.configureForLifecycleTesting(
+            queue: tracks,
+            currentIndex: 0,
+            elapsed: 0,
+            isPlaying: false,
+            isPreparing: true,
+            playbackRequested: true,
+            playerAvailable: false
+        )
+        playback.handleInterruptionBegan()
+        playback.handleInterruptionEnded(shouldResume: true)
+        XCTAssertTrue(playback.shouldStartPreparedPlayer)
+        XCTAssertEqual(session.activationCount, 1, "Pending playback must reactivate its interrupted audio session")
+
+        playback.handleRouteChange(reason: .oldDeviceUnavailable)
+        XCTAssertFalse(playback.shouldStartPreparedPlayer)
+        XCTAssertFalse(playback.isPlaying)
+    }
+
+    @MainActor
+    func testOldDeviceUnavailablePausesButOtherRouteChangesPreserveState() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        let playback = PlaybackController(
+            defaults: defaults,
+            audioSession: RecordingAudioSession(),
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        playback.configureForLifecycleTesting(
+            queue: Self.lifecycleTracks(),
+            currentIndex: 0,
+            elapsed: 12,
+            isPlaying: true
+        )
+
+        playback.handleRouteChange(reason: .newDeviceAvailable)
+        XCTAssertTrue(playback.isPlaying)
+
+        playback.handleRouteChange(reason: .oldDeviceUnavailable)
+        XCTAssertFalse(playback.isPlaying)
+        let data = try XCTUnwrap(defaults.data(forKey: "active-playback-snapshot-v1"))
+        XCTAssertEqual(try JSONDecoder().decode(PlaybackSnapshot.self, from: data).position, 12)
+    }
+
+    @MainActor
+    func testMediaServicesResetReactivatesSessionAndFailsPaused() throws {
+        let session = RecordingAudioSession()
+        let playback = PlaybackController(
+            defaults: try XCTUnwrap(UserDefaults(suiteName: #function)),
+            audioSession: session,
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        playback.configureForLifecycleTesting(
+            queue: Self.lifecycleTracks(),
+            currentIndex: 0,
+            elapsed: 7,
+            isPlaying: true
+        )
+
+        playback.handleMediaServicesReset()
+        XCTAssertTrue(playback.isPlaying)
+        XCTAssertEqual(session.activationCount, 1)
+
+        session.activationError = NSError(domain: "AudioSessionTest", code: 42)
+        playback.handleMediaServicesReset()
+        XCTAssertFalse(playback.isPlaying)
+        XCTAssertNotNil(playback.errorMessage)
+        XCTAssertEqual(session.activationCount, 2)
+    }
+
+    @MainActor
+    func testRemoteCommandsRouteThroughAuthoritativePlaybackController() throws {
+        let commands = RecordingRemoteCommandRouter()
+        let playback = PlaybackController(
+            defaults: try XCTUnwrap(UserDefaults(suiteName: #function)),
+            audioSession: RecordingAudioSession(),
+            remoteCommands: commands,
+            notificationCenter: NotificationCenter()
+        )
+        playback.configureForLifecycleTesting(
+            queue: Self.lifecycleTracks(),
+            currentIndex: 0,
+            elapsed: 0,
+            isPlaying: false
+        )
+
+        commands.send(.play)
+        XCTAssertTrue(playback.isPlaying)
+        commands.send(.pause)
+        XCTAssertFalse(playback.isPlaying)
+        commands.send(.seek(18))
+        XCTAssertEqual(playback.elapsed, 18)
+        commands.send(.next)
+        XCTAssertEqual(playback.currentIndex, 1)
+        commands.send(.seek(0))
+        commands.send(.previous)
+        XCTAssertEqual(playback.currentIndex, 0)
+        XCTAssertEqual(commands.lastAvailability, .init(canGoPrevious: false, canGoNext: true))
     }
 
     private func makeSession() -> URLSession {
@@ -405,6 +583,15 @@ final class MinimumWorkingAppTests: XCTestCase {
             hasMore: false,
             nextStartIndex: 2
         )
+    }
+
+    private static func lifecycleTracks() -> [Track] {
+        [
+            Track(id: "one", name: "One", artist: "Artist", album: "Album",
+                  index: 1, disc: 1, durationTicks: 600_000_000),
+            Track(id: "two", name: "Two", artist: "Artist", album: "Album",
+                  index: 2, disc: 1, durationTicks: 600_000_000),
+        ]
     }
 }
 
@@ -464,9 +651,36 @@ private actor ControlledSearchLoader {
 private final class RecordingAudioSession: AudioSessionManaging {
     private(set) var activationCount = 0
     private(set) var deactivationCount = 0
+    var activationError: Error?
 
-    func activateForPlayback() throws { activationCount += 1 }
+    func activateForPlayback() throws {
+        activationCount += 1
+        if let activationError { throw activationError }
+    }
     func deactivateAfterPlayback() throws { deactivationCount += 1 }
+}
+
+@MainActor
+private final class RecordingRemoteCommandRouter: RemoteCommandRouting {
+    struct Availability: Equatable {
+        let canGoPrevious: Bool
+        let canGoNext: Bool
+    }
+
+    private var handler: (@MainActor (PlaybackRemoteCommand) -> Void)?
+    private(set) var lastAvailability: Availability?
+
+    func register(handler: @escaping @MainActor (PlaybackRemoteCommand) -> Void) {
+        self.handler = handler
+    }
+
+    func updateAvailability(canGoPrevious: Bool, canGoNext: Bool) {
+        lastAvailability = Availability(canGoPrevious: canGoPrevious, canGoNext: canGoNext)
+    }
+
+    func send(_ command: PlaybackRemoteCommand) {
+        handler?(command)
+    }
 }
 
 private final class MockURLProtocol: URLProtocol, @unchecked Sendable {

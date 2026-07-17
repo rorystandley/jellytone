@@ -91,8 +91,8 @@ Local Network permission, or real-route behavior.
 | Wired output | externally blocked | No compatible accessory attached | Phase 4 device; ordinary route-change fallback |
 | Bluetooth | externally blocked | No controlled Bluetooth route attached | Phase 4 device; pause/recover per route reason |
 | AirPlay | externally blocked | No controlled AirPlay route available | Phase 4 device; retain local route or stop diagnostically |
-| Lock Screen/remote commands | pending | Harness registration exists; no command receipt | Phase 0 device; do not claim command behavior |
-| Background audio/download | pending | Harness build/install only; no runtime/suspension/relaunch evidence | Phase 0 device; foreground-only proof is insufficient |
+| Lock Screen/remote commands | limited | Phase 2 production app passed visible metadata plus play/pause/seek/next/previous in a bounded physical exercise; redacted diagnostics captured four command codes and ordered next-track reporting | Phase 2 device; repeat previous-command capture and test accessories before advertising broad route support |
+| Background audio/download | limited | Phase 2 production app continued playback for approximately 60 seconds locked and 60 seconds backgrounded; progress reports remained successful | Phase 4 device; bounded playback is not suspension, relaunch, download, or eight-hour endurance evidence |
 | CarPlay | externally blocked | Entitlement request/approval is not locally verifiable; compatible hardware is unavailable | Phase 0/6 platform; do not ship CarPlay target without entitlement |
 
 ## Open-evidence release rule
