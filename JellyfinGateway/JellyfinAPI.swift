@@ -268,6 +268,25 @@ struct JellyfinAPI: Sendable {
         )
     }
 
+    func setTrackFavourite(userID: String, itemID: String, desired: Bool) async -> TrackFavouriteGatewayOutcome {
+        do {
+            var request = URLRequest(url: try makeURL(path: ["Users", userID, "FavoriteItems", itemID]))
+            request.httpMethod = desired ? "POST" : "DELETE"
+            addAuthorization(to: &request)
+            _ = try await executeNoContent(request, operation: desired ? "track_favourite_set" : "track_favourite_clear")
+            Diagnostics.event("track_favourite_mutation", ["operation": desired ? "track_favourite_set" : "track_favourite_clear", "outcome": "success", "retry_class": "none"])
+            return .succeeded
+        } catch is CancellationError { return .cancelled
+        } catch let error as APIError {
+            switch error {
+            case .httpStatus(401), .httpStatus(403): return error == .httpStatus(401) ? .authenticationExpired : .permanent
+            case .httpStatus(404): return .permanent
+            case .httpStatus(let status) where status >= 500: return .transient
+            default: return .transient
+            }
+        } catch { return .transient }
+    }
+
     func playlists(
         userID: String,
         libraryID: String?,
@@ -1180,3 +1199,5 @@ enum APIError: LocalizedError, Equatable {
         }
     }
 }
+
+extension JellyfinAPI: TrackFavouriteGateway {}

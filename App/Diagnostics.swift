@@ -101,6 +101,10 @@ enum Diagnostics {
         "playlists",
         "public_info",
         "tracks",
+        "track_favourite_mutation",
+        "track_favourite_set",
+        "track_favourite_clear",
+        "track_favourite_mutation",
     ]
 
     static func event(_ name: String, _ values: [String: CustomStringConvertible] = [:]) {
@@ -166,6 +170,8 @@ enum Diagnostics {
             if allowedOperations.contains(value) { return value }
             if ReportingOperation(rawValue: value) != nil { return value }
             return sanitizedInteger(value, range: 0...32)
+        case "outcome": return ["success", "authentication_expired", "transient", "permanent", "cancelled"].contains(value) ? value : nil
+        case "retry_class": return ["none", "auth", "transient", "permanent", "cancelled"].contains(value) ? value : nil
         case "position_seconds":
             guard let position = Double(value), position.isFinite else { return nil }
             let boundedPosition = min(max(position, 0), 604_800)

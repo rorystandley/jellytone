@@ -18,7 +18,7 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## NEXT
 
-### 1. Add playlist and favourite writes
+### 1. Add playlist writes
 
 - State: `READY`.
 - Phase: Phase 3 library experience.
@@ -27,6 +27,13 @@ No in-flight work. Select the first unblocked `NEXT` item.
 - Acceptance focus: success, retry, conflict, expired-auth, offline outbox,
   and accessible UI evidence for one bounded write surface.
 - Non-goals: downloads, offline playback, or playback-engine changes.
+
+### 2. Add artist and album favourite writes
+
+- State: `FUTURE`.
+- Phase: Phase 3 library experience.
+- Outcome: extend the proven scoped mutation boundary to artist and album intents.
+- Non-goals: playlist writes or downloads.
 
 ## BLOCKED
 

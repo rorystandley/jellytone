@@ -5,6 +5,19 @@ struct LibraryScope: Hashable, Sendable {
     let accountID: String
 }
 
+enum FavouriteMutationState: String, Codable, Sendable { case pending, pausedAuth, terminal, completed }
+struct TrackFavouriteMutation: Codable, Hashable, Sendable, Identifiable {
+    let id: String
+    let serverID: String
+    let accountID: String
+    let itemID: String
+    let desired: Bool
+    let sequence: Int64
+    var attempts: Int
+    var nextRetryAt: Int64
+    var state: FavouriteMutationState
+}
+
 protocol LibraryStoring: Sendable {
     func cachedAlbums(scope: LibraryScope, libraryID: String?) async throws -> [Album]
     func replaceAlbums(_ albums: [Album], scope: LibraryScope, libraryID: String?) async throws
@@ -31,10 +44,18 @@ protocol LibraryStoring: Sendable {
     func cachedTrackCatalogPage(scope: LibraryScope, libraryID: String?, limit: Int) async throws -> TrackCatalogPage?
     func replaceTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws
     func appendTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws
+    func enqueueTrackFavourite(scope: LibraryScope, itemID: String, desired: Bool, sequence: Int64) async throws -> TrackFavouriteMutation
+    func pendingTrackFavourites(scope: LibraryScope) async throws -> [TrackFavouriteMutation]
+    func completeTrackFavourite(_ mutation: TrackFavouriteMutation) async throws
+    func updateTrackFavourite(_ mutation: TrackFavouriteMutation) async throws
 }
 
 extension LibraryStoring {
     func cachedTrackCatalogPage(scope: LibraryScope, libraryID: String?, limit: Int) async throws -> TrackCatalogPage? { nil }
     func replaceTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws {}
     func appendTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws {}
+    func enqueueTrackFavourite(scope: LibraryScope, itemID: String, desired: Bool, sequence: Int64) async throws -> TrackFavouriteMutation { fatalError("Store does not support mutations") }
+    func pendingTrackFavourites(scope: LibraryScope) async throws -> [TrackFavouriteMutation] { [] }
+    func completeTrackFavourite(_ mutation: TrackFavouriteMutation) async throws {}
+    func updateTrackFavourite(_ mutation: TrackFavouriteMutation) async throws {}
 }

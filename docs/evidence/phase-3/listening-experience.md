@@ -2,6 +2,12 @@
 
 Status: Partial early slice; Phase 3 is not complete
 
+The 2026-07-17 bounded write slice adds track favourite/unfavourite controls
+on Tracks and Favourites. Migration 004 provides a scoped desired-state outbox;
+gateway requests use authenticated FavoriteItems POST/DELETE operations with
+typed retry classification. Playlist and artist/album writes remain open, so
+the Phase 3 write exit gate remains open.
+
 Last updated: 2026-07-17
 
 ## Read-only track catalog

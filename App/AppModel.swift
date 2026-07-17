@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var isLoadingMoreAlbums = false
     @Published private(set) var trackCatalogState = TrackCatalogState()
     @Published var errorMessage: String?
+    @Published private(set) var pendingTrackFavourites: [String: Bool] = [:]
 
     let playback: PlaybackController
 
@@ -26,6 +27,7 @@ final class AppModel: ObservableObject {
     private var nextAlbumStartIndex = 0
     private var homeRefreshGeneration = 0
     private var trackCatalogGeneration = 0
+    private var favouriteSequence: Int64 = 0
 
     init(defaults: UserDefaults = .standard, libraryStore: (any LibraryStoring)? = nil) {
         self.defaults = defaults
@@ -93,6 +95,19 @@ final class AppModel: ObservableObject {
     var api: JellyfinAPI? {
         guard let session else { return nil }
         return JellyfinAPI(baseURL: session.serverURL, deviceID: session.deviceID, token: session.accessToken)
+    }
+
+    func toggleTrackFavourite(_ track: Track, desired: Bool? = nil) {
+        guard let session, let store = libraryStore else { return }
+        let value = desired ?? !(pendingTrackFavourites[track.id] ?? false)
+        pendingTrackFavourites[track.id] = value
+        let scope = libraryScope(for: session)
+        Task {
+            favouriteSequence += 1
+            let sequence = favouriteSequence
+            _ = try? await store.enqueueTrackFavourite(scope: scope, itemID: track.id, desired: value, sequence: sequence)
+            if let api { await TrackFavouriteReconciler(store: store).reconcile(scope: scope, gateway: api, now: sequence) }
+        }
     }
 
     func connect(server: String, username: String, password: String) async {

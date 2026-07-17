@@ -3,6 +3,7 @@ import SwiftUI
 /// Read-only favourites browsing. Data loading and navigation are injected so this
 /// surface stays independent of `AppModel` and can be reused by another coordinator.
 struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: View {
+    @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var state = FavouritesState()
 
@@ -183,7 +184,16 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
             LazyVStack(spacing: 0) {
                 ForEach(Array(state.trackOccurrences.enumerated()), id: \.element.id) { offset, occurrence in
                     Button { play(occurrence, state.trackOccurrences) } label: {
-                        FavouriteTrackRow(position: offset + 1, occurrence: occurrence)
+                        HStack {
+                            FavouriteTrackRow(position: offset + 1, occurrence: occurrence)
+                            Button { model.toggleTrackFavourite(occurrence.track, desired: false) } label: {
+                                Image(systemName: "heart.slash.fill")
+                                    .frame(width: 44, height: 44)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Unfavourite \(occurrence.track.name)")
+                            .accessibilityValue(model.pendingTrackFavourites[occurrence.track.id] == false ? "Pending unfavourite" : "Favourite")
+                        }
                     }
                     .buttonStyle(.plain)
                     .frame(minHeight: 44)

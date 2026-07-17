@@ -65,6 +65,8 @@ diagnostics privacy gate remains authoritative. Full Phase 1 remains open.
   migration-003 cache pages, and routes selected occurrences through the
   authoritative queue without later pagination mutation.
 - [ ] Every write operation has success, retry, conflict, and expired-auth tests.
+- [x] Track favourite/unfavourite writes use a scoped, coalescing durable outbox;
+  playlist and artist/album writes remain open.
 - [ ] Screenshot and accessibility suites cover every primary destination at
   compact and regular widths.
 
