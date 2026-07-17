@@ -105,6 +105,18 @@ final class PlaybackController: ObservableObject {
         Diagnostics.event("playback_restored", ["position_seconds": Int(snapshot.position), "queue_count": queue.count])
     }
 
+#if DEBUG
+    func configureForUITesting(track: Track) {
+        queue = [track]
+        originalQueue = queue
+        currentIndex = 0
+        currentTrack = track
+        duration = track.duration
+        canGoPrevious = false
+        canGoNext = false
+    }
+#endif
+
     func toggle() {
         guard let player else { return }
         if isPlaying { player.pause() } else { player.play() }

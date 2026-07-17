@@ -23,13 +23,20 @@ final class AppModel: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.playback = PlaybackController(defaults: defaults)
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing") {
             defaults.removeObject(forKey: Self.profileKey)
             KeychainTokenStore.delete()
         }
         if defaults.string(forKey: Self.deviceIDKey) == nil {
             defaults.set(UUID().uuidString, forKey: Self.deviceIDKey)
         }
+#if DEBUG
+        if arguments.contains("--ui-testing-music-shell") {
+            configureUITestMusicShell()
+            return
+        }
+#endif
         restoreSession()
     }
 
@@ -251,4 +258,31 @@ final class AppModel: ObservableObject {
     private func playbackScope(for session: UserSession) -> String {
         "\(session.serverID):\(session.userID)"
     }
+
+#if DEBUG
+    private func configureUITestMusicShell() {
+        guard let serverURL = URL(string: "https://example.invalid") else { return }
+        session = UserSession(
+            serverURL: serverURL,
+            serverID: "synthetic-server",
+            serverName: "Synthetic Jellyfin",
+            serverVersion: "test",
+            userID: "synthetic-user",
+            username: "Listener",
+            accessToken: "synthetic-token",
+            deviceID: "synthetic-device"
+        )
+        libraries = [MusicLibrary(id: "music", name: "Music")]
+        selectedLibraryID = "music"
+        playback.configureForUITesting(track: Track(
+            id: "track",
+            name: "Visible Mini Player",
+            artist: "Synthetic Artist",
+            album: "Synthetic Album",
+            index: 1,
+            disc: 1,
+            durationTicks: 1_800_000_000
+        ))
+    }
+#endif
 }

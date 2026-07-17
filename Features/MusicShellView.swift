@@ -5,6 +5,21 @@ struct MusicShellView: View {
     @State private var showingPlayer = false
 
     var body: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                tabs
+                    .tabBarMinimizeBehavior(.never)
+                    .tabViewBottomAccessory { miniPlayer }
+            } else {
+                tabs.safeAreaInset(edge: .bottom, spacing: 0) { miniPlayer }
+            }
+        }
+        .sheet(isPresented: $showingPlayer) {
+            NowPlayingView(playback: model.playback)
+        }
+    }
+
+    private var tabs: some View {
         TabView {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house.fill") }
@@ -13,13 +28,12 @@ struct MusicShellView: View {
             SearchView()
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if model.playback.currentTrack != nil {
-                MiniPlayerView(playback: model.playback) { showingPlayer = true }
-            }
-        }
-        .sheet(isPresented: $showingPlayer) {
-            NowPlayingView(playback: model.playback)
+    }
+
+    @ViewBuilder
+    private var miniPlayer: some View {
+        if model.playback.currentTrack != nil {
+            MiniPlayerView(playback: model.playback) { showingPlayer = true }
         }
     }
 }
