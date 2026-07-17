@@ -6,7 +6,9 @@ cd "$repo_root"
 
 branch=$(git branch --show-current)
 head=$(git rev-parse --short HEAD)
-expected=$(awk -F'`' '/^- Last reconciled commit:/ { print $2; exit }' docs/NEXT_WORK.md)
+head_commit=$(git rev-parse HEAD)
+queue_commit=$(git log -1 --format=%H -- docs/NEXT_WORK.md)
+queue_status=$(git status --porcelain -- docs/NEXT_WORK.md)
 
 echo "Repository: $repo_root"
 echo "Branch: ${branch:-detached}"
@@ -18,10 +20,13 @@ else
   echo "Worktree: clean"
 fi
 
-if [ -n "$expected" ] && [ "$head" != "$expected" ]; then
-  echo "Routing: STALE — NEXT_WORK.md expects $expected; reconcile it with $head"
-else
+if [ -n "$queue_status" ]; then
+  echo "Routing: IN-FLIGHT — NEXT_WORK.md has uncommitted routing changes"
+elif [ -n "$queue_commit" ] && [ "$head_commit" = "$queue_commit" ]; then
   echo "Routing: reconciled with HEAD"
+else
+  queue_short=$(git rev-parse --short "$queue_commit")
+  echo "Routing: STALE — commits landed after NEXT_WORK.md was last updated at $queue_short"
 fi
 
 echo

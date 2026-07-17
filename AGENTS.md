@@ -46,8 +46,9 @@ unblocked item is the default next slice; agents must not re-rank the roadmap by
 performing a fresh repository-wide audit.
 
 At the end of work that changes status or evidence, update the queue in the same
-change. Keep detailed history in product evidence, not in the queue. Record the
-last reconciled commit so `./scripts/next-work.sh` can expose stale routing.
+change. Keep detailed history in product evidence, not in the queue.
+`./scripts/next-work.sh` derives routing freshness from the queue file's Git
+history; do not add a commit hash that the queue update would need to predict.
 
 ## Scope guardrails
 

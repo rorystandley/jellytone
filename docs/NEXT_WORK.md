@@ -4,7 +4,6 @@ Status: Live work-order authority
 
 Last updated: 2026-07-17
 
-- Last reconciled commit: `61509d0`
 - Active roadmap boundary: Phase 2 remains open; explicitly brought-forward
   Phase 3 listening slices are allowed without claiming either phase complete.
 - Selection rule: finish `NOW`; otherwise take the first unblocked `NEXT` item.
