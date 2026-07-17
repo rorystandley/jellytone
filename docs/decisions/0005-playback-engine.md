@@ -50,6 +50,10 @@ transition modes separately.
 - Crossfade is not promised by the Phase 0 host render.
 - The coordinator must invalidate prepared items atomically and prevent two
   Jellyfin play sessions from remaining open.
+- Queue occurrences carry stable identities independent of Jellyfin track IDs,
+  so duplicates remain independently editable and restorable.
+- Reorder, remove, clear, Play Next, and Add to Queue while shuffled commit the
+  visible order as canonical and disable shuffle; jump alone preserves shuffle.
 - Crossfade implementation may require revisiting this ADR after device proof;
   feature UI cannot expose it before that proof.
 
@@ -80,6 +84,14 @@ cannot escape interruption or headphone-loss policy, old-device-unavailable
 pauses, media-services reset reactivates or fails paused, and system remote
 commands route to that controller. `./scripts/test.sh` passes all 24 tests.
 
+The early Phase 3 durable-queue slice adds deterministic coverage for entry
+identity and legacy migration, duplicate occurrences, jump/reorder/remove/clear,
+shuffle-edit semantics, repeat boundaries, restoration, and rapid replacement.
+Replacement preparation awaits the cancelled predecessor's shielded reporting
+cleanup; the regression records start(first), stop(first), start(final), with no
+start for the superseded middle selection.
+The final authoritative `./scripts/test.sh` run passes all 29 tests.
+
 A bounded 2026-07-17 production-app exercise passed approximately 60 seconds
 locked and 60 seconds backgrounded on the paired iPhone. Lock Screen metadata
 and play, pause, seek, next, and previous were physically confirmed; redacted
@@ -97,8 +109,9 @@ Apple primary references:
 
 ## Rollback and migration
 
-The engine is behind an owned interface and no production playback state exists
-in Phase 0. If device evidence rejects AVQueuePlayer, replace the adapter and
-write a superseding ADR; durable queue/plan models remain independent. Disable
-crossfade remotely/local-feature-wise by selecting the hard-cut fallback—no
-data migration is required.
+The engine remains behind an owned interface. If device evidence rejects
+AVQueuePlayer, replace the adapter and write a superseding ADR; durable
+queue/plan models remain independent. Legacy snapshots containing raw track
+arrays decode into per-occurrence queue entries and are rewritten in the new
+entry-based form; no queue is discarded. Disable crossfade by selecting the
+hard-cut fallback—no additional data migration is required.

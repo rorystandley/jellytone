@@ -369,7 +369,10 @@ player became usable. This does not waive the remaining Phase 2 gate or mark the
 rest of Phase 3 complete. Server-backed, debounced artist/album search and native
 artist album pages were subsequently brought forward as another bounded slice;
 cached/local result merging, the remaining destinations, and the full Phase 3
-acceptance matrix remain open.
+acceptance matrix remain open. Durable queue editing was then added with stable
+per-occurrence identity, tap-to-jump, reorder, individual removal, and Clear Up
+Next. These additions advance the queue deliverable only and do not complete
+Phase 2 or Phase 3.
 
 Deliverables:
 

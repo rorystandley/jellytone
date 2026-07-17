@@ -89,6 +89,7 @@ struct MiniPlayerView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("mini-player-details")
                 Spacer()
                 Button { playback.toggle() } label: {
                     if playback.isPreparing {
@@ -181,6 +182,7 @@ struct NowPlayingView: View {
                         Label(playback.qualityLabel, systemImage: "waveform")
                         Spacer()
                         Button("Queue", systemImage: "list.bullet") { showingQueue = true }
+                            .accessibilityIdentifier("show-queue")
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -217,28 +219,89 @@ private struct PlaybackQueueView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let current = playback.currentTrack {
+                    Section("Now Playing") {
+                        QueueTrackRow(track: current, isCurrent: true)
+                            .listRowBackground(Color.accentColor.opacity(0.12))
+                            .accessibilityHint("Currently playing. This track cannot be removed.")
+                    }
+                }
                 Section("Up Next") {
-                    ForEach(Array(playback.queue.enumerated()), id: \.offset) { index, track in
-                        HStack(spacing: 12) {
-                            Image(systemName: index == playback.currentIndex ? "speaker.wave.2.fill" : "music.note")
-                                .frame(width: 24)
-                                .foregroundStyle(index == playback.currentIndex ? Color.accentColor : .secondary)
-                            VStack(alignment: .leading) {
-                                Text(track.name).lineLimit(1)
-                                    .fontWeight(index == playback.currentIndex ? .semibold : .regular)
-                                Text(track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    if playback.upcomingEntries.isEmpty {
+                        ContentUnavailableView(
+                            "Nothing Up Next",
+                            systemImage: "text.line.last.and.arrowtriangle.forward",
+                            description: Text("The current track will keep playing.")
+                        )
+                    } else {
+                        ForEach(playback.upcomingEntries) { entry in
+                            Button { playback.jump(to: entry.id) } label: {
+                                QueueTrackRow(track: entry.track, isCurrent: false)
                             }
-                            Spacer()
-                            Text(track.durationLabel).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Play \(entry.track.name) by \(entry.track.artist)")
+                            .accessibilityHint("Jumps to this track")
+                            .accessibilityAction(named: "Move Earlier") {
+                                playback.moveUpcoming(entryID: entry.id, by: -1)
+                            }
+                            .accessibilityAction(named: "Move Later") {
+                                playback.moveUpcoming(entryID: entry.id, by: 1)
+                            }
+                            .accessibilityAction(named: "Remove from Up Next") {
+                                playback.removeUpcoming(entryIDs: [entry.id])
+                            }
                         }
-                        .accessibilityElement(children: .combine)
+                        .onMove(perform: playback.moveUpcoming)
+                        .onDelete(perform: playback.removeUpcoming)
+                    }
+                }
+                if !playback.upcomingEntries.isEmpty {
+                    Section {
+                        Button("Clear Up Next", systemImage: "text.badge.minus") {
+                            playback.clearUpNext()
+                        }
+                        .accessibilityHint("Keeps the current track playing")
                     }
                 }
             }
             .navigationTitle("Queue")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar {
+                if !playback.upcomingEntries.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) { EditButton() }
+                }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+private struct QueueTrackRow: View {
+    let track: Track
+    let isCurrent: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Image(systemName: isCurrent ? "speaker.wave.2.fill" : "music.note")
+                .frame(width: 24)
+                .foregroundStyle(isCurrent ? Color.accentColor : .secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(track.name)
+                    .fontWeight(isCurrent ? .semibold : .regular)
+                    .lineLimit(2)
+                Text(track.artist)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(track.durationLabel)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }

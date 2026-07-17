@@ -103,16 +103,26 @@ enum RepeatMode: String, Codable, CaseIterable, Sendable {
     }
 }
 
+struct QueueEntry: Identifiable, Codable, Hashable, Sendable {
+    let id: UUID
+    let track: Track
+
+    init(id: UUID = UUID(), track: Track) {
+        self.id = id
+        self.track = track
+    }
+}
+
 enum QueueOrder {
     static func shuffled<R: RandomNumberGenerator>(
-        _ tracks: [Track],
-        keeping current: Track,
+        _ entries: [QueueEntry],
+        currentIndex: Int,
         using generator: inout R
-    ) -> [Track] {
-        var remaining = tracks
-        if let index = remaining.firstIndex(of: current) { remaining.remove(at: index) }
-        remaining.shuffle(using: &generator)
-        return [current] + remaining
+    ) -> [QueueEntry] {
+        guard entries.indices.contains(currentIndex) else { return entries }
+        var upcoming = Array(entries.dropFirst(currentIndex + 1))
+        upcoming.shuffle(using: &generator)
+        return Array(entries.prefix(currentIndex + 1)) + upcoming
     }
 }
 
@@ -125,19 +135,19 @@ struct PlaybackPlan: Sendable {
 
 struct PlaybackSnapshot: Codable, Equatable, Sendable {
     let scope: String
-    let queue: [Track]
+    let queue: [QueueEntry]
     let currentIndex: Int
     let position: TimeInterval
-    let originalQueue: [Track]
+    let originalQueue: [QueueEntry]
     let isShuffled: Bool
     let repeatMode: RepeatMode
 
     init(
         scope: String,
-        queue: [Track],
+        queue: [QueueEntry],
         currentIndex: Int,
         position: TimeInterval,
-        originalQueue: [Track]? = nil,
+        originalQueue: [QueueEntry]? = nil,
         isShuffled: Bool = false,
         repeatMode: RepeatMode = .off
     ) {
@@ -151,17 +161,43 @@ struct PlaybackSnapshot: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case scope, queue, currentIndex, position, originalQueue, isShuffled, repeatMode
+        case scope, queueEntries, currentIndex, position, originalQueueEntries, isShuffled, repeatMode
+        case queue, originalQueue
     }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         scope = try values.decode(String.self, forKey: .scope)
-        queue = try values.decode([Track].self, forKey: .queue)
         currentIndex = try values.decode(Int.self, forKey: .currentIndex)
         position = try values.decode(TimeInterval.self, forKey: .position)
-        originalQueue = try values.decodeIfPresent([Track].self, forKey: .originalQueue) ?? queue
         isShuffled = try values.decodeIfPresent(Bool.self, forKey: .isShuffled) ?? false
         repeatMode = try values.decodeIfPresent(RepeatMode.self, forKey: .repeatMode) ?? .off
+        if let entries = try values.decodeIfPresent([QueueEntry].self, forKey: .queueEntries) {
+            queue = entries
+            originalQueue = try values.decodeIfPresent([QueueEntry].self, forKey: .originalQueueEntries) ?? entries
+        } else {
+            let legacyQueue = try values.decode([Track].self, forKey: .queue)
+            let legacyOriginal = try values.decodeIfPresent([Track].self, forKey: .originalQueue) ?? legacyQueue
+            let migratedOriginal = legacyOriginal.map { QueueEntry(track: $0) }
+            var unused = Array(migratedOriginal.indices)
+            queue = legacyQueue.map { track in
+                if let unusedIndex = unused.firstIndex(where: { migratedOriginal[$0].track == track }) {
+                    return migratedOriginal[unused.remove(at: unusedIndex)]
+                }
+                return QueueEntry(track: track)
+            }
+            originalQueue = migratedOriginal
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(scope, forKey: .scope)
+        try values.encode(queue, forKey: .queueEntries)
+        try values.encode(currentIndex, forKey: .currentIndex)
+        try values.encode(position, forKey: .position)
+        try values.encode(originalQueue, forKey: .originalQueueEntries)
+        try values.encode(isShuffled, forKey: .isShuffled)
+        try values.encode(repeatMode, forKey: .repeatMode)
     }
 }

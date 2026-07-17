@@ -280,7 +280,12 @@ final class MinimumWorkingAppTests: XCTestCase {
     func testPlaybackSnapshotRoundTripsQueueAndPosition() throws {
         let track = Track(id: "track", name: "Track", artist: "Artist", album: "Album",
                           albumID: "album", index: 1, disc: 1, durationTicks: 600_000_000)
-        let snapshot = PlaybackSnapshot(scope: "server:user", queue: [track], currentIndex: 0, position: 42.5)
+        let snapshot = PlaybackSnapshot(
+            scope: "server:user",
+            queue: [QueueEntry(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, track: track)],
+            currentIndex: 0,
+            position: 42.5
+        )
         XCTAssertEqual(try JSONDecoder().decode(PlaybackSnapshot.self, from: JSONEncoder().encode(snapshot)), snapshot)
     }
 
@@ -293,21 +298,210 @@ final class MinimumWorkingAppTests: XCTestCase {
     }
 
     func testQueueShuffleKeepsCurrentTrackAndAllEntries() {
-        let tracks = (1...4).map {
-            Track(id: "\($0)", name: "Track \($0)", artist: "Artist", album: "Album",
-                  index: $0, disc: 1, durationTicks: 10_000_000)
+        let tracks = (1...4).map { (number: Int) in
+            Track(id: "\(number)", name: "Track \(number)", artist: "Artist", album: "Album",
+                  index: number, disc: 1, durationTicks: 10_000_000)
         }
+        let entries = tracks.map { QueueEntry(track: $0) }
         var generator = SeededGenerator(state: 42)
-        let shuffled = QueueOrder.shuffled(tracks, keeping: tracks[2], using: &generator)
-        XCTAssertEqual(shuffled.first, tracks[2])
-        XCTAssertEqual(Set(shuffled), Set(tracks))
-        XCTAssertEqual(shuffled.count, tracks.count)
+        let shuffled = QueueOrder.shuffled(entries, currentIndex: 2, using: &generator)
+        XCTAssertEqual(Array(shuffled.prefix(3)), Array(entries.prefix(3)))
+        XCTAssertEqual(Set(shuffled), Set(entries))
+        XCTAssertEqual(shuffled.count, entries.count)
+    }
+
+    func testLegacySnapshotMigratesDuplicateTracksToDistinctStableEntries() throws {
+        let track = Track(id: "duplicate", name: "Same", artist: "Artist", album: "Album",
+                          index: 1, disc: 1, durationTicks: 10_000_000)
+        let legacyQueue = try String(data: JSONEncoder().encode([track, track]), encoding: .utf8).map {
+            #"{"scope":"server:user","queue":\#($0),"currentIndex":0,"position":0,"originalQueue":\#($0),"isShuffled":true,"repeatMode":"all"}"#
+        }
+        let migrated = try JSONDecoder().decode(PlaybackSnapshot.self, from: Data(XCTUnwrap(legacyQueue).utf8))
+
+        XCTAssertEqual(migrated.queue.map(\.track), [track, track])
+        XCTAssertEqual(Set(migrated.queue.map(\.id)).count, 2)
+        XCTAssertEqual(migrated.queue.map(\.id), migrated.originalQueue.map(\.id))
+        XCTAssertTrue(migrated.isShuffled)
+        XCTAssertEqual(migrated.repeatMode, .all)
+        XCTAssertNotNil(try JSONSerialization.jsonObject(with: JSONEncoder().encode(migrated)) as? [String: Any])
     }
 
     func testRepeatModeCyclesThroughEveryState() {
         XCTAssertEqual(RepeatMode.off.next, .all)
         XCTAssertEqual(RepeatMode.all.next, .one)
         XCTAssertEqual(RepeatMode.one.next, .off)
+    }
+
+    @MainActor
+    func testQueueJumpReorderRemoveAndClearUseEntryIdentityAndPersistAtomically() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        let playback = PlaybackController(
+            defaults: defaults,
+            audioSession: RecordingAudioSession(),
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        let duplicate = Track(id: "duplicate", name: "Duplicate", artist: "Artist", album: "Album",
+                              index: 2, disc: 1, durationTicks: 10_000_000)
+        let tracks = [
+            Track(id: "current", name: "Current", artist: "Artist", album: "Album",
+                  index: 1, disc: 1, durationTicks: 10_000_000),
+            duplicate,
+            duplicate,
+            Track(id: "last", name: "Last", artist: "Artist", album: "Album",
+                  index: 4, disc: 1, durationTicks: 10_000_000),
+        ]
+        playback.configureForLifecycleTesting(queue: tracks, currentIndex: 0, elapsed: 0, isPlaying: false)
+        let firstDuplicateID = playback.upcomingEntries[0].id
+        let secondDuplicateID = playback.upcomingEntries[1].id
+        XCTAssertNotEqual(firstDuplicateID, secondDuplicateID)
+
+        playback.moveUpcoming(entryID: secondDuplicateID, by: -1)
+        XCTAssertEqual(Array(playback.upcomingEntries.map(\.id).prefix(2)), [secondDuplicateID, firstDuplicateID])
+        playback.removeUpcoming(entryIDs: [firstDuplicateID])
+        XCTAssertEqual(playback.queue.filter { $0.track == duplicate }.map(\.id), [secondDuplicateID])
+
+        let lastID = try XCTUnwrap(playback.upcomingEntries.last?.id)
+        playback.jump(to: lastID)
+        XCTAssertEqual(playback.queue[playback.currentIndex].id, lastID)
+        XCTAssertEqual(playback.currentTrack, tracks[3])
+
+        playback.configureForLifecycleTesting(queue: tracks, currentIndex: 0, elapsed: 0, isPlaying: false)
+        playback.clearUpNext()
+        XCTAssertTrue(playback.upcomingEntries.isEmpty)
+        XCTAssertEqual(playback.queue.map(\.track), [tracks[0]])
+
+        let data = try XCTUnwrap(defaults.data(forKey: "active-playback-snapshot-v1"))
+        let snapshot = try JSONDecoder().decode(PlaybackSnapshot.self, from: data)
+        XCTAssertEqual(snapshot.queue, playback.queue)
+        XCTAssertEqual(snapshot.currentIndex, playback.currentIndex)
+    }
+
+    @MainActor
+    func testEditingShuffledQueueCommitsVisibleOrderAndRepeatBoundaryRemainsAvailable() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        let commands = RecordingRemoteCommandRouter()
+        let playback = PlaybackController(
+            defaults: defaults,
+            audioSession: RecordingAudioSession(),
+            remoteCommands: commands,
+            notificationCenter: NotificationCenter()
+        )
+        playback.configureForLifecycleTesting(queue: Self.queueTracks(), currentIndex: 0, elapsed: 0, isPlaying: false)
+        playback.toggleShuffle()
+        XCTAssertTrue(playback.isShuffled)
+        let visible = playback.queue
+
+        playback.moveUpcoming(entryID: playback.upcomingEntries[0].id, by: 1)
+        XCTAssertFalse(playback.isShuffled)
+        XCTAssertNotEqual(playback.queue, visible)
+
+        playback.cycleRepeatMode()
+        XCTAssertEqual(playback.repeatMode, .all)
+        playback.jump(to: playback.queue[2].id)
+        playback.clearUpNext()
+        XCTAssertEqual(playback.queue.count, 1)
+        XCTAssertEqual(playback.currentIndex, 0)
+        XCTAssertFalse(playback.canGoNext)
+        XCTAssertEqual(commands.lastAvailability, .init(canGoPrevious: false, canGoNext: true))
+        playback.next()
+        XCTAssertEqual(playback.currentIndex, 0)
+    }
+
+    @MainActor
+    func testSnapshotRestorationPreservesEntryIdentityAndCurrentOccurrence() async throws {
+        MockURLProtocol.handler = { request in
+            if request.url?.path.contains("PlaybackInfo") == true {
+                return Self.response(
+                    for: request,
+                    json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"restored-session"}"#
+                )
+            }
+            return Self.response(for: request, status: 204, json: "")
+        }
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        let tracks = Self.queueTracks()
+        let entries = tracks.map { QueueEntry(track: $0) }
+        defaults.set(
+            try JSONEncoder().encode(PlaybackSnapshot(
+                scope: "server:user",
+                queue: entries,
+                currentIndex: 2,
+                position: 0,
+                originalQueue: entries,
+                isShuffled: false,
+                repeatMode: .one
+            )),
+            forKey: "active-playback-snapshot-v1"
+        )
+        let playback = PlaybackController(
+            defaults: defaults,
+            audioSession: RecordingAudioSession(),
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+                              deviceID: "device", token: "token", urlSession: makeSession())
+
+        playback.restore(using: api, userID: "user", scope: "server:user")
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+
+        XCTAssertFalse(playback.isPreparing)
+        XCTAssertEqual(playback.queue.map(\.id), entries.map(\.id))
+        XCTAssertEqual(playback.currentIndex, 2)
+        XCTAssertEqual(playback.currentTrack, tracks[2])
+        XCTAssertEqual(playback.repeatMode, .one)
+    }
+
+    @MainActor
+    func testRapidQueueJumpsCloseStartedSessionBeforeStartingFinalTrackExactlyOnce() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path.hasSuffix("PlaybackInfo") {
+                let itemID = path.split(separator: "/").dropLast().last.map(String.init) ?? "unknown"
+                return Self.response(
+                    for: request,
+                    json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"session-\#(itemID)"}"#
+                )
+            }
+            if path.contains("/Sessions/Playing") {
+                let body = try Self.bodyData(from: request)
+                let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+                let itemID = try XCTUnwrap(json["ItemId"] as? String)
+                let event = path.hasSuffix("Stopped") ? "stop:\(itemID)" : "start:\(itemID)"
+                recorder.append(event)
+                if event == "start:queue-1" { Thread.sleep(forTimeInterval: 0.08) }
+                return Self.response(for: request, status: 204, json: "")
+            }
+            return Self.response(for: request, status: 404, json: "")
+        }
+        let playback = PlaybackController(
+            defaults: try XCTUnwrap(UserDefaults(suiteName: #function)),
+            audioSession: RecordingAudioSession(),
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+                              deviceID: "device", token: "token", urlSession: makeSession())
+        let tracks = Self.queueTracks()
+        playback.play(tracks[0], queue: tracks, using: api, userID: "user", scope: "server:user")
+        for _ in 0..<200 where !recorder.contains("start:queue-1") {
+            try await Task.sleep(for: .milliseconds(2))
+        }
+        XCTAssertTrue(recorder.contains("start:queue-1"))
+
+        playback.jump(to: playback.queue[1].id)
+        playback.jump(to: playback.queue[2].id)
+        for _ in 0..<400 where playback.isPreparing || playback.currentTrack?.id != "queue-3" {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+
+        XCTAssertEqual(playback.currentTrack?.id, "queue-3")
+        XCTAssertEqual(recorder.events, ["start:queue-1", "stop:queue-1", "start:queue-3"])
     }
 
     @MainActor
@@ -327,7 +521,15 @@ final class MinimumWorkingAppTests: XCTestCase {
 
     @MainActor
     func testPlaybackActivatesBackgroundAudioSessionBeforePreparingStream() async throws {
+        let stopped = expectation(description: "Playback stop report completes")
         MockURLProtocol.handler = { request in
+            if request.url?.path == "/Sessions/Playing/Stopped" {
+                stopped.fulfill()
+                return Self.response(for: request, status: 204, json: "")
+            }
+            if request.url?.path == "/Sessions/Playing" {
+                return Self.response(for: request, status: 204, json: "")
+            }
             XCTAssertEqual(request.url?.path, "/Items/track/PlaybackInfo")
             return Self.response(
                 for: request,
@@ -362,6 +564,7 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertEqual(session.activationCount, 1)
         XCTAssertFalse(playback.isPreparing)
         playback.stop()
+        await fulfillment(of: [stopped], timeout: 1)
         XCTAssertEqual(session.deactivationCount, 1)
     }
 
@@ -593,6 +796,13 @@ final class MinimumWorkingAppTests: XCTestCase {
                   index: 2, disc: 1, durationTicks: 600_000_000),
         ]
     }
+
+    private static func queueTracks() -> [Track] {
+        (1...4).map { (number: Int) in
+            Track(id: "queue-\(number)", name: "Queue \(number)", artist: "Artist", album: "Album",
+                  index: number, disc: 1, durationTicks: 600_000_000)
+        }
+    }
 }
 
 private struct UncheckedSendable<Value>: @unchecked Sendable {
@@ -605,6 +815,23 @@ private struct SeededGenerator: RandomNumberGenerator {
     mutating func next() -> UInt64 {
         state = state &* 6_364_136_223_846_793_005 &+ 1
         return state
+    }
+}
+
+private final class RequestRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var events: [String] {
+        lock.withLock { storage }
+    }
+
+    func append(_ event: String) {
+        lock.withLock { storage.append(event) }
+    }
+
+    func contains(_ event: String) -> Bool {
+        lock.withLock { storage.contains(event) }
     }
 }
 

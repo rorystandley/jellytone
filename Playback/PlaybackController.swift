@@ -88,7 +88,7 @@ final class PlaybackController: ObservableObject {
     @Published private(set) var canGoNext = false
     @Published private(set) var qualityLabel = ""
     @Published private(set) var errorMessage: String?
-    @Published private(set) var queue: [Track] = []
+    @Published private(set) var queue: [QueueEntry] = []
     @Published private(set) var currentIndex = 0
     @Published private(set) var isShuffled = false
     @Published private(set) var repeatMode: RepeatMode = .off
@@ -102,7 +102,7 @@ final class PlaybackController: ObservableObject {
     private var timeObserver: Any?
     private var completionObserver: NSObjectProtocol?
     private var preparationTask: Task<Void, Never>?
-    private var originalQueue: [Track] = []
+    private var originalQueue: [QueueEntry] = []
     private var api: JellyfinAPI?
     private var userID: String?
     private var scope = ""
@@ -137,9 +137,10 @@ final class PlaybackController: ObservableObject {
         userID: String,
         scope: String
     ) {
-        self.queue = queue.isEmpty ? [track] : queue
+        let tracks = queue.isEmpty ? [track] : queue
+        self.queue = tracks.map { QueueEntry(track: $0) }
         originalQueue = self.queue
-        currentIndex = self.queue.firstIndex(of: track) ?? 0
+        currentIndex = tracks.firstIndex(of: track) ?? 0
         isShuffled = false
         repeatMode = .off
         self.api = api
@@ -166,14 +167,14 @@ final class PlaybackController: ObservableObject {
     }
 
 #if DEBUG
-    func configureForUITesting(track: Track) {
-        queue = [track]
+    func configureForUITesting(track: Track, upcoming: [Track] = []) {
+        queue = ([track] + upcoming).map { QueueEntry(track: $0) }
         originalQueue = queue
         currentIndex = 0
         currentTrack = track
         duration = track.duration
         canGoPrevious = false
-        canGoNext = false
+        canGoNext = !upcoming.isEmpty
     }
 
     func configureForLifecycleTesting(
@@ -186,8 +187,8 @@ final class PlaybackController: ObservableObject {
         playerAvailable: Bool = true,
         scope: String = "test:scope"
     ) {
-        self.queue = queue
-        originalQueue = queue
+        self.queue = queue.map { QueueEntry(track: $0) }
+        originalQueue = self.queue
         self.currentIndex = currentIndex
         currentTrack = queue[currentIndex]
         duration = currentTrack?.duration ?? 0
@@ -228,9 +229,11 @@ final class PlaybackController: ObservableObject {
 
     func playNext(_ track: Track) {
         guard currentTrack != nil else { return }
+        commitVisibleOrderForEditing()
+        let entry = QueueEntry(track: track)
         let insertionIndex = min(currentIndex + 1, queue.count)
-        queue.insert(track, at: insertionIndex)
-        insertIntoOriginalQueue(track)
+        queue.insert(entry, at: insertionIndex)
+        insertIntoOriginalQueue(entry)
         updateQueueControls()
         refreshNowPlayingQueueMetadata()
         persistState()
@@ -238,24 +241,26 @@ final class PlaybackController: ObservableObject {
 
     func addToQueue(_ track: Track) {
         guard currentTrack != nil else { return }
-        queue.append(track)
-        originalQueue.append(track)
+        commitVisibleOrderForEditing()
+        let entry = QueueEntry(track: track)
+        queue.append(entry)
+        originalQueue.append(entry)
         updateQueueControls()
         refreshNowPlayingQueueMetadata()
         persistState()
     }
 
     func toggleShuffle() {
-        guard let currentTrack else { return }
+        guard queue.indices.contains(currentIndex) else { return }
+        let currentID = queue[currentIndex].id
         if isShuffled {
             queue = originalQueue
-            currentIndex = queue.firstIndex(of: currentTrack) ?? 0
+            currentIndex = queue.firstIndex(where: { $0.id == currentID }) ?? 0
             isShuffled = false
         } else {
             originalQueue = queue
             var generator = SystemRandomNumberGenerator()
-            queue = QueueOrder.shuffled(queue, keeping: currentTrack, using: &generator)
-            currentIndex = 0
+            queue = QueueOrder.shuffled(queue, currentIndex: currentIndex, using: &generator)
             isShuffled = true
         }
         updateQueueControls()
@@ -267,6 +272,64 @@ final class PlaybackController: ObservableObject {
         repeatMode = repeatMode.next
         updateQueueControls()
         persistState()
+    }
+
+    var upcomingEntries: [QueueEntry] {
+        guard queue.indices.contains(currentIndex) else { return [] }
+        return Array(queue.dropFirst(currentIndex + 1))
+    }
+
+    func jump(to entryID: QueueEntry.ID) {
+        guard let index = queue.firstIndex(where: { $0.id == entryID }), index > currentIndex else { return }
+        currentIndex = index
+        prepareCurrent(resumeAt: 0, autoPlay: true)
+    }
+
+    func moveUpcoming(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        guard !offsets.isEmpty else { return }
+        commitVisibleOrderForEditing()
+        var upcoming = Array(queue.dropFirst(currentIndex + 1))
+        let validOffsets = offsets.filter { upcoming.indices.contains($0) }
+        guard !validOffsets.isEmpty else { return }
+        let moving = validOffsets.sorted().map { upcoming[$0] }
+        for index in validOffsets.sorted(by: >) { upcoming.remove(at: index) }
+        let removedBeforeDestination = validOffsets.filter { $0 < destination }.count
+        let insertion = min(max(destination - removedBeforeDestination, 0), upcoming.count)
+        upcoming.insert(contentsOf: moving, at: insertion)
+        queue.replaceSubrange((currentIndex + 1)..<queue.count, with: upcoming)
+        originalQueue = queue
+        queueDidMutate()
+    }
+
+    func moveUpcoming(entryID: QueueEntry.ID, by offset: Int) {
+        guard let source = upcomingEntries.firstIndex(where: { $0.id == entryID }) else { return }
+        let destination = min(max(source + offset, 0), upcomingEntries.count - 1)
+        guard source != destination else { return }
+        moveUpcoming(fromOffsets: IndexSet(integer: source), toOffset: destination > source ? destination + 1 : destination)
+    }
+
+    func removeUpcoming(atOffsets offsets: IndexSet) {
+        let ids = offsets.compactMap { upcomingEntries.indices.contains($0) ? upcomingEntries[$0].id : nil }
+        removeUpcoming(entryIDs: Set(ids))
+    }
+
+    func removeUpcoming(entryIDs: Set<QueueEntry.ID>) {
+        guard !entryIDs.isEmpty else { return }
+        commitVisibleOrderForEditing()
+        let currentID = queue[currentIndex].id
+        queue.removeAll { entryIDs.contains($0.id) && $0.id != currentID }
+        originalQueue = queue
+        queueDidMutate()
+    }
+
+    func clearUpNext() {
+        guard !upcomingEntries.isEmpty else { return }
+        commitVisibleOrderForEditing()
+        let current = queue[currentIndex]
+        queue = [current]
+        currentIndex = 0
+        originalQueue = queue
+        queueDidMutate()
     }
 
     private func advance(automatic: Bool) {
@@ -347,17 +410,18 @@ final class PlaybackController: ObservableObject {
     }
 
     private func prepareCurrent(resumeAt: TimeInterval, autoPlay: Bool) {
-        guard queue.indices.contains(currentIndex), let api, let userID else { return }
+        guard queue.indices.contains(currentIndex) else { return }
         let previousTrack = currentTrack
         let previousPlan = plan
         let previousPosition = elapsed
+        let priorPreparation = preparationTask
         generation = UUID()
         let expectedGeneration = generation
-        preparationTask?.cancel()
+        priorPreparation?.cancel()
         tearDownPlayer()
         plan = nil
         artwork = nil
-        currentTrack = queue[currentIndex]
+        currentTrack = queue[currentIndex].track
         elapsed = max(0, resumeAt)
         duration = currentTrack?.duration ?? 0
         isPlaying = false
@@ -371,20 +435,46 @@ final class PlaybackController: ObservableObject {
         persistState()
 
         guard let track = currentTrack else { return }
+        guard let api, let userID else {
+            isPreparing = false
+            qualityLabel = ""
+            return
+        }
         preparationTask = Task { [weak self] in
             guard let self else { return }
             do {
+                await priorPreparation?.value
+                guard !Task.isCancelled, generation == expectedGeneration else { return }
                 try audioSession.activateForPlayback()
                 if let previousTrack, let previousPlan {
-                    await api.reportStopped(
-                        itemID: previousTrack.id,
-                        plan: previousPlan,
-                        position: previousPosition
-                    )
+                    let stopTask = Task {
+                        await api.reportStopped(
+                            itemID: previousTrack.id,
+                            plan: previousPlan,
+                            position: previousPosition
+                        )
+                    }
+                    await stopTask.value
                 }
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
                 let selectedPlan = try await api.playbackPlan(itemID: track.id, userID: userID)
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
+                let startTask = Task {
+                    await api.reportStarted(
+                        itemID: track.id,
+                        plan: selectedPlan,
+                        position: resumeAt,
+                        paused: !shouldStartPreparedPlayer
+                    )
+                }
+                await startTask.value
+                guard !Task.isCancelled, generation == expectedGeneration else {
+                    let stopTask = Task {
+                        await api.reportStopped(itemID: track.id, plan: selectedPlan, position: resumeAt)
+                    }
+                    await stopTask.value
+                    return
+                }
                 plan = selectedPlan
                 Diagnostics.event("playback_plan_selected", ["method_code": selectedPlan.method.diagnosticCode])
                 qualityLabel = selectedPlan.method == .directPlay ? "Direct Play" : "AAC transcode"
@@ -402,7 +492,6 @@ final class PlaybackController: ObservableObject {
                 isPlaying = shouldPlay
                 isPreparing = false
                 updateNowPlaying(track: track)
-                Task { await api.reportStarted(itemID: track.id, plan: selectedPlan, position: elapsed, paused: !shouldPlay) }
                 if let albumID = track.albumID,
                    let data = try? await api.artworkData(itemID: albumID),
                    let image = UIImage(data: data), generation == expectedGeneration {
@@ -484,13 +573,25 @@ final class PlaybackController: ObservableObject {
         )
     }
 
-    private func insertIntoOriginalQueue(_ track: Track) {
-        guard let currentTrack,
-              let originalIndex = originalQueue.firstIndex(of: currentTrack) else {
-            originalQueue.append(track)
+    private func insertIntoOriginalQueue(_ entry: QueueEntry) {
+        guard queue.indices.contains(currentIndex),
+              let originalIndex = originalQueue.firstIndex(where: { $0.id == queue[currentIndex].id }) else {
+            originalQueue.append(entry)
             return
         }
-        originalQueue.insert(track, at: min(originalIndex + 1, originalQueue.count))
+        originalQueue.insert(entry, at: min(originalIndex + 1, originalQueue.count))
+    }
+
+    private func commitVisibleOrderForEditing() {
+        guard isShuffled else { return }
+        originalQueue = queue
+        isShuffled = false
+    }
+
+    private func queueDidMutate() {
+        updateQueueControls()
+        refreshNowPlayingQueueMetadata()
+        persistState()
     }
 
     private func configureRemoteCommands() {

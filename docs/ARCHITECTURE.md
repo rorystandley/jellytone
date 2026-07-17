@@ -285,6 +285,35 @@ AVFoundation-native design. The decision record must cover:
 Unsupported transitions fall back predictably to non-crossfaded playback. The
 UI must not claim a crossfade occurred when the engine could not perform it.
 
+### Durable queue editing
+
+Every occurrence in the playback queue is a `QueueEntry` with an opaque stable
+UUID and a `Track`; track or Jellyfin item identity is not queue-entry identity.
+This lets duplicate occurrences be jumped to, reordered, removed, shuffled, and
+restored independently. Legacy track-array snapshots migrate by matching each
+occurrence in order and are rewritten with entry identities on the next
+authoritative persistence update.
+
+Only `PlaybackController` mutates queue order. SwiftUI identifies an entry and
+sends jump, move, remove, or clear intents. The current entry is never removable
+through Up Next editing. Each mutation updates queue/index state, transport and
+remote-command availability, Now Playing queue index/count, and the durable
+snapshot in one main-actor transaction before another intent can run.
+
+Shuffle has one explicit editing rule: jumping within the visible shuffled
+order preserves shuffle, but any order/content mutation (reorder, remove, Clear
+Up Next, Play Next, or Add to Queue) first adopts the visible order as canonical
+and turns shuffle off. The app never maintains a hidden second order after an
+edit. Repeat then applies to that edited canonical queue.
+Enabling shuffle preserves playback history and the current index and randomizes
+only upcoming entries. Clear Up Next compacts the queue to the current entry, so
+repeat-all cannot unexpectedly wrap into hidden playback history.
+
+Playback replacement tasks are serialized. A superseded preparation completes
+any shielded Jellyfin start/stop cleanup before its successor negotiates a new
+plan, so rapid jumps cannot cancel session closure or start an intermediate
+entry after a newer intent.
+
 ### Reporting lifecycle
 
 The reporting bridge emits ordered Jellyfin events for start, periodic progress,

@@ -282,7 +282,12 @@ final class AppModel: ObservableObject {
             index: 1,
             disc: 1,
             durationTicks: 1_800_000_000
-        ))
+        ), upcoming: [
+            Track(id: "next-1", name: "First Up Next", artist: "Synthetic Artist",
+                  album: "Synthetic Album", index: 2, disc: 1, durationTicks: 1_800_000_000),
+            Track(id: "next-2", name: "Second Up Next", artist: "Synthetic Artist",
+                  album: "Synthetic Album", index: 3, disc: 1, durationTicks: 1_800_000_000),
+        ])
     }
 #endif
 }

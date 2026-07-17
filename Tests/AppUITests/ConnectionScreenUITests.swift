@@ -21,6 +21,25 @@ final class ConnectionScreenUITests: XCTestCase {
         XCTAssertTrue(tabBar.buttons["Search"].isSelected)
     }
 
+    func testQueueProtectsCurrentTrackAndClearUpNextKeepsItVisible() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell"]
+        app.launch()
+
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        app.buttons["show-queue"].tap()
+        XCTAssertTrue(app.navigationBars["Queue"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Visible Mini Player"].exists)
+        XCTAssertTrue(app.buttons["Play First Up Next by Synthetic Artist"].exists)
+        XCTAssertTrue(app.buttons["Play Second Up Next by Synthetic Artist"].exists)
+
+        app.buttons["Clear Up Next"].tap()
+        XCTAssertTrue(app.staticTexts["Visible Mini Player"].exists)
+        XCTAssertTrue(app.staticTexts["Nothing Up Next"].exists)
+        XCTAssertFalse(app.buttons["Clear Up Next"].exists)
+    }
+
     func testColdLaunchShowsConnectionForm() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]
