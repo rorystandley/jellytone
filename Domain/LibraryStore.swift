@@ -17,6 +17,23 @@ struct TrackFavouriteMutation: Codable, Hashable, Sendable, Identifiable {
     var nextRetryAt: Int64
     var state: FavouriteMutationState
 }
+enum PlaylistRenameState: String, Codable, Sendable { case pending, pausedAuth, conflict, terminal, completed }
+struct PlaylistRenameMutation: Codable, Hashable, Sendable, Identifiable {
+    let id: String; let serverID: String; let accountID: String; let playlistID: String
+    var baseRevision: String; var baseName: String
+    var desiredName: String; var sequence: Int64; var attempts: Int; var nextRetryAt: Int64; var state: PlaylistRenameState
+}
+enum PlaylistRenameValidationError: Error, Equatable { case empty, controlCharacter, tooLong }
+enum PlaylistRenameValidation {
+    static let maximumLength = 255
+    static func validate(_ value: String) throws -> String {
+        let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { throw PlaylistRenameValidationError.empty }
+        guard !name.unicodeScalars.contains(where: { $0.value < 0x20 || (0x7F...0x9F).contains($0.value) }) else { throw PlaylistRenameValidationError.controlCharacter }
+        guard name.count <= maximumLength else { throw PlaylistRenameValidationError.tooLong }
+        return name
+    }
+}
 
 protocol LibraryStoring: Sendable {
     func cachedAlbums(scope: LibraryScope, libraryID: String?) async throws -> [Album]
@@ -48,6 +65,9 @@ protocol LibraryStoring: Sendable {
     func pendingTrackFavourites(scope: LibraryScope) async throws -> [TrackFavouriteMutation]
     func completeTrackFavourite(_ mutation: TrackFavouriteMutation) async throws
     func updateTrackFavourite(_ mutation: TrackFavouriteMutation) async throws
+    func enqueuePlaylistRename(scope: LibraryScope, playlistID: String, baseRevision: String, baseName: String, desiredName: String, sequence: Int64) async throws -> PlaylistRenameMutation
+    func pendingPlaylistRenames(scope: LibraryScope) async throws -> [PlaylistRenameMutation]
+    func updatePlaylistRename(_ mutation: PlaylistRenameMutation) async throws
 }
 
 extension LibraryStoring {
@@ -58,4 +78,7 @@ extension LibraryStoring {
     func pendingTrackFavourites(scope: LibraryScope) async throws -> [TrackFavouriteMutation] { [] }
     func completeTrackFavourite(_ mutation: TrackFavouriteMutation) async throws {}
     func updateTrackFavourite(_ mutation: TrackFavouriteMutation) async throws {}
+    func enqueuePlaylistRename(scope: LibraryScope, playlistID: String, baseRevision: String, baseName: String, desiredName: String, sequence: Int64) async throws -> PlaylistRenameMutation { fatalError("Store does not support playlist renames") }
+    func pendingPlaylistRenames(scope: LibraryScope) async throws -> [PlaylistRenameMutation] { [] }
+    func updatePlaylistRename(_ mutation: PlaylistRenameMutation) async throws {}
 }

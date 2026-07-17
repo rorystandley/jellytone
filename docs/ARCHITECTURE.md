@@ -471,6 +471,15 @@ network route, command, result, and limitations.
 - Generated API models remain quarantined in `JellyfinGateway`.
 - A dependency update requires contract tests and a regeneration diff review.
 
+### Playlist rename bounded write
+
+The account-global migration-005 outbox is unique by server/account/playlist,
+coalesces rapid edits, and overlays the pending name atomically in both list and
+detail. The gateway reads the current name revision before POSTing only `Name`.
+Already-applied names succeed idempotently; transient failures back off, 401
+pauses until authentication resumes, and conflicts offer server-version or
+rebased-local-name resolution. Membership and ordering are not mutation data.
+
 ## Required Phase 0 decisions
 
 Create architecture decision records for:

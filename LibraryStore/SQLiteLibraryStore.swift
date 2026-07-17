@@ -230,6 +230,17 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
     func pendingTrackFavourites(scope: LibraryScope) async throws -> [TrackFavouriteMutation] { try await databaseQueue.read { db in try Row.fetchAll(db, sql: "SELECT * FROM track_favourite_mutations WHERE server_id=? AND account_id=? AND state != 'completed' ORDER BY sequence", arguments: [scope.serverID, scope.accountID]).compactMap(Self.mutation) } }
     func completeTrackFavourite(_ mutation: TrackFavouriteMutation) async throws { try await updateTrackFavourite({ var x=mutation; x.state = .completed; return x }()) }
     func updateTrackFavourite(_ m: TrackFavouriteMutation) async throws { try await databaseQueue.write { db in try db.execute(sql: "UPDATE track_favourite_mutations SET desired=?, sequence=?, attempts=?, next_retry_at=?, state=? WHERE id=?", arguments: [m.desired ? 1:0,m.sequence,m.attempts,m.nextRetryAt,m.state.rawValue,m.id]) } }
+    func enqueuePlaylistRename(scope: LibraryScope, playlistID: String, baseRevision: String, baseName: String, desiredName: String, sequence: Int64) async throws -> PlaylistRenameMutation {
+        let desired = try PlaylistRenameValidation.validate(desiredName)
+        let id = "playlist-rename:\(scope.serverID):\(scope.accountID):\(playlistID)"
+        return try await databaseQueue.write { db in
+            try Self.ensureScope(scope, libraryScope: Self.globalLibraryScope, in: db)
+            try db.execute(sql: "INSERT INTO playlist_rename_mutations (id,server_id,account_id,playlist_id,base_revision,base_name,desired_name,sequence,attempts,next_retry_at,state) VALUES (?,?,?,?,?,?,?, ?,0,0,'pending') ON CONFLICT(server_id,account_id,playlist_id) DO UPDATE SET base_revision=excluded.base_revision,base_name=excluded.base_name,desired_name=excluded.desired_name,sequence=excluded.sequence,attempts=0,next_retry_at=0,state='pending'", arguments: [id,scope.serverID,scope.accountID,playlistID,baseRevision,baseName,desired,sequence])
+            return PlaylistRenameMutation(id:id,serverID:scope.serverID,accountID:scope.accountID,playlistID:playlistID,baseRevision:baseRevision,baseName:baseName,desiredName:desired,sequence:sequence,attempts:0,nextRetryAt:0,state:.pending)
+        }
+    }
+    func pendingPlaylistRenames(scope: LibraryScope) async throws -> [PlaylistRenameMutation] { try await databaseQueue.read { db in try Row.fetchAll(db, sql: "SELECT * FROM playlist_rename_mutations WHERE server_id=? AND account_id=? AND state != 'completed' ORDER BY sequence", arguments: [scope.serverID,scope.accountID]).compactMap(Self.playlistRename) } }
+    func updatePlaylistRename(_ m: PlaylistRenameMutation) async throws { try await databaseQueue.write { db in try db.execute(sql: "UPDATE playlist_rename_mutations SET base_revision=?,base_name=?,desired_name=?,sequence=?,attempts=?,next_retry_at=?,state=? WHERE id=?", arguments: [m.baseRevision,m.baseName,m.desiredName,m.sequence,m.attempts,m.nextRetryAt,m.state.rawValue,m.id]) } }
 }
 
 private extension SQLiteLibraryStore {
@@ -303,6 +314,9 @@ private extension SQLiteLibraryStore {
         migrator.registerMigration("004_create_track_favourite_outbox") { database in
             try database.execute(sql: "CREATE TABLE track_favourite_mutations (id TEXT PRIMARY KEY, server_id TEXT NOT NULL, account_id TEXT NOT NULL, item_id TEXT NOT NULL, desired INTEGER NOT NULL, sequence INTEGER NOT NULL, attempts INTEGER NOT NULL, next_retry_at INTEGER NOT NULL, state TEXT NOT NULL, UNIQUE(server_id, account_id, item_id))")
         }
+        migrator.registerMigration("005_create_playlist_rename_outbox") { database in
+            try database.execute(sql: "CREATE TABLE playlist_rename_mutations (id TEXT PRIMARY KEY, server_id TEXT NOT NULL, account_id TEXT NOT NULL, playlist_id TEXT NOT NULL, base_revision TEXT NOT NULL, base_name TEXT NOT NULL, desired_name TEXT NOT NULL, sequence INTEGER NOT NULL, attempts INTEGER NOT NULL, next_retry_at INTEGER NOT NULL, state TEXT NOT NULL, UNIQUE(server_id, account_id, playlist_id))")
+        }
         return migrator
     }
 
@@ -371,6 +385,10 @@ private extension SQLiteLibraryStore {
         try? JSONDecoder().decode(HomeShelfSnapshot.self, from: payload)
     }
     static func mutation(from row: Row) -> TrackFavouriteMutation? { guard let id: String=row["id"], let server: String=row["server_id"], let account: String=row["account_id"], let item: String=row["item_id"], let desired: Int=row["desired"], let sequence: Int64=row["sequence"], let attempts: Int=row["attempts"], let retry: Int64=row["next_retry_at"], let stateRaw: String=row["state"], let state=FavouriteMutationState(rawValue: stateRaw) else { return nil }; return TrackFavouriteMutation(id:id,serverID:server,accountID:account,itemID:item,desired:desired == 1,sequence:sequence,attempts:attempts,nextRetryAt:retry,state:state) }
+    static func playlistRename(from row: Row) -> PlaylistRenameMutation? {
+        guard let id:String=row["id"], let serverID:String=row["server_id"], let accountID:String=row["account_id"], let playlistID:String=row["playlist_id"], let baseRevision:String=row["base_revision"], let baseName:String=row["base_name"], let desiredName:String=row["desired_name"], let sequence:Int64=row["sequence"], let attempts:Int=row["attempts"], let nextRetryAt:Int64=row["next_retry_at"], let raw:String=row["state"], let state=PlaylistRenameState(rawValue: raw) else { return nil }
+        return PlaylistRenameMutation(id:id,serverID:serverID,accountID:accountID,playlistID:playlistID,baseRevision:baseRevision,baseName:baseName,desiredName:desiredName,sequence:sequence,attempts:attempts,nextRetryAt:nextRetryAt,state:state)
+    }
 
     static func trackOccurrence(from row: Row) -> TrackCatalogOccurrence? {
         guard let id: String = row["occurrence_id"], let ordinal: Int = row["ordinal"], let payload: Data = row["payload"],

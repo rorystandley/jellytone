@@ -1,5 +1,14 @@
 # ADR 0009: Offline manifests and mutation reconciliation
 
+## Phase 3 rename implementation note
+
+The first bounded mutation applies durable reconciliation to names: migration
+005 stores one server/account/playlist row and coalesces rapid edits. A Jellyfin
+read establishes the expected name revision before POST. Success and already-
+matching remote state complete; transport failures back off, 401 pauses until
+authentication resumes, and revision mismatch offers Keep Server Version or Use
+My Name (rebase). Membership and order are outside this mutation.
+
 - Status: Accepted for implementation
 - Date: 2026-07-16
 

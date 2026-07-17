@@ -104,7 +104,8 @@ enum Diagnostics {
         "track_favourite_mutation",
         "track_favourite_set",
         "track_favourite_clear",
-        "track_favourite_mutation",
+        "playlist_rename_read",
+        "playlist_rename_write",
     ]
 
     static func event(_ name: String, _ values: [String: CustomStringConvertible] = [:]) {

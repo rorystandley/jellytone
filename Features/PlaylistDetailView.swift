@@ -4,6 +4,8 @@ struct PlaylistDetailView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var state = PlaylistDetailState()
+    @State private var showRename = false
+    @State private var renameText = ""
 
     let playlist: Playlist
 
@@ -21,9 +23,15 @@ struct PlaylistDetailView: View {
             }
         }
         .accessibilityIdentifier("playlist-detail-screen")
-        .navigationTitle(playlist.name)
+        .navigationTitle(model.effectivePlaylist(playlist).name)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: requestIdentity) { await load() }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Rename", systemImage: "pencil") { renameText = model.effectivePlaylist(playlist).name; showRename = true }.accessibilityLabel("Rename playlist") } }
+        .alert("Rename Playlist", isPresented: $showRename) {
+            TextField("Name", text: $renameText)
+            Button("Rename") { model.renamePlaylist(playlist, to: renameText) }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("The new name will be synced with Jellyfin.") }
     }
 
     private var scope: PlaylistFeatureScope {
@@ -105,7 +113,7 @@ struct PlaylistDetailView: View {
                 Text("Playlist")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Text(playlist.name)
+                Text(model.effectivePlaylist(playlist).name)
                     .font(.title2.bold())
                     .multilineTextAlignment(horizontalSizeClass == .regular ? .leading : .center)
                 Text(state.entries.count == 1 ? "1 playable track" : "\(state.entries.count) playable tracks")

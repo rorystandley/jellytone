@@ -14,13 +14,14 @@ sections only after selecting one item.
 
 ## NOW
 
-No in-flight work. Select the first unblocked `NEXT` item.
+Playlist rename bounded batch: implementation, deterministic tests, evidence,
+and required gates are in flight. Do not select another write until committed.
 
 ## NEXT
 
-### 1. Add playlist writes
+### 1. Add playlist membership append/remove
 
-- State: `READY`.
+- State: `NEXT` (single bounded membership mutation; only after rename commit).
 - Phase: Phase 3 library experience.
 - Outcome: implement the first scoped library mutations through the existing
   authoritative state and gateway boundaries.

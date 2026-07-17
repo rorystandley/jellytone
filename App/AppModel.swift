@@ -15,6 +15,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var trackCatalogState = TrackCatalogState()
     @Published var errorMessage: String?
     @Published private(set) var pendingTrackFavourites: [String: Bool] = [:]
+    @Published private(set) var pendingPlaylistRenames: [String: String] = [:]
 
     let playback: PlaybackController
 
@@ -108,6 +109,26 @@ final class AppModel: ObservableObject {
             _ = try? await store.enqueueTrackFavourite(scope: scope, itemID: track.id, desired: value, sequence: sequence)
             if let api { await TrackFavouriteReconciler(store: store).reconcile(scope: scope, gateway: api, now: sequence) }
         }
+    }
+
+    func renamePlaylist(_ playlist: Playlist, to requestedName: String) {
+        guard let session, let store = libraryStore else { return }
+        let scope = libraryScope(for: session)
+        guard let desired = try? PlaylistRenameValidation.validate(requestedName) else {
+            errorMessage = "Playlist names must be non-empty, printable, and at most 255 characters."
+            return
+        }
+        pendingPlaylistRenames[playlist.id] = desired
+        let sequence = Int64(Date().timeIntervalSince1970 * 1000)
+        Task {
+            let mutation = try? await store.enqueuePlaylistRename(scope: scope, playlistID: playlist.id, baseRevision: "name:\(playlist.name)", baseName: playlist.name, desiredName: desired, sequence: sequence)
+            if let mutation, let api { await PlaylistRenameReconciler(store: store).reconcile(scope: scope, gateway: api, now: sequence); if mutation.state == .completed { pendingPlaylistRenames[playlist.id] = nil } }
+        }
+    }
+
+    func effectivePlaylist(_ playlist: Playlist) -> Playlist {
+        guard let name = pendingPlaylistRenames[playlist.id] else { return playlist }
+        return Playlist(id: playlist.id, name: name, imageTag: playlist.imageTag, itemCount: playlist.itemCount)
     }
 
     func connect(server: String, username: String, password: String) async {
@@ -655,6 +676,7 @@ final class AppModel: ObservableObject {
         KeychainTokenStore.delete()
         defaults.removeObject(forKey: Self.profileKey)
         session = nil
+        pendingPlaylistRenames = [:]
         libraries = []
         albums = []
         homeSnapshot = nil

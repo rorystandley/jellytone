@@ -115,6 +115,14 @@ The full Phase 3 matrix remains open.
   support, content replacement, insufficient storage, and logout.
 - [ ] Offline cold launch passes with server and VPN unavailable.
 - [ ] Reconnection cannot double-apply playlist, favourite, or playback changes.
+
+### Playlist rename bounded write evidence
+
+- [x] Validated Unicode names, durable migration 005 outbox, coalescing, and scoped isolation are deterministic-tested.
+- [x] Read-before-write, already-applied success, transient retry, authentication pause/resume, and conflict choice rules are tested.
+- [x] Rename diagnostics are allowlisted and contain no names, IDs, endpoints, usernames, or tokens.
+- [x] Rename changes only the playlist name; existing ordered membership is not loaded or written.
+- [ ] Phase 3 write exit gate remains open pending the complete integration/UI/release evidence run.
 - [ ] Corrupt and partial files are rejected before playback.
 
 ## Phase 6: Apple ecosystem and release UX

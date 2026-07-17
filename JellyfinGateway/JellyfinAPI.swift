@@ -23,6 +23,7 @@ struct JellyfinAPI: Sendable {
     let deviceID: String
     let token: String?
     private let urlSession: URLSession
+    struct PlaylistRenameRemoteState: Sendable, Equatable { let revision: String; let name: String }
 
     init(baseURL: URL, deviceID: String, token: String? = nil, urlSession: URLSession = .shared) {
         self.baseURL = baseURL
@@ -327,6 +328,28 @@ struct JellyfinAPI: Sendable {
             hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
             nextStartIndex: startIndex + response.receivedItemCount
         )
+    }
+
+    func playlistRenameState(userID: String, playlistID: String) async throws -> PlaylistRenameRemoteState {
+        let response = try await send(operation: "playlist_rename_read", path: ["Users", userID, "Items"], query: [URLQueryItem(name: "Ids", value: playlistID), URLQueryItem(name: "IncludeItemTypes", value: "Playlist")], as: ItemsResponse<Item>.self)
+        guard let item = response.Items.first, let identity = item.validatedIdentity else { throw APIError.httpStatus(404) }
+        return PlaylistRenameRemoteState(revision: "name:\(identity.name)", name: identity.name)
+    }
+
+    func renamePlaylist(userID: String, playlistID: String, expectedRevision: String, desiredName: String) async -> PlaylistRenameGatewayOutcome {
+        do {
+            let current = try await playlistRenameState(userID: userID, playlistID: playlistID)
+            if current.revision == "name:\(desiredName)" { return .alreadyApplied }
+            guard current.revision == expectedRevision else { return .conflict(current) }
+            struct Body: Encodable { let Name: String }
+            _ = try await sendNoContent(operation: "playlist_rename_write", path: ["Playlists", playlistID], method: "POST", body: Body(Name: desiredName))
+            return .succeeded
+        } catch is CancellationError { return .cancelled }
+        catch APIError.httpStatus(401) { return .authenticationExpired }
+        catch APIError.httpStatus(404) { return .notFound }
+        catch APIError.httpStatus(403) { return .permissionDenied }
+        catch APIError.httpStatus(let status) where status == 400 || status == 422 { return .validationFailed }
+        catch { return .transient }
     }
 
     func genres(
@@ -913,6 +936,12 @@ struct JellyfinAPI: Sendable {
         request.httpMethod = method
         addAuthorization(to: &request)
         return try await execute(request, operation: operation, as: type)
+    }
+
+    private func sendNoContent<Body: Encodable>(operation: String, path: [String], method: String, body: Body) async throws -> Int {
+        var request = URLRequest(url: try makeURL(path: path)); request.httpMethod = method
+        request.httpBody = try JSONEncoder().encode(body); request.setValue("application/json", forHTTPHeaderField: "Content-Type"); addAuthorization(to: &request)
+        return try await executeNoContent(request, operation: operation)
     }
 
     private func send<Body: Encodable, Response: Decodable>(
