@@ -37,6 +37,13 @@ Phase 1 must pin the package revision, commit `Package.resolved`, run migrations
 from every schema fixture twice, execute foreign-key checks, and prove a failed
 migration leaves the prior schema/data intact.
 
+The initial implementation pins GRDB.swift 7.11.1 and its resolved revision,
+creates scoped artist and album tables through migration `001`, and verifies
+WAL, foreign keys, busy timeout, idempotent reopening, foreign-key integrity,
+atomic replacement, and failed-migration rollback with synthetic tests.
+Invalid domain values are rejected before writes; malformed or
+identity-mismatched payloads are skipped on reads without exposing row types.
+
 ## Rollback and migration
 
 Application releases do not downgrade schemas. Rollback uses a compatible app

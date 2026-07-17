@@ -56,3 +56,8 @@ keeping gateway method signatures and domain models stable. Remove temporary
 wire types after equivalent contract tests pass. No database migration is
 needed because this slice persists only a Keychain token and non-secret
 connection preferences.
+
+Clarification (2026-07-17): that statement describes the original Minimum
+Working App slice. The subsequent cache-backed library/search slice activates
+ADR 0004's SQLite migration while keeping this ADR's gateway and domain
+boundaries stable.

@@ -1,5 +1,14 @@
 /.build/
 /DerivedData/
 /JellyfinAudio.xcodeproj/
+!/JellyfinAudio.xcodeproj/
+/JellyfinAudio.xcodeproj/*
+!/JellyfinAudio.xcodeproj/project.xcworkspace/
+/JellyfinAudio.xcodeproj/project.xcworkspace/*
+!/JellyfinAudio.xcodeproj/project.xcworkspace/xcshareddata/
+/JellyfinAudio.xcodeproj/project.xcworkspace/xcshareddata/*
+!/JellyfinAudio.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+/JellyfinAudio.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
+!/JellyfinAudio.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 *.xcuserstate
 xcuserdata/

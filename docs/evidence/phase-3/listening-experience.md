@@ -34,13 +34,21 @@ Last updated: 2026-07-17
   and navigation into the existing album and authoritative playback flow.
 - Search replacement, dismissal cancellation, page loading, and artist loading
   do not create playback state or log search terms, item names, or identifiers.
+- GRDB-backed domain artists and albums are scoped by server, account, and music
+  library. The selected library is restored before network work so repeat
+  launches can present cached albums immediately.
+- Deterministic first-page cache matches merge with server values by exact item
+  identity. Fresh duplicates replace cached metadata in stable positions,
+  server-only values append in server order, and server pagination remains
+  authoritative. Offline transport failures use cache-only results;
+  authentication and HTTP failures are not hidden.
 - On iOS 26, the persistent mini-player uses SwiftUI's tab-view bottom accessory
   and disables tab-bar minimization so Home, Library, and Search remain visible.
   Earlier supported iOS releases retain the safe-area inset fallback.
 
 ## Automated evidence
 
-`./scripts/test.sh` passes 29 tests. In addition to deterministic queue coverage,
+`./scripts/test.sh` passes 56 tests. In addition to deterministic queue coverage,
 gateway tests prove reverse-proxy-safe search and artist-album request
 construction, selected-library scoping, Unicode/query encoding, music-only
 filtering, pagination offsets, artwork/year mapping, and rejection of injected
@@ -58,6 +66,19 @@ shuffled edits, repeat boundaries, restoration, and rapid session ordering. A
 focused Queue UI test passes on compact-iPhone and iPad simulators: it opens the
 nested sheet and proves Clear Up Next removes both upcoming entries while the
 protected current track remains.
+
+The cache-backed slice adds focused tests for SQLite schema creation and
+reopening, WAL/foreign-key/busy-timeout settings, failed-migration rollback,
+atomic stale-album replacement, scope isolation, malformed payloads,
+deterministic Unicode-aware ordering, repeat-open cache-only search, duplicate
+merging, pagination preservation, and offline-versus-authentication policy.
+All added values are synthetic, and cache payloads/search terms are not logged.
+The complete `./scripts/test-integration.sh` gate passes against fixture and
+digest-pinned disposable-server lanes, `./scripts/test-ui.sh` passes all 5 UI
+tests, and `./scripts/build-release.sh` produces the simulator release build.
+No device run was added because this slice changes metadata persistence and
+search orchestration, for which the simulator is representative; the audible
+Phase 2 real-device blocker remains unchanged.
 
 ## Device state
 
@@ -105,7 +126,6 @@ verified, but its launch is not promoted to final-build device evidence.
 
 ## Deliberately not claimed
 
-- Cached/local search merged with server results or offline search.
 - Playlist, genre, favourites, downloads, or multi-profile screens.
 - Full screenshot/accessibility matrix coverage for every Phase 3 destination.
 - Completion of Phase 2 or Phase 3.

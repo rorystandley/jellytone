@@ -14,14 +14,16 @@ final class AppModel: ObservableObject {
     let playback: PlaybackController
 
     private let defaults: UserDefaults
+    private let libraryStore: (any LibraryStoring)?
     private static let profileKey = "active-profile"
     private static let deviceIDKey = "installation-device-id"
     private var hasMoreAlbums = true
     private var albumLibraryID: String?
     private var nextAlbumStartIndex = 0
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, libraryStore: (any LibraryStoring)? = nil) {
         self.defaults = defaults
+        self.libraryStore = libraryStore ?? Self.makeDefaultLibraryStore()
         self.playback = PlaybackController(defaults: defaults)
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--ui-testing") {
@@ -88,6 +90,7 @@ final class AppModel: ObservableObject {
         if selectedLibraryID == nil || !libraries.contains(where: { $0.id == selectedLibraryID }) {
             selectedLibraryID = libraries.first?.id
         }
+        persistProfile(session)
         try await refreshAlbums(libraryID: selectedLibraryID)
     }
 
@@ -96,8 +99,14 @@ final class AppModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         albumLibraryID = libraryID
-        let page = try await api.albums(userID: session.userID, libraryID: libraryID)
-        albums = page.albums
+        let page = try await CacheFirstAlbumRefresh.execute(
+            scope: libraryScope(for: session),
+            libraryID: libraryID,
+            store: libraryStore,
+            present: { albums = $0 }
+        ) {
+            try await api.albums(userID: session.userID, libraryID: libraryID)
+        }
         hasMoreAlbums = page.hasMore
         nextAlbumStartIndex = page.nextStartIndex
         Diagnostics.event("albums_loaded", ["count": albums.count, "has_more": page.hasMore, "scoped": libraryID != nil])
@@ -116,6 +125,12 @@ final class AppModel: ObservableObject {
             )
             let existing = Set(albums.map(\.id))
             albums.append(contentsOf: page.albums.filter { !existing.contains($0.id) })
+            try? await libraryStore?.storeSearchMetadata(
+                artists: [],
+                albums: page.albums,
+                scope: libraryScope(for: session),
+                libraryID: albumLibraryID
+            )
             hasMoreAlbums = page.hasMore
             nextAlbumStartIndex = page.nextStartIndex
             Diagnostics.event("albums_page_loaded", ["count": page.albums.count, "total": albums.count])
@@ -126,6 +141,7 @@ final class AppModel: ObservableObject {
 
     func selectLibrary(_ id: String) async {
         selectedLibraryID = id
+        if let session { persistProfile(session) }
         do { try await refreshAlbums(libraryID: id) }
         catch { errorMessage = error.localizedDescription }
     }
@@ -145,12 +161,21 @@ final class AppModel: ObservableObject {
 
     func searchMusic(query: String, startIndex: Int = 0) async throws -> MusicSearchPage {
         guard let session, let api else { throw APIError.notAuthenticated }
-        return try await api.searchMusic(
-            userID: session.userID,
-            libraryID: selectedLibraryID,
+        let scope = libraryScope(for: session)
+        return try await CacheBackedMusicSearch.execute(
             query: query,
-            startIndex: startIndex
-        )
+            startIndex: startIndex,
+            scope: scope,
+            libraryID: selectedLibraryID,
+            store: libraryStore
+        ) {
+            try await api.searchMusic(
+                userID: session.userID,
+                libraryID: selectedLibraryID,
+                query: query,
+                startIndex: startIndex
+            )
+        }
     }
 
     func albums(for artist: Artist, startIndex: Int = 0) async throws -> AlbumPage {
@@ -217,10 +242,12 @@ final class AppModel: ObservableObject {
             let userID: String
             let username: String
             let deviceID: String
+            let selectedLibraryID: String?
         }
         let profile = Profile(serverURL: session.serverURL, serverID: session.serverID,
                               serverName: session.serverName, serverVersion: session.serverVersion,
-                              userID: session.userID, username: session.username, deviceID: session.deviceID)
+                              userID: session.userID, username: session.username, deviceID: session.deviceID,
+                              selectedLibraryID: selectedLibraryID)
         if let data = try? JSONEncoder().encode(profile) { defaults.set(data, forKey: Self.profileKey) }
     }
 
@@ -233,6 +260,7 @@ final class AppModel: ObservableObject {
             let userID: String
             let username: String
             let deviceID: String
+            let selectedLibraryID: String?
         }
         guard let data = defaults.data(forKey: Self.profileKey),
               let profile = try? JSONDecoder().decode(Profile.self, from: data),
@@ -241,11 +269,13 @@ final class AppModel: ObservableObject {
                               serverName: profile.serverName, serverVersion: profile.serverVersion,
                               userID: profile.userID, username: profile.username,
                               accessToken: token, deviceID: profile.deviceID)
+        selectedLibraryID = profile.selectedLibraryID
         Diagnostics.event("session_restored")
         if let session, let api {
             playback.restore(using: api, userID: session.userID, scope: playbackScope(for: session))
         }
         Task {
+            if let session { await loadCachedAlbums(for: session, libraryID: selectedLibraryID) }
             do { try await refreshLibraries() }
             catch {
                 let failure = error as NSError
@@ -257,6 +287,32 @@ final class AppModel: ObservableObject {
 
     private func playbackScope(for session: UserSession) -> String {
         "\(session.serverID):\(session.userID)"
+    }
+
+    private func libraryScope(for session: UserSession) -> LibraryScope {
+        LibraryScope(serverID: session.serverID, accountID: session.userID)
+    }
+
+    private func loadCachedAlbums(for session: UserSession, libraryID: String?) async {
+        guard let cached = try? await libraryStore?.cachedAlbums(
+            scope: libraryScope(for: session),
+            libraryID: libraryID
+        ) else { return }
+        albums = cached
+    }
+
+    private static func makeDefaultLibraryStore() -> (any LibraryStoring)? {
+        guard let support = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else { return nil }
+        let directory = support.appendingPathComponent("JellyfinAudio", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            return try SQLiteLibraryStore(databaseURL: directory.appendingPathComponent("library.sqlite"))
+        } catch {
+            return nil
+        }
     }
 
 #if DEBUG

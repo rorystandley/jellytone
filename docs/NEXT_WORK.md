@@ -4,7 +4,7 @@ Status: Live work-order authority
 
 Last updated: 2026-07-17
 
-- Last reconciled commit: `c05076c`
+- Last reconciled commit: `2789dd3`
 - Active roadmap boundary: Phase 2 remains open; explicitly brought-forward
   Phase 3 listening slices are allowed without claiming either phase complete.
 - Selection rule: finish `NOW`; otherwise take the first unblocked `NEXT` item.
@@ -15,49 +15,13 @@ sections only after selecting one item.
 
 ## NOW
 
-### Reconcile the existing Phase 2 reporting and diagnostics work
-
-- State: `IN FLIGHT` when the worktree is dirty; do not start an overlapping
-  slice.
-- Outcome: integrate or intentionally hand off the current lifecycle reporting,
-  diagnostics, CI, integration-test, ADR, and evidence changes.
-- Acceptance rows: Phase 2 full repository gate remains open; test-server
-  start/progress/stop reporting is recorded as proven in the in-flight docs.
-- Evidence: `docs/evidence/phase-2/connected-playback.md`.
-- Proof: `./scripts/test.sh`, `./scripts/test-integration.sh`,
-  `./scripts/test-ui.sh`, and `./scripts/build-release.sh`; run device proof when
-  the required device path is available.
-- Non-goal: do not fold a new library, offline, or platform feature into this
-  change.
-
-When the worktree is clean and this change is integrated, move its result to
-`RECENTLY COMPLETED` and remove this `NOW` item.
+No in-flight work. Select the first unblocked `NEXT` item.
 
 ## NEXT
 
-### 1. Add the first cache-backed library/search slice
+### 1. Expand deterministic Phase 3 library fixtures
 
-- State: `READY` after `NOW` is reconciled.
-- Phase: Phase 1 foundation boundary advancing the brought-forward Phase 3
-  local-search deliverable.
-- Outcome: persist a narrowly scoped set of server/account music metadata and
-  merge deterministic local artist/album results with server search results.
-- Acceptance focus: cache-first repeat launch, stable domain boundaries,
-  account isolation, deterministic migrations/fixtures, and no secret or
-  private library data in logs or committed fixtures.
-- Owned surface: a new `LibraryStore` boundary plus search integration; avoid
-  unrelated playback-controller and project-configuration edits.
-- Read after selection: Product Plan `Phase 1` and `Phase 3`; Architecture
-  `LibraryStore`, `State ownership`, and `Testing architecture`; ADR 0004 and
-  ADR 0014.
-- Proof: focused store/search tests followed by `./scripts/test.sh` and the
-  relevant integration/UI gates.
-- Non-goals: Home shelves, playlists, favourites, downloads, and offline sync.
-
-### 2. Expand deterministic Phase 3 library fixtures
-
-- State: `READY` after item 1 or independently if file ownership does not
-  overlap active work.
+- State: `READY`.
 - Phase: Phase 3.
 - Outcome: cover compilations, multi-disc albums, missing artwork, duplicate
   names, unusual Unicode, and malformed metadata through synthetic fixtures.
@@ -83,6 +47,9 @@ When the worktree is clean and this change is integrated, move its result to
 
 ## RECENTLY COMPLETED
 
+- After `2789dd3`: added scoped GRDB artist/album caching, cache-first repeat
+  launch, and deterministic local/server search merging.
+- `2789dd3`: expanded validation workflow and hardened playback diagnostics.
 - `c05076c`: durable editable playback queue with stable occurrence identity.
 - `698288b`: hardened playback audio lifecycle.
 - `4cbe8d5`: persistent primary tabs and mini-player.

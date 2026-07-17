@@ -31,6 +31,11 @@ blocker to scaffolding the connected vertical slice.
 - [ ] CI and local scripts execute the same gates.
 - [ ] Secrets and private server data cannot enter fixtures or logs.
 
+Current Phase 1 evidence: the first pinned GRDB metadata migration is covered
+for connection settings, idempotence, rollback, isolation, malformed rows, and
+atomic stale-album replacement. Cache/search fixtures are synthetic and the
+diagnostics privacy gate remains authoritative. Full Phase 1 remains open.
+
 ## Phase 2: Connected playback vertical slice
 
 - [ ] The vertical slice passes unit, contract, integration, UI, simulator, and
@@ -46,6 +51,12 @@ blocker to scaffolding the connected vertical slice.
 - [ ] Every write operation has success, retry, conflict, and expired-auth tests.
 - [ ] Screenshot and accessibility suites cover every primary destination at
   compact and regular widths.
+
+Current Phase 3 evidence: repeat launches restore scoped cached albums before
+refresh, and deterministic cached artist/album search merges with server results
+without duplicate identities or changing server pagination. Offline transport
+failures return cache-only results; authentication/server errors remain visible.
+The full Phase 3 matrix remains open.
 
 ## Phase 4: Premium playback
 

@@ -110,6 +110,14 @@ Owns the SQLite-backed cache and search index:
 
 Secrets and downloaded audio never live in the metadata database.
 
+The first implemented cache slice stores only domain `Artist` and `Album`
+values in GRDB-backed rows keyed by server, account, and music-library scope.
+The selected library is restored before network refresh so repeat launches can
+publish cached albums immediately. Local search is deterministic and merges its
+first page with server values by stable identity; server pagination stays
+authoritative. Malformed rows are ignored, and authoritative first-page album
+replacement removes stale rows transactionally.
+
 ### Playback
 
 Owns the single authoritative playback state machine:
@@ -184,6 +192,10 @@ The application has four categories of state:
 
 Each piece of data has one authoritative owner. Feature views observe domain
 state and send intents; they do not perform API requests directly.
+
+`LibraryStore` owns cached rows while `AppModel` owns presented domain arrays.
+Views never observe GRDB records; cache and server paths converge through
+`Artist`, `Album`, and `MusicSearchPage` values.
 
 ## Core data models
 
