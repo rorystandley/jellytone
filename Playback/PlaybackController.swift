@@ -92,6 +92,7 @@ final class PlaybackController: ObservableObject {
     @Published private(set) var currentIndex = 0
     @Published private(set) var isShuffled = false
     @Published private(set) var repeatMode: RepeatMode = .off
+    @Published private(set) var lastReportingFailure: PlaybackReportFailure?
 
     private let defaults: UserDefaults
     private let audioSession: AudioSessionManaging
@@ -101,7 +102,11 @@ final class PlaybackController: ObservableObject {
     private var player: AVPlayer?
     private var timeObserver: Any?
     private var completionObserver: NSObjectProtocol?
+    private var failureObserver: NSObjectProtocol?
+    private var stalledObserver: NSObjectProtocol?
+    private var itemStatusObservation: NSKeyValueObservation?
     private var preparationTask: Task<Void, Never>?
+    private var reportingTask: Task<Void, Never>?
     private var originalQueue: [QueueEntry] = []
     private var api: JellyfinAPI?
     private var userID: String?
@@ -167,12 +172,13 @@ final class PlaybackController: ObservableObject {
     }
 
 #if DEBUG
-    func configureForUITesting(track: Track, upcoming: [Track] = []) {
+    func configureForUITesting(track: Track, upcoming: [Track] = [], elapsed: TimeInterval = 0) {
         queue = ([track] + upcoming).map { QueueEntry(track: $0) }
         originalQueue = queue
         currentIndex = 0
         currentTrack = track
         duration = track.duration
+        self.elapsed = min(max(elapsed, 0), duration)
         canGoPrevious = false
         canGoNext = !upcoming.isEmpty
     }
@@ -200,6 +206,19 @@ final class PlaybackController: ObservableObject {
         player = playerAvailable ? AVPlayer() : nil
         updateQueueControls()
         updateNowPlaying(track: queue[currentIndex])
+    }
+
+    func simulateNaturalCompletionForTesting() {
+        advance(automatic: true)
+    }
+
+    func simulatePlaybackFailureForTesting(code: Int = -1) {
+        handlePlayerFailure(NSError(domain: "PlaybackFailureTest", code: code))
+    }
+
+    func waitForPendingReportingForTesting() async {
+        await preparationTask?.value
+        await reportingTask?.value
     }
 #endif
 
@@ -350,7 +369,9 @@ final class PlaybackController: ObservableObject {
         player?.pause()
         isPlaying = false
         playbackRequested = false
-        reportProgress()
+        if duration > 0 { elapsed = duration }
+        updateNowPlayingElapsed()
+        closeCurrentSession(lifecycle: .completed)
         updatePlaybackRate()
         persistState()
     }
@@ -360,7 +381,7 @@ final class PlaybackController: ObservableObject {
         player?.seek(to: CMTime(seconds: target, preferredTimescale: 600))
         elapsed = target
         updateNowPlayingElapsed()
-        reportProgress()
+        reportProgress(lifecycle: .seeking)
         persistState()
     }
 
@@ -385,7 +406,7 @@ final class PlaybackController: ObservableObject {
     }
 
     func stop(clearSnapshot: Bool = true) {
-        reportStopped()
+        closeCurrentSession(lifecycle: .stopped)
         generation = UUID()
         preparationTask?.cancel()
         tearDownPlayer()
@@ -409,12 +430,20 @@ final class PlaybackController: ObservableObject {
         if clearSnapshot { defaults.removeObject(forKey: snapshotKey) }
     }
 
+    func stopAndWait(clearSnapshot: Bool = true) async {
+        let pendingPreparation = preparationTask
+        stop(clearSnapshot: clearSnapshot)
+        await pendingPreparation?.value
+        await reportingTask?.value
+    }
+
     private func prepareCurrent(resumeAt: TimeInterval, autoPlay: Bool) {
         guard queue.indices.contains(currentIndex) else { return }
         let previousTrack = currentTrack
         let previousPlan = plan
         let previousPosition = elapsed
         let priorPreparation = preparationTask
+        let priorReporting = reportingTask
         generation = UUID()
         let expectedGeneration = generation
         priorPreparation?.cancel()
@@ -444,14 +473,23 @@ final class PlaybackController: ObservableObject {
             guard let self else { return }
             do {
                 await priorPreparation?.value
+                await priorReporting?.value
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
                 try audioSession.activateForPlayback()
                 if let previousTrack, let previousPlan {
                     let stopTask = Task {
-                        await api.reportStopped(
+                        let outcome = await api.reportStopped(
                             itemID: previousTrack.id,
                             plan: previousPlan,
                             position: previousPosition
+                        )
+                        self.recordReportingOutcome(
+                            outcome,
+                            operation: .stop,
+                            lifecycle: .replacing,
+                            method: previousPlan.method,
+                            position: previousPosition,
+                            successReason: .replaced
                         )
                     }
                     await stopTask.value
@@ -460,17 +498,32 @@ final class PlaybackController: ObservableObject {
                 let selectedPlan = try await api.playbackPlan(itemID: track.id, userID: userID)
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
                 let startTask = Task {
-                    await api.reportStarted(
+                    let outcome = await api.reportStarted(
                         itemID: track.id,
                         plan: selectedPlan,
                         position: resumeAt,
                         paused: !shouldStartPreparedPlayer
                     )
+                    self.recordReportingOutcome(
+                        outcome,
+                        operation: .start,
+                        lifecycle: shouldStartPreparedPlayer ? .playing : .paused,
+                        method: selectedPlan.method,
+                        position: resumeAt
+                    )
                 }
                 await startTask.value
                 guard !Task.isCancelled, generation == expectedGeneration else {
                     let stopTask = Task {
-                        await api.reportStopped(itemID: track.id, plan: selectedPlan, position: resumeAt)
+                        let outcome = await api.reportStopped(itemID: track.id, plan: selectedPlan, position: resumeAt)
+                        self.recordReportingOutcome(
+                            outcome,
+                            operation: .stop,
+                            lifecycle: .replacing,
+                            method: selectedPlan.method,
+                            position: resumeAt,
+                            successReason: .replaced
+                        )
                     }
                     await stopTask.value
                     return
@@ -540,28 +593,140 @@ final class PlaybackController: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in self?.advance(automatic: true) }
         }
+        failureObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemFailedToPlayToEndTime,
+            object: player.currentItem,
+            queue: .main
+        ) { [weak self] notification in
+            let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
+                ?? NSError(domain: AVFoundationErrorDomain, code: -1)
+            Task { @MainActor in self?.handlePlayerFailure(error) }
+        }
+        stalledObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemPlaybackStalled,
+            object: player.currentItem,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.handlePlaybackStalled() }
+        }
+        itemStatusObservation = player.currentItem?.observe(\.status, options: [.new]) { [weak self] item, _ in
+            guard item.status == .failed else { return }
+            let error = item.error ?? NSError(domain: AVFoundationErrorDomain, code: -1)
+            Task { @MainActor in self?.handlePlayerFailure(error) }
+        }
     }
 
     private func tearDownPlayer() {
         if let timeObserver, let player { player.removeTimeObserver(timeObserver) }
         if let completionObserver { NotificationCenter.default.removeObserver(completionObserver) }
+        if let failureObserver { NotificationCenter.default.removeObserver(failureObserver) }
+        if let stalledObserver { NotificationCenter.default.removeObserver(stalledObserver) }
+        itemStatusObservation?.invalidate()
         timeObserver = nil
         completionObserver = nil
+        failureObserver = nil
+        stalledObserver = nil
+        itemStatusObservation = nil
         player?.pause()
         player = nil
     }
 
-    private func reportProgress() {
+    private func reportProgress(lifecycle: Diagnostics.PlaybackLifecycle? = nil) {
         guard let api, let track = currentTrack, let plan else { return }
         let position = elapsed
         let paused = !isPlaying
-        Task { await api.reportProgress(itemID: track.id, plan: plan, position: position, paused: paused) }
+        let priorReporting = reportingTask
+        reportingTask = Task { [weak self] in
+            await priorReporting?.value
+            let outcome = await api.reportProgress(itemID: track.id, plan: plan, position: position, paused: paused)
+            self?.recordReportingOutcome(
+                outcome,
+                operation: .progress,
+                lifecycle: lifecycle ?? (paused ? .paused : .playing),
+                method: plan.method,
+                position: position
+            )
+        }
     }
 
-    private func reportStopped() {
+    private func closeCurrentSession(
+        lifecycle: Diagnostics.PlaybackLifecycle,
+        successReason: Diagnostics.ReportingReason? = nil
+    ) {
         guard let api, let track = currentTrack, let plan else { return }
+        self.plan = nil
         let position = elapsed
-        Task { await api.reportStopped(itemID: track.id, plan: plan, position: position) }
+        let priorReporting = reportingTask
+        reportingTask = Task { [weak self] in
+            await priorReporting?.value
+            let outcome = await api.reportStopped(itemID: track.id, plan: plan, position: position)
+            self?.recordReportingOutcome(
+                outcome,
+                operation: .stop,
+                lifecycle: lifecycle,
+                method: plan.method,
+                position: position,
+                successReason: successReason
+            )
+        }
+    }
+
+    private func recordReportingOutcome(
+        _ outcome: PlaybackReportOutcome,
+        operation: Diagnostics.ReportingOperation,
+        lifecycle: Diagnostics.PlaybackLifecycle,
+        method: PlaybackMethod,
+        position: TimeInterval,
+        successReason: Diagnostics.ReportingReason? = nil
+    ) {
+        if let failure = outcome.failure {
+            lastReportingFailure = failure
+            Diagnostics.playbackReporting(
+                operation: operation,
+                status: failure.kind == .cancelled ? .cancelled : .failed,
+                reason: failure.diagnosticReason,
+                lifecycle: lifecycle,
+                method: method.diagnosticMethod,
+                position: position
+            )
+        } else {
+            lastReportingFailure = nil
+            Diagnostics.playbackReporting(
+                operation: operation,
+                status: .succeeded,
+                reason: successReason,
+                lifecycle: lifecycle,
+                method: method.diagnosticMethod,
+                position: position
+            )
+        }
+    }
+
+    private func handlePlaybackStalled() {
+        qualityLabel = "Buffering…"
+        reportProgress(lifecycle: .stalled)
+        Diagnostics.playbackReporting(
+            operation: .progress,
+            status: .attempted,
+            reason: .stalled,
+            lifecycle: .stalled,
+            method: plan?.method.diagnosticMethod ?? .unavailable,
+            position: elapsed
+        )
+    }
+
+    private func handlePlayerFailure(_ error: Error) {
+        guard plan != nil else { return }
+        player?.pause()
+        isPlaying = false
+        playbackRequested = false
+        isPreparing = false
+        qualityLabel = "Playback unavailable"
+        errorMessage = "Playback stopped because the audio stream failed. Try again."
+        closeCurrentSession(lifecycle: .failed, successReason: .playbackError)
+        updatePlaybackRate()
+        persistState()
+        Diagnostics.event("playback_failed", ["code": (error as NSError).code])
     }
 
     private func updateQueueControls() {
@@ -794,6 +959,26 @@ private extension PlaybackMethod {
         switch self {
         case .directPlay: 1
         case .transcode: 2
+        }
+    }
+
+    var diagnosticMethod: Diagnostics.PlaybackMethod {
+        switch self {
+        case .directPlay: .directPlay
+        case .transcode: .transcode
+        }
+    }
+}
+
+private extension PlaybackReportFailure {
+    var diagnosticReason: Diagnostics.ReportingReason {
+        switch kind {
+        case .cancelled: .cancelled
+        case .transport: .network
+        case .server: .server
+        case .invalidResponse: .invalidResponse
+        case .encoding: .encoding
+        case .unknown: .unknown
         }
     }
 }

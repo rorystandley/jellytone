@@ -77,6 +77,14 @@ first operation `original-static-source`, not Direct Play, and records
 `deviceDecodeClaimed: false`; actual iOS decode and playback remain owned by
 `docs/evidence/phase-0/playback/capability-findings.md` and the device procedure.
 
+The Phase 2 production-gateway lane compiles the repository's current
+`JellyfinAPI.swift` and exercises it against digest-pinned disposable Jellyfin
+10.11.11 and 10.10.7 servers. A synthetic unsupported WMA source selects the
+universal endpoint, and bounded `ffprobe` inspection proves one AAC audio stream
+in an MP4-family container on both versions. This is genuine server and
+production request-path evidence, but remains host URLSession delivery rather
+than AVPlayer decode, audibility, or physical-device transcode evidence.
+
 ## Rollback and migration
 
 Capability rows are versioned data behind source planning. A failing row can be

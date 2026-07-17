@@ -182,8 +182,8 @@ final class AppModel: ObservableObject {
         playback.addToQueue(track)
     }
 
-    func logout() {
-        playback.stop()
+    func logout() async {
+        await playback.stopAndWait()
         KeychainTokenStore.delete()
         defaults.removeObject(forKey: Self.profileKey)
         session = nil
@@ -287,7 +287,7 @@ final class AppModel: ObservableObject {
                   album: "Synthetic Album", index: 2, disc: 1, durationTicks: 1_800_000_000),
             Track(id: "next-2", name: "Second Up Next", artist: "Synthetic Artist",
                   album: "Synthetic Album", index: 3, disc: 1, durationTicks: 1_800_000_000),
-        ])
+        ], elapsed: ProcessInfo.processInfo.arguments.contains("--ui-testing-restored-playback") ? 73 : 0)
     }
 #endif
 }

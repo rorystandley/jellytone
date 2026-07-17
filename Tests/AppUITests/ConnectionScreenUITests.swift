@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class ConnectionScreenUITests: XCTestCase {
     func testMiniPlayerKeepsEveryPrimaryTabReachable() {
         let app = XCUIApplication()
@@ -38,6 +39,18 @@ final class ConnectionScreenUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Visible Mini Player"].exists)
         XCTAssertTrue(app.staticTexts["Nothing Up Next"].exists)
         XCTAssertFalse(app.buttons["Clear Up Next"].exists)
+    }
+
+    func testRestoredPlaybackPositionDrivesNowPlayingPresentation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-restored-playback"]
+        app.launch()
+
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["1:13"].exists)
+        XCTAssertTrue(app.staticTexts["−1:47"].exists)
+        XCTAssertTrue(app.buttons["Play"].exists)
     }
 
     func testColdLaunchShowsConnectionForm() {

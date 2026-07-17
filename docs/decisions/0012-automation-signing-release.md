@@ -54,6 +54,16 @@ blocked by the locked phone. Later release gates must prove
 clean archive reproduction, profile entitlements, privacy manifest, and upload
 result.
 
+The repository workflow now calls the same stable scripts as local execution
+for application unit/simulator, UI, genuine disposable-server integration, and
+unsigned Release simulator build gates, while retaining the Phase 0 Apple and
+Linux lanes. The integration job does not fall back to fixture-only validation.
+The first current-build device attempt failed when CoreDevice disconnected after
+acquiring its tunnel. With the phone unlocked, the same gate subsequently
+installed and launched successfully and redacted diagnostics proved connected
+restoration plus paused start reporting. The lane remains install/launch smoke;
+CI and that smoke do not substitute for agent-operated audible playback.
+
 ## Rollback and migration
 
 CI changes remain reviewable and pinned. A runner/tool update first runs in a

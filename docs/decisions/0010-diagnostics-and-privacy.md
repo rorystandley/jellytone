@@ -41,6 +41,13 @@ Use seeded sensitive fixtures and assert forbidden strings never reach memory
 sinks, persisted logs, OSLog formatting inputs, or exports. Secret scanning and
 redaction tests fail closed.
 
+The Phase 2 implementation now rejects unknown diagnostic events and fields,
+bounds numeric values, categorizes error domains, and uses a typed playback
+reporting schema for operation, status, reason, lifecycle, method, and coarse
+position. Four deterministic seeded tests prove tokens, authenticated URLs,
+hosts, usernames, user/item identity, query strings, authorization values, and
+library content cannot enter the shared OSLog/stdout/persistence payload.
+
 ## Rollback and migration
 
 Diagnostic schemas are versioned. Unknown records are omitted from export.

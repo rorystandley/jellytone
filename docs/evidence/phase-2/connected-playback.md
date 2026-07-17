@@ -33,7 +33,7 @@ Last updated: 2026-07-17
 
 ## Automated evidence
 
-`./scripts/test.sh` passes 24 focused application tests. The coverage includes
+`./scripts/test.sh` now passes 36 focused application tests. The coverage includes
 reverse-proxy URL construction, supported Direct Play selection, unsupported
 codec fallback to the AAC transcode profile, playback-report position ticks,
 playback snapshot round-tripping, and requesting Now Playing artwork away from
@@ -50,6 +50,36 @@ the pinned current and previous Jellyfin versions. In this slice,
 `./scripts/test-integration.sh` also passed all 14 connectivity, identity,
 privacy, and versioned-fixture tests plus both supported contract-fixture
 validations.
+
+The lifecycle closure regressions prove that natural completion of the final
+queue entry emits exactly one stop at the full duration, terminal AVPlayer
+failure closes the active session with a generic user-facing error, and rapid
+replacement cannot overtake prior progress/closure. Progress, pause/resume,
+seek, stop, replacement, and error reports share one serialized reporting tail.
+`AVPlayerItemDidPlayToEndTime`, failed-to-end, item-status failure, and stall
+signals are all observed. `./scripts/test-ui.sh` passes five tests, including a
+deterministic restored 73-second position rendered as 1:13 elapsed and 1:47
+remaining in the Now Playing surface.
+
+`./scripts/test-integration.sh` now labels its original 14 connectivity and
+versioned-fixture tests as fixture contracts, then separately compiles the
+current production `Domain/Models.swift` and `JellyfinGateway/JellyfinAPI.swift`
+into a host harness. Against digest-pinned disposable Jellyfin 10.11.11 and
+10.10.7, a controlled redacting proxy observed start, progress, pause, resume,
+seek, and stop in order with 2xx outcomes. A synthetic unsupported WMA source
+forced the universal transcode endpoint; `ffprobe` confirmed exactly one AAC
+audio stream in an MP4-family container on both servers. This proves the
+production gateway request path and server delivery, not AVPlayer decode,
+audibility, physical-device transcode, or Jellyfin database persistence
+internals. The disposable compose project is torn down after the lane.
+
+Four diagnostics privacy tests apply strict event/field/value allowlists and
+seeded sensitive fixtures. Tokens, authenticated URLs, hosts, usernames,
+user/item/session identity, query strings, authorization values, and library
+content are omitted before the same sanitized payload reaches OSLog, stdout,
+or persistence. CI now invokes the local unit/simulator, UI, genuine
+integration, and unsigned Release simulator scripts in addition to the Phase 0
+lanes; it contains no fixture fallback for live integration.
 
 ## Real-device state
 
@@ -96,6 +126,17 @@ names, status values, and coarse positions. No private library names, item IDs,
 server addresses, credentials, or authenticated media URLs were committed.
 
 ## Remaining Phase 2 work
+
+- The first current-build `./scripts/test-device.sh` attempt acquired the device
+  tunnel and then failed when the phone disconnected (`CoreDeviceError 4000`).
+  After the phone was unlocked, the rerun signed, installed, and launched the
+  current build successfully. A read-only collection of the app's diagnostics
+  then showed a restored 14-entry queue at 624 seconds, Direct Play method code
+  `1`, and a successful paused start report. A scan found no token,
+  authorization, URL, address, username, or stable identifier pattern. The
+  script is still an install/launch smoke lane and cannot agent-operate audible
+  resume/play/stop, so the real-device playback row remains open rather than
+  being waived by restoration or simulator evidence.
 
 - Run a longer suspension/background campaign; the bounded two-minute exercise
   is not the eight-hour Phase 4 endurance gate.

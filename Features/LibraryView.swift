@@ -32,7 +32,9 @@ struct LibraryView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign Out", systemImage: "rectangle.portrait.and.arrow.right") { model.logout() }
+                    Button("Sign Out", systemImage: "rectangle.portrait.and.arrow.right") {
+                        Task { await model.logout() }
+                    }
                 }
             }
             .navigationDestination(for: Album.self) { AlbumView(album: $0) }

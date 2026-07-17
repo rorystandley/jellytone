@@ -92,6 +92,18 @@ cleanup; the regression records start(first), stop(first), start(final), with no
 start for the superseded middle selection.
 The final authoritative `./scripts/test.sh` run passes all 29 tests.
 
+The Phase 2 lifecycle closure slice serializes reporting and proves that the
+final queue entry sends exactly one stop at its natural end rather than only a
+paused progress event. Deterministic regressions also cover terminal player
+failure closure, ordered rapid replacement, restoration, interruption, seek,
+pause/resume, and explicit stop. Production observation now includes item
+failure, failed-to-end, and stall signals. `./scripts/test.sh` passes 36 tests;
+the unlocked-device rerun subsequently installed and launched the current build.
+Redacted diagnostics prove Direct Play planning, a restored 14-entry queue at
+624 seconds, and a successful paused start report. The smoke lane cannot operate
+audible playback controls, so this is not promoted to a fresh physical playback
+or natural-completion pass.
+
 A bounded 2026-07-17 production-app exercise passed approximately 60 seconds
 locked and 60 seconds backgrounded on the paired iPhone. Lock Screen metadata
 and play, pause, seek, next, and previous were physically confirmed; redacted

@@ -36,7 +36,7 @@ blocker to scaffolding the connected vertical slice.
 - [ ] The vertical slice passes unit, contract, integration, UI, simulator, and
   real-device playback tests.
 - [x] Termination and relaunch restore the queue and position.
-- [ ] The test server records correct start, progress, and stop behavior.
+- [x] The test server records correct start, progress, and stop behavior.
 - [x] One display and playback model drives both app and system Now Playing.
 
 ## Phase 3: Complete music library experience

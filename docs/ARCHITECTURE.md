@@ -319,7 +319,12 @@ entry after a newer intent.
 The reporting bridge emits ordered Jellyfin events for start, periodic progress,
 pause/resume, seek, natural completion, replacement, error, and stop. Replacing a
 track flushes or closes the previous play session before opening the replacement
-session. Offline reports enter the mutation outbox.
+session. A single serialized reporting tail prevents progress, closure, and a
+successor start from overtaking one another. Reporting returns a bounded outcome
+to the controller; failures remain diagnosable through an allowlisted local
+schema without exposing endpoint or media identity. AVPlayer terminal failures
+close the session, while stalls report their current paused/playing position
+without falsely ending it. Offline reports enter the mutation outbox.
 
 ## Offline architecture
 

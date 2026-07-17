@@ -277,6 +277,27 @@ final class MinimumWorkingAppTests: XCTestCase {
         await api.reportStarted(itemID: "track", plan: plan, position: 12.5, paused: false)
     }
 
+    func testPlaybackReportingFailureReturnsBoundedObservableOutcome() async throws {
+        MockURLProtocol.handler = { request in
+            Self.response(for: request, status: 503, json: "")
+        }
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://private.example.invalid")),
+                              deviceID: "device", token: "private-token", urlSession: makeSession())
+        let plan = PlaybackPlan(url: try XCTUnwrap(URL(string: "https://private.example.invalid/audio?api_key=private")),
+                                mediaSourceID: "private-source", playSessionID: "private-session",
+                                method: .directPlay)
+
+        let outcome = await api.reportProgress(
+            itemID: "private-item",
+            plan: plan,
+            position: 12.5,
+            paused: true
+        )
+
+        XCTAssertEqual(outcome.failure?.kind, .server)
+        XCTAssertNotEqual(outcome, .accepted(status: 503))
+    }
+
     func testPlaybackSnapshotRoundTripsQueueAndPosition() throws {
         let track = Track(id: "track", name: "Track", artist: "Artist", album: "Album",
                           albumID: "album", index: 1, disc: 1, durationTicks: 600_000_000)
@@ -502,6 +523,86 @@ final class MinimumWorkingAppTests: XCTestCase {
 
         XCTAssertEqual(playback.currentTrack?.id, "queue-3")
         XCTAssertEqual(recorder.events, ["start:queue-1", "stop:queue-1", "start:queue-3"])
+    }
+
+    @MainActor
+    func testFinalTrackNaturalCompletionClosesJellyfinSessionExactlyOnce() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path.hasSuffix("PlaybackInfo") {
+                return Self.response(
+                    for: request,
+                    json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"natural-session"}"#
+                )
+            }
+            let body = try Self.bodyData(from: request)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            if path.hasSuffix("Stopped") {
+                recorder.append("stop:\(json["PositionTicks"] as? Int64 ?? -1)")
+            } else if path.hasSuffix("Progress") {
+                recorder.append("progress")
+            } else {
+                recorder.append("start")
+            }
+            return Self.response(for: request, status: 204, json: "")
+        }
+        let playback = PlaybackController(
+            defaults: try XCTUnwrap(UserDefaults(suiteName: #function)),
+            audioSession: RecordingAudioSession(),
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+                              deviceID: "device", token: "token", urlSession: makeSession())
+        let track = Track(id: "final", name: "Final", artist: "Artist", album: "Album",
+                          index: 1, disc: 1, durationTicks: 600_000_000)
+
+        playback.play(track, queue: [track], using: api, userID: "user", scope: "server:user")
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+        playback.simulateNaturalCompletionForTesting()
+        await playback.waitForPendingReportingForTesting()
+        playback.simulateNaturalCompletionForTesting()
+        await playback.waitForPendingReportingForTesting()
+
+        XCTAssertEqual(recorder.events, ["start", "stop:600000000"])
+        XCTAssertFalse(playback.isPlaying)
+        XCTAssertEqual(playback.elapsed, 60)
+        XCTAssertNil(playback.lastReportingFailure)
+    }
+
+    @MainActor
+    func testTerminalPlayerFailureClosesSessionAndExposesGenericError() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.handler = { request in
+            if request.url?.path.hasSuffix("PlaybackInfo") == true {
+                return Self.response(
+                    for: request,
+                    json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"failure-session"}"#
+                )
+            }
+            recorder.append(request.url?.path.hasSuffix("Stopped") == true ? "stop" : "start")
+            return Self.response(for: request, status: 204, json: "")
+        }
+        let playback = PlaybackController(
+            defaults: try XCTUnwrap(UserDefaults(suiteName: #function)),
+            audioSession: RecordingAudioSession(),
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+                              deviceID: "device", token: "secret-token", urlSession: makeSession())
+        let track = Track(id: "private-item", name: "Private Library Title", artist: "Private User",
+                          album: "Private Album", index: 1, disc: 1, durationTicks: 600_000_000)
+
+        playback.play(track, queue: [track], using: api, userID: "private-user", scope: "private:scope")
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+        playback.simulatePlaybackFailureForTesting(code: -12_000)
+        await playback.waitForPendingReportingForTesting()
+
+        XCTAssertEqual(recorder.events, ["start", "stop"])
+        XCTAssertEqual(playback.errorMessage, "Playback stopped because the audio stream failed. Try again.")
+        XCTAssertFalse(playback.errorMessage?.contains("Private") == true)
     }
 
     @MainActor

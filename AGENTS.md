@@ -4,18 +4,50 @@ This repository is designed to be implemented and maintained by AI coding
 agents. No human implementation, code review, QA pass, or manual completion step
 may be assumed.
 
-## Required reading order
+## Context-efficient reading order
 
-Before planning or changing code, read:
+Do not load the complete planning set merely to decide what to work on.
 
-1. This file.
-2. [PRODUCT_PLAN.md](PRODUCT_PLAN.md).
-3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-4. Any architecture decision records and evidence for the active phase.
-5. The current repository status, branch, build scripts, and tests.
+For a discovery-only request such as "what is next?":
 
-`PRODUCT_PLAN.md` defines product scope and phase gates. This file defines how
-agents work. `docs/ARCHITECTURE.md` defines module and state boundaries.
+1. Read this file through **Work-selection fast path**.
+2. Run `./scripts/next-work.sh`, which shows the compact work queue and current
+   Git state.
+3. If the worktree is dirty, treat reconciling the in-flight work as the first
+   priority. Do not nominate overlapping implementation.
+4. If the worktree is clean, choose the first unblocked `NEXT` item in
+   [docs/NEXT_WORK.md](docs/NEXT_WORK.md).
+5. Return the selected phase, acceptance row, owned surface, proof command, and
+   blocker or non-goals in at most ten lines.
+
+Do not read full product, architecture, ADR, evidence, or implementation files
+during selection. Do not spawn sub-agents for selection alone. Target no more
+than five shell commands and five percent of the available context before a
+slice is selected.
+
+After a slice is selected and before changing code, read only:
+
+1. The relevant phase and acceptance criteria in
+   [PRODUCT_PLAN.md](PRODUCT_PLAN.md).
+2. The relevant boundary or state-flow sections in
+   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+3. The ADRs and evidence named by the selected queue item.
+4. The scoped implementation, tests, build scripts, branch, and status.
+
+Read the complete product plan or architecture only for a broad product or
+architecture change. `PRODUCT_PLAN.md` remains product-scope authority;
+`docs/NEXT_WORK.md` is the live ordering authority.
+
+## Work-selection fast path
+
+`docs/NEXT_WORK.md` must stay compact and contain exactly these operational
+sections: `NOW`, ordered `NEXT`, `BLOCKED`, and `RECENTLY COMPLETED`. The first
+unblocked item is the default next slice; agents must not re-rank the roadmap by
+performing a fresh repository-wide audit.
+
+At the end of work that changes status or evidence, update the queue in the same
+change. Keep detailed history in product evidence, not in the queue. Record the
+last reconciled commit so `./scripts/next-work.sh` can expose stale routing.
 
 ## Scope guardrails
 
@@ -36,10 +68,11 @@ At the start of every task:
 
 1. Verify the absolute checkout path and current branch.
 2. Inspect `git status` and preserve unrelated changes.
-3. Identify the active product-plan phase and acceptance criteria.
-4. Trace the relevant state through every consumer, including offline, CarPlay,
+3. Finish or reconcile in-flight work before selecting an overlapping slice.
+4. Identify the selected product-plan phase and acceptance criteria.
+5. Trace the relevant state through every consumer, including offline, CarPlay,
    widgets, intents, and system Now Playing where applicable.
-5. State assumptions and risks before making broad architectural changes.
+6. State assumptions and risks before making broad architectural changes.
 
 During implementation:
 
@@ -105,9 +138,8 @@ purposes:
   compatible device is attached.
 - `./scripts/build-release.sh`: produce a clean release archive or build.
 
-These commands do not exist yet. Do not claim they ran until Phase 1 has created
-them. Once established, change their names only by updating this file, CI, and
-all linked documentation in the same change.
+These commands exist. Change their names only by updating this file, CI, and all
+linked documentation in the same change.
 
 ## Multi-agent coordination
 

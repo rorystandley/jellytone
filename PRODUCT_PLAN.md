@@ -4,8 +4,10 @@ Status: Planning authority
 
 Last updated: 2026-07-17
 
-Implementation status: Phase 2 connected-playback reliability in progress, with
-an explicitly requested early Phase 3 listening-shell slice
+Implementation status: Phase 2 connected-playback lifecycle, test-server
+reporting, and current-build device restoration proven; agent-operated audible
+device playback remains open, with an explicitly requested early Phase 3
+listening-shell slice
 
 This document is the product and delivery source of truth for the repository. All
 implementation agents must read it before planning or changing code. If a task
@@ -373,6 +375,16 @@ acceptance matrix remain open. Durable queue editing was then added with stable
 per-occurrence identity, tap-to-jump, reorder, individual removal, and Clear Up
 Next. These additions advance the queue deliverable only and do not complete
 Phase 2 or Phase 3.
+
+Phase 2 lifecycle note (2026-07-17): reporting is serialized for start,
+progress, pause/resume, seek, replacement, natural completion, playback error,
+and explicit stop. The production gateway source passes a disposable-server
+lane against Jellyfin 10.11.11 and 10.10.7, including ordered reporting and a
+forced single-stream AAC-in-MP4 transcode. Unit, simulator, UI, integration, and
+release gates are wired to CI. The test-server reporting exit row is proven;
+the complete phase remains open because the current device lane proves
+install, launch, connected restoration, and paused start reporting but cannot
+agent-operate audible playback controls.
 
 Deliverables:
 

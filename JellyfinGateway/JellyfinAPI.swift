@@ -238,7 +238,8 @@ struct JellyfinAPI: Sendable {
         )
     }
 
-    func reportStarted(itemID: String, plan: PlaybackPlan, position: TimeInterval, paused: Bool) async {
+    @discardableResult
+    func reportStarted(itemID: String, plan: PlaybackPlan, position: TimeInterval, paused: Bool) async -> PlaybackReportOutcome {
         await report(
             operation: "playback_started",
             path: ["Sessions", "Playing"],
@@ -254,7 +255,8 @@ struct JellyfinAPI: Sendable {
         )
     }
 
-    func reportProgress(itemID: String, plan: PlaybackPlan, position: TimeInterval, paused: Bool) async {
+    @discardableResult
+    func reportProgress(itemID: String, plan: PlaybackPlan, position: TimeInterval, paused: Bool) async -> PlaybackReportOutcome {
         await report(
             operation: "playback_progress",
             path: ["Sessions", "Playing", "Progress"],
@@ -270,7 +272,8 @@ struct JellyfinAPI: Sendable {
         )
     }
 
-    func reportStopped(itemID: String, plan: PlaybackPlan, position: TimeInterval) async {
+    @discardableResult
+    func reportStopped(itemID: String, plan: PlaybackPlan, position: TimeInterval) async -> PlaybackReportOutcome {
         await report(
             operation: "playback_stopped",
             path: ["Sessions", "Playing", "Stopped"],
@@ -380,26 +383,28 @@ struct JellyfinAPI: Sendable {
         )
     }
 
-    private func report<Body: Encodable>(operation: String, path: [String], body: Body) async {
+    private func report<Body: Encodable>(operation: String, path: [String], body: Body) async -> PlaybackReportOutcome {
         do {
             var request = URLRequest(url: try makeURL(path: path))
             request.httpMethod = "POST"
             request.httpBody = try JSONEncoder().encode(body)
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             addAuthorization(to: &request)
-            try await executeNoContent(request, operation: operation)
+            let status = try await executeNoContent(request, operation: operation)
+            return .accepted(status: status)
         } catch {
-            let failure = error as NSError
-            Diagnostics.event("report_failed", ["code": failure.code, "operation": operation])
+            let failure = PlaybackReportFailure(error: error)
+            return .failed(failure)
         }
     }
 
-    private func executeNoContent(_ request: URLRequest, operation: String) async throws {
+    private func executeNoContent(_ request: URLRequest, operation: String) async throws -> Int {
         Diagnostics.event("request_started", ["operation": operation])
         let (_, response) = try await urlSession.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         Diagnostics.event("response_received", ["operation": operation, "status": http.statusCode])
         guard 200..<300 ~= http.statusCode else { throw APIError.httpStatus(http.statusCode) }
+        return http.statusCode
     }
 
     private func ticks(_ seconds: TimeInterval) -> Int64 {
@@ -559,6 +564,52 @@ private struct PlaybackStopReport: Encodable {
     let MediaSourceId: String
     let PlaySessionId: String
     let PositionTicks: Int64
+}
+
+enum PlaybackReportOutcome: Equatable {
+    case accepted(status: Int)
+    case failed(PlaybackReportFailure)
+
+    var failure: PlaybackReportFailure? {
+        guard case let .failed(failure) = self else { return nil }
+        return failure
+    }
+}
+
+struct PlaybackReportFailure: Equatable {
+    enum Kind: Int, Equatable {
+        case cancelled = 1
+        case transport = 2
+        case server = 3
+        case invalidResponse = 4
+        case encoding = 5
+        case unknown = 6
+    }
+
+    let kind: Kind
+    let code: Int
+
+    init(error: Error) {
+        if error is CancellationError || (error as? URLError)?.code == .cancelled {
+            kind = .cancelled
+        } else if error is URLError {
+            kind = .transport
+        } else if let apiError = error as? APIError {
+            switch apiError {
+            case .httpStatus:
+                kind = .server
+            case .invalidResponse:
+                kind = .invalidResponse
+            default:
+                kind = .unknown
+            }
+        } else if error is EncodingError {
+            kind = .encoding
+        } else {
+            kind = .unknown
+        }
+        code = (error as NSError).code
+    }
 }
 
 enum APIError: LocalizedError, Equatable {
