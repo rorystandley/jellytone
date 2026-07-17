@@ -18,17 +18,21 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## NEXT
 
-### 1. Prove deterministic large-library fixture scale
+### 1. Add read-only playlist browsing
 
 - State: `READY`.
 - Phase: Phase 3.
-- Outcome: add a generated synthetic large-library corpus and bounded mapping,
-  refresh, local-search, memory, and timing assertions.
-- Acceptance focus: the first Phase 3 exit-gate row.
-- Owned surface: deterministic fixture generation, scale tests, and evidence.
-- Proof: reproducibility/hash checks, focused scale tests, `./scripts/test.sh`,
-  and `./scripts/test-integration.sh`.
-- Non-goals: UI redesign, playback behavior, or new Phase 3 destinations.
+- Outcome: add native playlist-library and playlist-detail browsing through the
+  existing gateway/domain boundaries and authoritative playback flow.
+- Acceptance focus: the next unimplemented Phase 3 library destination.
+- Owned surface: playlist domain mapping, read-only gateway queries, adaptive
+  playlist screens, deterministic fixtures, and focused UI/accessibility tests.
+- Read after selection: Product Plan Phase 3; Architecture Domain models,
+  JellyfinGateway, state ownership, and Testing architecture.
+- Proof: focused mapping/controller/UI tests followed by `./scripts/test.sh`,
+  `./scripts/test-integration.sh`, and `./scripts/test-ui.sh`.
+- Non-goals: playlist writes, favourites, downloads, offline sync, or playback
+  engine changes.
 
 ## BLOCKED
 
@@ -46,6 +50,9 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## RECENTLY COMPLETED
 
+- After `f6e6599`: proved deterministic large-library scale with a versioned,
+  seeded 23,040-track synthetic corpus, paginated mapping/cache coverage,
+  canonical hashing, and bounded timing/process-memory evidence.
 - After `61509d0`: expanded deterministic Phase 3 mapping and persistence
   fixtures for compilations, multi-disc ordering, metadata fallbacks, duplicate
   names, Unicode, malformed records, refresh idempotence, and scope isolation.

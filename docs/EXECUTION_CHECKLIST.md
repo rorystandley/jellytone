@@ -46,7 +46,7 @@ diagnostics privacy gate remains authoritative. Full Phase 1 remains open.
 
 ## Phase 3: Complete music library experience
 
-- [ ] Fixtures cover large libraries, compilations, multi-disc albums, missing
+- [x] Fixtures cover large libraries, compilations, multi-disc albums, missing
   artwork, duplicate names, unusual Unicode, and malformed metadata.
 - [ ] Every write operation has success, retry, conflict, and expired-auth tests.
 - [ ] Screenshot and accessibility suites cover every primary destination at
@@ -61,6 +61,12 @@ semantics, multi-disc ordering, missing artwork and optional metadata, duplicate
 display names with stable IDs, normalization-sensitive Unicode, malformed
 optional values, and invalid partial records. Store tests prove exact round-trip,
 normalized local search, idempotent refresh, and server/account/library isolation.
+The generated scale corpus is versioned and seed-pinned at 240 artists, 1,440
+albums, and 23,040 tracks. Its canonical SHA-256, paginated gateway mapping,
+cache insertion/upsert/replacement, account/server isolation, stable local
+search and merge ordering, uniqueness, and bounded host resource measurements
+are executable evidence. Library isolation remains covered by the focused store
+suite. No generated large JSON corpus or private library data is committed.
 The full Phase 3 matrix remains open.
 
 ## Phase 4: Premium playback

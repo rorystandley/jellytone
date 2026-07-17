@@ -104,6 +104,54 @@ because this batch changes deterministic response mapping and metadata tests
 only; the
 blocked audible Phase 2 real-device gate remains open.
 
+The deterministic scale batch generates its corpus in memory from fixture
+format version 1 and explicit seed `24865808422`; it does not commit a generated
+library export. The authoritative scale configuration produces 240 artists,
+1,440 albums, and 23,040 tracks, including 2-disc albums, compilations,
+duplicate display names, missing artwork/metadata, and Unicode names. Its
+canonical sorted-key JSON SHA-256 is
+`795bcd37ada99d75f880189511b2056090a4317c0bc056a5317ae69f2d17dd0b`.
+Tests pin that hash, prove byte-identical repeated generation, prove seed and
+configuration changes alter it. The generator uses explicit index ordering,
+pure radix/padding operations, canonical sorted-key encoding, a fixed POSIX
+locale for search folding, and no dates, timezones, filesystem enumeration,
+dictionaries, UUIDs, or process-random sources.
+The scale metadata records 131 compilation albums, 1,440 multi-disc albums, 35
+artists and 240 albums without artwork, 160 albums without a year, 2,094 tracks
+with at least one missing index/disc/duration field, 13 duplicate-name artist
+entries, 111 duplicate-name album entries, and 600 Unicode-name entries.
+
+The focused scale test maps all 1,440 generated album responses through
+`JellyfinAPI` in 127-record pages, then proves initial cache insertion,
+127-record paginated upserts, repeated-refresh idempotence, authoritative
+replacement/removal, reused-ID account and server isolation, database row and
+identity uniqueness, Unicode and duplicate-name local searches, stable repeated
+ordering, and local/server merge de-duplication without changing server
+pagination. The existing edge fixtures remain the evidence for track mapping,
+compilation semantics, malformed server rows, and library-scope isolation; this
+batch does not claim that all 23,040 tracks are mapped through one server
+response.
+
+On the development host (`Mac16,10`, 24 GiB, macOS 26.5.2, Xcode 26.6) using an
+iPhone 17 Pro iOS 26.5 simulator, a focused successful run observed 105.444 ms
+for generation, 28.049 ms for paginated album mapping, 54.362 ms for initial
+refresh, 109.414 ms for paginated idempotent refresh, and 126.051 ms for
+representative searches. Peak whole-test-process resident memory ranged from
+273,481,728 to 282,279,936 bytes. The test retains the same values as a
+machine-readable JSON xcresult attachment and prints compact JSON to the log;
+the committed observation is in `large-library-scale.json`. Assertions use
+deliberately generous 20-30 second and 1.5 GB fail-safe ceilings so supported CI
+hosts can detect severe regressions without turning host scheduling noise into
+failures. These are absolute process-RSS and development-host observations, not
+per-operation allocation measurements or universal device-performance claims.
+The integrated focused generator/scale run passes 6 tests with zero failures.
+The final repository validation passes `./scripts/test.sh` with 72 tests and
+zero failures, `./scripts/test-integration.sh` across fixture and disposable
+Jellyfin 10.11.11/10.10.7 lanes, `./scripts/test-ui.sh` with 5 tests and zero
+failures, and `./scripts/build-release.sh` with `BUILD SUCCEEDED`. No device run
+was added because this batch changes deterministic test infrastructure and
+metadata evidence only; the audible Phase 2 real-device blocker remains open.
+
 ## Device state
 
 The signed build installed and launched on the paired iPhone. It restored the
