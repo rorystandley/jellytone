@@ -3,6 +3,12 @@ import Foundation
 import MediaPlayer
 import UIKit
 
+enum NowPlayingArtworkFactory {
+    nonisolated static func make(from image: UIImage) -> MPMediaItemArtwork {
+        MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+    }
+}
+
 @MainActor
 final class PlaybackController: ObservableObject {
     @Published private(set) var currentTrack: Track?
@@ -306,7 +312,7 @@ final class PlaybackController: ObservableObject {
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
         ]
         if let artwork {
-            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artwork.size) { _ in artwork }
+            info[MPMediaItemPropertyArtwork] = NowPlayingArtworkFactory.make(from: artwork)
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }

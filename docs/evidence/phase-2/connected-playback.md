@@ -2,7 +2,7 @@
 
 Status: In progress
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 ## Implemented
 
@@ -23,7 +23,8 @@ Last updated: 2026-07-16
 `./scripts/test.sh` passes the focused application suite. The coverage includes
 reverse-proxy URL construction, supported Direct Play selection, unsupported
 codec fallback to the AAC transcode profile, playback-report position ticks,
-and playback snapshot round-tripping.
+playback snapshot round-tripping, and requesting Now Playing artwork away from
+the main actor.
 
 The pre-existing disposable-server contract probe covers PlaybackInfo, Direct
 Play delivery, forced AAC delivery, and start/progress/stop endpoints against
@@ -31,16 +32,26 @@ the pinned current and previous Jellyfin versions.
 
 ## Real-device state
 
-The signed application build installs on the paired physical iPhone. The most
-recent automatic launch was denied because the device was locked. Live playback
-negotiation/reporting, background survival, Lock Screen commands, termination,
-and restored-position evidence therefore remain open and must not be described
-as passing until captured from the installed diagnostic build.
+The signed application build installs and launches on the paired physical
+iPhone. A 2026-07-17 restored-playback launch reproduced a `SIGTRAP` in the
+`MPMediaItemArtwork` callback: MediaPlayer requested the image on its private
+queue while the callback had inherited `PlaybackController`'s main-actor
+isolation. Moving callback creation to a nonisolated factory fixed that exact
+failure, and a regression test exercises the callback from a detached task.
+
+After reinstalling, the same restored queue completed PlaybackInfo negotiation,
+received HTTP 204 for playback start, loaded 100 albums, and remained alive.
+A second ordinary launch produced two successful HTTP 204 playback-progress
+reports, and no new JellyfinAudio crash report appeared. The prior crash report
+and live diagnostics contained no token, server address, username, or library
+item names.
+
+Background survival, Lock Screen commands, termination, and non-zero restored
+position still require their dedicated device evidence and must not be
+described as passing yet.
 
 ## Remaining Phase 2 work
 
-- Capture the redacted PlaybackInfo and reporting sequence while a real track
-  plays through the user's Tailscale-connected server.
 - Prove background playback and Lock Screen play/pause/seek/next/previous.
 - Terminate and relaunch, then prove the same queue and position are restored.
 - Confirm at least one Direct Play row and one server-transcode row on device.

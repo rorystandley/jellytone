@@ -1,4 +1,6 @@
 import Foundation
+import MediaPlayer
+import UIKit
 import XCTest
 @testable import JellyfinAudio
 
@@ -157,6 +159,21 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(PlaybackSnapshot.self, from: JSONEncoder().encode(snapshot)), snapshot)
     }
 
+    @MainActor
+    func testNowPlayingArtworkCanBeRequestedOffMainActor() async {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+        let artwork = UncheckedSendable(value: NowPlayingArtworkFactory.make(from: image))
+
+        let generatedImage = await Task.detached {
+            artwork.value.image(at: CGSize(width: 1, height: 1)) != nil
+        }.value
+
+        XCTAssertTrue(generatedImage)
+    }
+
     private func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
@@ -191,6 +208,10 @@ final class MinimumWorkingAppTests: XCTestCase {
         }
         return data
     }
+}
+
+private struct UncheckedSendable<Value>: @unchecked Sendable {
+    let value: Value
 }
 
 private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
