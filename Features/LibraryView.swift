@@ -3,8 +3,6 @@ import UIKit
 
 struct LibraryView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var searchText = ""
-    @State private var showingPlayer = false
 
     var body: some View {
         NavigationStack {
@@ -38,20 +36,13 @@ struct LibraryView: View {
                 }
             }
             .navigationDestination(for: Album.self) { AlbumView(album: $0) }
-            .searchable(text: $searchText, prompt: "Albums and artists")
-            .sheet(isPresented: $showingPlayer) { NowPlayingView(playback: model.playback) }
-            .safeAreaInset(edge: .bottom) {
-                if model.playback.currentTrack != nil {
-                    MiniPlayerView(playback: model.playback) { showingPlayer = true }
-                }
-            }
         }
     }
 
     private var albumGrid: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 20) {
-                ForEach(filteredAlbums) { album in
+                ForEach(model.albums) { album in
                     NavigationLink(value: album) {
                         VStack(alignment: .leading, spacing: 8) {
                             AuthenticatedArtworkView(itemID: album.id)
@@ -76,13 +67,6 @@ struct LibraryView: View {
         }
     }
 
-    private var filteredAlbums: [Album] {
-        guard !searchText.isEmpty else { return model.albums }
-        return model.albums.filter {
-            $0.name.localizedCaseInsensitiveContains(searchText)
-                || $0.artist.localizedCaseInsensitiveContains(searchText)
-        }
-    }
 }
 
 struct AuthenticatedArtworkView: View {

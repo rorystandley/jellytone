@@ -40,6 +40,10 @@ final class PlaybackController: ObservableObject {
     @Published private(set) var canGoNext = false
     @Published private(set) var qualityLabel = ""
     @Published private(set) var errorMessage: String?
+    @Published private(set) var queue: [Track] = []
+    @Published private(set) var currentIndex = 0
+    @Published private(set) var isShuffled = false
+    @Published private(set) var repeatMode: RepeatMode = .off
 
     private let defaults: UserDefaults
     private let audioSession: AudioSessionManaging
@@ -48,8 +52,7 @@ final class PlaybackController: ObservableObject {
     private var timeObserver: Any?
     private var completionObserver: NSObjectProtocol?
     private var preparationTask: Task<Void, Never>?
-    private var queue: [Track] = []
-    private var currentIndex = 0
+    private var originalQueue: [Track] = []
     private var api: JellyfinAPI?
     private var userID: String?
     private var scope = ""
@@ -75,7 +78,10 @@ final class PlaybackController: ObservableObject {
         scope: String
     ) {
         self.queue = queue.isEmpty ? [track] : queue
+        originalQueue = self.queue
         currentIndex = self.queue.firstIndex(of: track) ?? 0
+        isShuffled = false
+        repeatMode = .off
         self.api = api
         self.userID = userID
         self.scope = scope
@@ -92,6 +98,9 @@ final class PlaybackController: ObservableObject {
         self.scope = scope
         queue = snapshot.queue
         currentIndex = snapshot.currentIndex
+        originalQueue = snapshot.originalQueue
+        isShuffled = snapshot.isShuffled
+        repeatMode = snapshot.repeatMode
         prepareCurrent(resumeAt: snapshot.position, autoPlay: false)
         Diagnostics.event("playback_restored", ["position_seconds": Int(snapshot.position), "queue_count": queue.count])
     }
@@ -116,16 +125,72 @@ final class PlaybackController: ObservableObject {
     }
 
     func next() {
-        guard currentIndex + 1 < queue.count else {
-            player?.pause()
-            isPlaying = false
-            reportProgress()
-            updatePlaybackRate()
-            persistState()
+        advance(automatic: false)
+    }
+
+    func playNext(_ track: Track) {
+        guard currentTrack != nil else { return }
+        let insertionIndex = min(currentIndex + 1, queue.count)
+        queue.insert(track, at: insertionIndex)
+        insertIntoOriginalQueue(track)
+        updateQueueControls()
+        refreshNowPlayingQueueMetadata()
+        persistState()
+    }
+
+    func addToQueue(_ track: Track) {
+        guard currentTrack != nil else { return }
+        queue.append(track)
+        originalQueue.append(track)
+        updateQueueControls()
+        refreshNowPlayingQueueMetadata()
+        persistState()
+    }
+
+    func toggleShuffle() {
+        guard let currentTrack else { return }
+        if isShuffled {
+            queue = originalQueue
+            currentIndex = queue.firstIndex(of: currentTrack) ?? 0
+            isShuffled = false
+        } else {
+            originalQueue = queue
+            var generator = SystemRandomNumberGenerator()
+            queue = QueueOrder.shuffled(queue, keeping: currentTrack, using: &generator)
+            currentIndex = 0
+            isShuffled = true
+        }
+        updateQueueControls()
+        refreshNowPlayingQueueMetadata()
+        persistState()
+    }
+
+    func cycleRepeatMode() {
+        repeatMode = repeatMode.next
+        updateQueueControls()
+        persistState()
+    }
+
+    private func advance(automatic: Bool) {
+        if automatic, repeatMode == .one {
+            prepareCurrent(resumeAt: 0, autoPlay: true)
             return
         }
-        currentIndex += 1
-        prepareCurrent(resumeAt: 0, autoPlay: true)
+        if currentIndex + 1 < queue.count {
+            currentIndex += 1
+            prepareCurrent(resumeAt: 0, autoPlay: true)
+            return
+        }
+        if repeatMode == .all, !queue.isEmpty {
+            currentIndex = 0
+            prepareCurrent(resumeAt: 0, autoPlay: true)
+            return
+        }
+        player?.pause()
+        isPlaying = false
+        reportProgress()
+        updatePlaybackRate()
+        persistState()
     }
 
     func seek(to seconds: TimeInterval) {
@@ -139,7 +204,15 @@ final class PlaybackController: ObservableObject {
 
     func persistState() {
         guard !scope.isEmpty, queue.indices.contains(currentIndex) else { return }
-        let snapshot = PlaybackSnapshot(scope: scope, queue: queue, currentIndex: currentIndex, position: elapsed)
+        let snapshot = PlaybackSnapshot(
+            scope: scope,
+            queue: queue,
+            currentIndex: currentIndex,
+            position: elapsed,
+            originalQueue: originalQueue,
+            isShuffled: isShuffled,
+            repeatMode: repeatMode
+        )
         if let data = try? JSONEncoder().encode(snapshot) {
             defaults.set(data, forKey: snapshotKey)
         }
@@ -155,6 +228,10 @@ final class PlaybackController: ObservableObject {
         preparationTask?.cancel()
         tearDownPlayer()
         queue = []
+        originalQueue = []
+        currentIndex = 0
+        isShuffled = false
+        repeatMode = .off
         plan = nil
         currentTrack = nil
         artwork = nil
@@ -269,7 +346,7 @@ final class PlaybackController: ObservableObject {
             object: player.currentItem,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.next() }
+            Task { @MainActor in self?.advance(automatic: true) }
         }
     }
 
@@ -300,7 +377,16 @@ final class PlaybackController: ObservableObject {
         canGoNext = currentIndex + 1 < queue.count
         let commands = MPRemoteCommandCenter.shared()
         commands.previousTrackCommand.isEnabled = currentIndex > 0
-        commands.nextTrackCommand.isEnabled = canGoNext
+        commands.nextTrackCommand.isEnabled = canGoNext || (repeatMode == .all && !queue.isEmpty)
+    }
+
+    private func insertIntoOriginalQueue(_ track: Track) {
+        guard let currentTrack,
+              let originalIndex = originalQueue.firstIndex(of: currentTrack) else {
+            originalQueue.append(track)
+            return
+        }
+        originalQueue.insert(track, at: min(originalIndex + 1, originalQueue.count))
     }
 
     private func configureRemoteCommands() {
@@ -336,6 +422,8 @@ final class PlaybackController: ObservableObject {
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsed,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyPlaybackQueueIndex: currentIndex,
+            MPNowPlayingInfoPropertyPlaybackQueueCount: queue.count,
         ]
         if let artwork {
             info[MPMediaItemPropertyArtwork] = NowPlayingArtworkFactory.make(from: artwork)
@@ -349,5 +437,11 @@ final class PlaybackController: ObservableObject {
 
     private func updateNowPlayingElapsed() {
         MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsed
+    }
+
+    private func refreshNowPlayingQueueMetadata() {
+        guard currentTrack != nil else { return }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueIndex] = currentIndex
+        MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackQueueCount] = queue.count
     }
 }

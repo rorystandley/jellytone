@@ -144,6 +144,14 @@ final class AppModel: ObservableObject {
         )
     }
 
+    func playNext(_ track: Track) {
+        playback.playNext(track)
+    }
+
+    func addToQueue(_ track: Track) {
+        playback.addToQueue(track)
+    }
+
     func logout() {
         playback.stop()
         KeychainTokenStore.delete()

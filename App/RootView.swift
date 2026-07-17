@@ -8,7 +8,7 @@ struct RootView: View {
             if model.session == nil {
                 ConnectionView()
             } else {
-                LibraryView()
+                MusicShellView()
             }
         }
         .alert("Something went wrong", isPresented: Binding(

@@ -159,6 +159,32 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(PlaybackSnapshot.self, from: JSONEncoder().encode(snapshot)), snapshot)
     }
 
+    func testLegacyPlaybackSnapshotDefaultsNewQueueControls() throws {
+        let data = Data(#"{"scope":"server:user","queue":[],"currentIndex":0,"position":12.5}"#.utf8)
+        let snapshot = try JSONDecoder().decode(PlaybackSnapshot.self, from: data)
+        XCTAssertEqual(snapshot.originalQueue, [])
+        XCTAssertFalse(snapshot.isShuffled)
+        XCTAssertEqual(snapshot.repeatMode, .off)
+    }
+
+    func testQueueShuffleKeepsCurrentTrackAndAllEntries() {
+        let tracks = (1...4).map {
+            Track(id: "\($0)", name: "Track \($0)", artist: "Artist", album: "Album",
+                  index: $0, disc: 1, durationTicks: 10_000_000)
+        }
+        var generator = SeededGenerator(state: 42)
+        let shuffled = QueueOrder.shuffled(tracks, keeping: tracks[2], using: &generator)
+        XCTAssertEqual(shuffled.first, tracks[2])
+        XCTAssertEqual(Set(shuffled), Set(tracks))
+        XCTAssertEqual(shuffled.count, tracks.count)
+    }
+
+    func testRepeatModeCyclesThroughEveryState() {
+        XCTAssertEqual(RepeatMode.off.next, .all)
+        XCTAssertEqual(RepeatMode.all.next, .one)
+        XCTAssertEqual(RepeatMode.one.next, .off)
+    }
+
     @MainActor
     func testNowPlayingArtworkCanBeRequestedOffMainActor() async {
         let image = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
@@ -249,6 +275,15 @@ final class MinimumWorkingAppTests: XCTestCase {
 
 private struct UncheckedSendable<Value>: @unchecked Sendable {
     let value: Value
+}
+
+private struct SeededGenerator: RandomNumberGenerator {
+    var state: UInt64
+
+    mutating func next() -> UInt64 {
+        state = state &* 6_364_136_223_846_793_005 &+ 1
+        return state
+    }
 }
 
 @MainActor

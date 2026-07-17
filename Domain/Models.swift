@@ -75,6 +75,33 @@ enum PlaybackMethod: String, Codable, Sendable {
     case transcode = "Transcode"
 }
 
+enum RepeatMode: String, Codable, CaseIterable, Sendable {
+    case off
+    case all
+    case one
+
+    var next: RepeatMode {
+        switch self {
+        case .off: .all
+        case .all: .one
+        case .one: .off
+        }
+    }
+}
+
+enum QueueOrder {
+    static func shuffled<R: RandomNumberGenerator>(
+        _ tracks: [Track],
+        keeping current: Track,
+        using generator: inout R
+    ) -> [Track] {
+        var remaining = tracks
+        if let index = remaining.firstIndex(of: current) { remaining.remove(at: index) }
+        remaining.shuffle(using: &generator)
+        return [current] + remaining
+    }
+}
+
 struct PlaybackPlan: Sendable {
     let url: URL
     let mediaSourceID: String
@@ -87,4 +114,40 @@ struct PlaybackSnapshot: Codable, Equatable, Sendable {
     let queue: [Track]
     let currentIndex: Int
     let position: TimeInterval
+    let originalQueue: [Track]
+    let isShuffled: Bool
+    let repeatMode: RepeatMode
+
+    init(
+        scope: String,
+        queue: [Track],
+        currentIndex: Int,
+        position: TimeInterval,
+        originalQueue: [Track]? = nil,
+        isShuffled: Bool = false,
+        repeatMode: RepeatMode = .off
+    ) {
+        self.scope = scope
+        self.queue = queue
+        self.currentIndex = currentIndex
+        self.position = position
+        self.originalQueue = originalQueue ?? queue
+        self.isShuffled = isShuffled
+        self.repeatMode = repeatMode
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case scope, queue, currentIndex, position, originalQueue, isShuffled, repeatMode
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        scope = try values.decode(String.self, forKey: .scope)
+        queue = try values.decode([Track].self, forKey: .queue)
+        currentIndex = try values.decode(Int.self, forKey: .currentIndex)
+        position = try values.decode(TimeInterval.self, forKey: .position)
+        originalQueue = try values.decodeIfPresent([Track].self, forKey: .originalQueue) ?? queue
+        isShuffled = try values.decodeIfPresent(Bool.self, forKey: .isShuffled) ?? false
+        repeatMode = try values.decodeIfPresent(RepeatMode.self, forKey: .repeatMode) ?? .off
+    }
 }

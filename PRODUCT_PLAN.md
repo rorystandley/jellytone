@@ -2,9 +2,10 @@
 
 Status: Planning authority
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
-Implementation status: Phase 2 connected-playback reliability in progress
+Implementation status: Phase 2 connected-playback reliability in progress, with
+an explicitly requested early Phase 3 listening-shell slice
 
 This document is the product and delivery source of truth for the repository. All
 implementation agents must read it before planning or changing code. If a task
@@ -360,6 +361,12 @@ Exit gate:
 ### Phase 3: Complete music library experience
 
 Estimated duration: 6 weeks
+
+Implementation note (2026-07-17): the product owner explicitly brought forward
+the listening shell, local album/artist search, persistent mini-player, visible
+queue, Play Next, Add to Queue, shuffle, and repeat after the minimum connected
+player became usable. This does not waive the remaining Phase 2 gate or mark the
+rest of Phase 3 complete.
 
 Deliverables:
 
