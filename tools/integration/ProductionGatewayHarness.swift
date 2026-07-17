@@ -20,6 +20,7 @@ enum HarnessFailure: Error {
     case genreTrackMissing
     case homeRecentlyAddedMissing
     case homeRecentlyPlayedMissing
+    case trackCatalogMissing
     case wrongPlaybackMethod
     case deliveryFailed
     case reportingFailed
@@ -67,6 +68,16 @@ struct ProductionGatewayHarness {
             if selectedTrack == nil { try await Task.sleep(for: .seconds(1)) }
         }
         guard let selectedTrack, let selectedLibrary else { throw HarnessFailure.fixtureMissing }
+
+        let catalogPage = try await api.trackCatalogPage(
+            userID: authentication.userID,
+            libraryID: selectedLibrary.id,
+            startIndex: 0,
+            limit: 100
+        )
+        guard catalogPage.occurrences.contains(where: { $0.track.id == selectedTrack.id }) else {
+            throw HarnessFailure.trackCatalogMissing
+        }
 
         let recentlyAdded = try await api.recentlyAddedAlbums(
             userID: authentication.userID,
@@ -154,7 +165,7 @@ struct ProductionGatewayHarness {
 
         // Only fixed allowlisted values reach stdout. Production diagnostics also
         // emit operation/status metadata, never credentials, endpoints or identity.
-        print("LIVE_GATEWAY_RESULT version=pass genre=complete home=complete transcode=aac-mp4 lifecycle=complete")
+        print("LIVE_GATEWAY_RESULT version=pass tracks=complete genre=complete home=complete transcode=aac-mp4 lifecycle=complete")
     }
 
     private static func requireAccepted(_ outcome: PlaybackReportOutcome) throws {

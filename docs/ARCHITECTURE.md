@@ -103,6 +103,13 @@ Owns:
 The gateway is protocol-driven so contract tests can exercise generated-client
 changes without rewriting feature code.
 
+Read-only track browsing uses an application-owned `TrackCatalogPage` and
+`TrackCatalogOccurrence` contract. Its versioned default order is normalized
+track title, artist, album, stable track ID, then ordinal occurrence. Jellyfin
+is asked for `Audio` only with `SortName,Id` ascending, and the comparator is
+reapplied while merging pages. Occurrence identity is separate from logical
+track identity so repeated items remain playable.
+
 Read-only favourites use three independently paginated, application-owned page
 contracts: artists and albums deduplicate only by stable server ID, while audio
 tracks retain response-position occurrence identity so repeated tracks remain
@@ -131,7 +138,11 @@ first page with server values by stable identity; server pagination stays
 authoritative. Malformed rows are ignored, and authoritative first-page album
 replacement removes stale rows transactionally.
 
-Home shelves use a versioned, application-owned `HomeShelfSnapshot` containing
+Track catalogs use migration 003 metadata plus ordinal-indexed occurrence rows.
+First-page replacement establishes a new scope/generation; later pages append
+atomically only when their generation matches. Reads use SQL limits and skip
+malformed payloads. Home shelves use a versioned, application-owned
+`HomeShelfSnapshot` containing
 only `Album` and `Track` domain values. A snapshot is keyed by server, account,
 and selected music library and replaced transactionally. `AppModel` shows a
 valid cache before bounded music-only Jellyfin refreshes; scope/generation

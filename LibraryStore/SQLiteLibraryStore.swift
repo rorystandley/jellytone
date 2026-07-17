@@ -191,6 +191,33 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
             )
         }
     }
+
+    func cachedTrackCatalogPage(scope: LibraryScope, libraryID: String?, limit: Int) async throws -> TrackCatalogPage? {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        return try await databaseQueue.read { database in
+            guard let metadata = try Row.fetchOne(database, sql: "SELECT generation, has_more, next_start_index FROM track_catalog_metadata WHERE server_id = ? AND account_id = ? AND library_scope = ?", arguments: [scope.serverID, scope.accountID, libraryScope]) else { return nil }
+            let rows = try Row.fetchAll(database, sql: "SELECT occurrence_id, ordinal, payload FROM track_catalog_entries WHERE server_id = ? AND account_id = ? AND library_scope = ? ORDER BY ordinal LIMIT ?", arguments: [scope.serverID, scope.accountID, libraryScope, min(max(limit, 1), 200)])
+            let occurrences = rows.compactMap(Self.trackOccurrence(from:))
+            return TrackCatalogPage(occurrences: occurrences, hasMore: (metadata["has_more"] as Int) == 1, nextStartIndex: metadata["next_start_index"] as Int)
+        }
+    }
+
+    func replaceTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        try await databaseQueue.write { database in
+            try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            try database.execute(sql: "DELETE FROM track_catalog_entries WHERE server_id = ? AND account_id = ? AND library_scope = ?", arguments: [scope.serverID, scope.accountID, libraryScope])
+            try Self.writeTrackPage(page, generation: generation, scope: scope, libraryScope: libraryScope, in: database, replaceMetadata: true)
+        }
+    }
+
+    func appendTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        try await databaseQueue.write { database in
+            guard let stored: String = try String.fetchOne(database, sql: "SELECT generation FROM track_catalog_metadata WHERE server_id = ? AND account_id = ? AND library_scope = ?", arguments: [scope.serverID, scope.accountID, libraryScope]), stored == generation else { return }
+            try Self.writeTrackPage(page, generation: generation, scope: scope, libraryScope: libraryScope, in: database, replaceMetadata: true)
+        }
+    }
 }
 
 private extension SQLiteLibraryStore {
@@ -242,6 +269,23 @@ private extension SQLiteLibraryStore {
                         REFERENCES library_scopes (server_id, account_id, library_scope)
                         ON DELETE CASCADE
                 ) WITHOUT ROWID;
+                """)
+        }
+        migrator.registerMigration("003_create_track_catalog") { database in
+            try database.execute(sql: """
+                CREATE TABLE track_catalog_metadata (
+                    server_id TEXT NOT NULL, account_id TEXT NOT NULL, library_scope TEXT NOT NULL,
+                    generation TEXT NOT NULL, has_more INTEGER NOT NULL, next_start_index INTEGER NOT NULL,
+                    PRIMARY KEY (server_id, account_id, library_scope),
+                    FOREIGN KEY (server_id, account_id, library_scope) REFERENCES library_scopes(server_id, account_id, library_scope) ON DELETE CASCADE
+                ) WITHOUT ROWID;
+                CREATE TABLE track_catalog_entries (
+                    server_id TEXT NOT NULL, account_id TEXT NOT NULL, library_scope TEXT NOT NULL,
+                    occurrence_id TEXT NOT NULL, ordinal INTEGER NOT NULL, payload BLOB NOT NULL,
+                    PRIMARY KEY (server_id, account_id, library_scope, occurrence_id),
+                    FOREIGN KEY (server_id, account_id, library_scope) REFERENCES library_scopes(server_id, account_id, library_scope) ON DELETE CASCADE
+                ) WITHOUT ROWID;
+                CREATE INDEX track_catalog_entries_order ON track_catalog_entries(server_id, account_id, library_scope, ordinal);
                 """)
         }
         return migrator
@@ -310,6 +354,21 @@ private extension SQLiteLibraryStore {
 
     static func homeShelfSnapshot(from payload: Data) -> HomeShelfSnapshot? {
         try? JSONDecoder().decode(HomeShelfSnapshot.self, from: payload)
+    }
+
+    static func trackOccurrence(from row: Row) -> TrackCatalogOccurrence? {
+        guard let id: String = row["occurrence_id"], let ordinal: Int = row["ordinal"], let payload: Data = row["payload"],
+              let value = try? JSONDecoder().decode(TrackCatalogOccurrence.self, from: payload), value.id == id, value.ordinal == ordinal else { return nil }
+        return value
+    }
+
+    static func writeTrackPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryScope: String, in database: Database, replaceMetadata: Bool) throws {
+        for occurrence in page.occurrences {
+            let payload = try JSONEncoder().encode(occurrence)
+            try database.execute(sql: "INSERT OR REPLACE INTO track_catalog_entries(server_id, account_id, library_scope, occurrence_id, ordinal, payload) VALUES (?, ?, ?, ?, ?, ?)", arguments: [scope.serverID, scope.accountID, libraryScope, occurrence.id, occurrence.ordinal, payload])
+        }
+        guard replaceMetadata else { return }
+        try database.execute(sql: "INSERT INTO track_catalog_metadata(server_id, account_id, library_scope, generation, has_more, next_start_index) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(server_id, account_id, library_scope) DO UPDATE SET generation = excluded.generation, has_more = excluded.has_more, next_start_index = excluded.next_start_index", arguments: [scope.serverID, scope.accountID, libraryScope, generation, page.hasMore ? 1 : 0, page.nextStartIndex])
     }
 
     static func isValid(_ artist: Artist) -> Bool {

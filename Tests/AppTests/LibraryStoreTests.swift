@@ -41,12 +41,14 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertTrue(tableNames.contains("cached_artists"))
         XCTAssertTrue(tableNames.contains("cached_albums"))
         XCTAssertTrue(tableNames.contains("home_shelf_snapshots"))
+        XCTAssertTrue(tableNames.contains("track_catalog_entries"))
+        XCTAssertTrue(tableNames.contains("track_catalog_metadata"))
         XCTAssertTrue(tableNames.contains("grdb_migrations"))
 
         let appliedMigrations = try await inspectionQueue.read { database in
             try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM grdb_migrations")
         }
-        XCTAssertEqual(appliedMigrations, 2)
+        XCTAssertEqual(appliedMigrations, 3)
         let foreignKeyViolationCount = try await inspectionQueue.read { database in
             try Row.fetchAll(database, sql: "PRAGMA foreign_key_check").count
         }
@@ -92,7 +94,7 @@ final class LibraryStoreTests: XCTestCase {
         }
         XCTAssertEqual(
             appliedMigrations,
-            ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots"]
+                ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots", "003_create_track_catalog"]
         )
     }
 

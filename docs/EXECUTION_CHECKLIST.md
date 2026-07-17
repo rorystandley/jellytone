@@ -60,6 +60,10 @@ diagnostics privacy gate remains authoritative. Full Phase 1 remains open.
 - [x] Cache-first Home shelves persist scoped, versioned Recently Added albums
   and Recently Played tracks, retain cache on partial failure, and use existing
   Album navigation and authoritative queue playback.
+- [x] Read-only Tracks browsing requests scoped audio pages, applies versioned
+  deterministic ordering, preserves duplicate occurrences, uses bounded
+  migration-003 cache pages, and routes selected occurrences through the
+  authoritative queue without later pagination mutation.
 - [ ] Every write operation has success, retry, conflict, and expired-auth tests.
 - [ ] Screenshot and accessibility suites cover every primary destination at
   compact and regular widths.

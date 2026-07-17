@@ -318,7 +318,7 @@ def main() -> int:
                     completed = run([
                         str(harness), endpoint, version, str(password_file), str(output), FIXTURE_MARKER,
                     ], capture=True)
-                    if "LIVE_GATEWAY_RESULT version=pass genre=complete home=complete transcode=aac-mp4 lifecycle=complete" not in completed.stdout:
+                    if "LIVE_GATEWAY_RESULT version=pass tracks=complete genre=complete home=complete transcode=aac-mp4 lifecycle=complete" not in completed.stdout:
                         raise IntegrationFailure("production gateway harness omitted its fixed success marker")
                     validate_lifecycle(proxy.events)
                     if not proxy.transcode_requested:

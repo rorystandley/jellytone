@@ -4,6 +4,30 @@ Status: Partial early slice; Phase 3 is not complete
 
 Last updated: 2026-07-17
 
+## Read-only track catalog
+
+The Library now exposes a native Tracks destination. It requests only audio
+items for the active server/account/music-library scope, maps wire rows to
+application-owned occurrences, and uses ordering version
+`title-normalized-artist-album-id-v1`. Equal titles are tied by normalized
+artist, album, stable track ID, and source ordinal. Overlapping pages retain
+distinct ordinals without duplicates, while malformed/non-audio rows advance
+the raw server cursor deterministically.
+
+Migration 003 adds scoped track-catalog metadata and ordinal-indexed payload
+rows. A first-page refresh replaces one generation atomically; later pages are
+accepted only for that generation. Cache reads use a bounded SQL limit and are
+shown before a quiet refresh. Refresh/pagination failure preserves valid state.
+Track selection creates the authoritative queue from the currently displayed
+occurrences at the selected index; later browse pages do not mutate that queue.
+Existing Album and Artist destinations are reused only when stable IDs exist.
+The deterministic 23,040-track corpus remains the scale reference: this slice
+does not materialize that corpus to show the first screen; its cache query is
+SQL-limited and the existing scale evidence remains green. Focused unit/store
+validation ran 137 tests with zero failures. The new compact-width simulator UI
+test passed; the full UI command remains externally affected by the known
+DebuggerLLDB result-store failure.
+
 ## Implemented
 
 - Native Home, Library, and local Search destinations.

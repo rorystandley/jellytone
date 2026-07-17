@@ -18,17 +18,15 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## NEXT
 
-### 1. Add read-only tracks browsing
+### 1. Add playlist and favourite writes
 
 - State: `READY`.
-- Phase: explicitly brought-forward Phase 3 library slice.
-- Outcome: browse music-library tracks with correct deterministic ordering and
-  route selected tracks through the authoritative playback queue.
-- Acceptance focus: scoped music-only paging/mapping, adaptive browse states,
-  cache/privacy/race coverage, and accessibility evidence.
-- Proof: focused mapping/state/playback/UI tests followed by `./scripts/test.sh`,
-  `./scripts/test-integration.sh`, and `./scripts/test-ui.sh`.
-- Non-goals: downloads, offline playback, writes, or playback-engine changes.
+- Phase: Phase 3 library experience.
+- Outcome: implement the first scoped library mutations through the existing
+  authoritative state and gateway boundaries.
+- Acceptance focus: success, retry, conflict, expired-auth, offline outbox,
+  and accessible UI evidence for one bounded write surface.
+- Non-goals: downloads, offline playback, or playback-engine changes.
 
 ## BLOCKED
 
@@ -58,6 +56,12 @@ No in-flight work. Select the first unblocked `NEXT` item.
   rediscover this blocker during task selection.
 
 ## RECENTLY COMPLETED
+
+- Read-only tracks browsing: added scoped music-only paginated catalog mapping,
+  deterministic title/artist/album/ID/occurrence ordering, migration-003
+  bounded cache-first pages, stale-safe feature state, authoritative selected
+  occurrence playback, queue actions, conditional Album/Artist navigation,
+  adaptive loading/empty/error/pagination presentation, and regression tests.
 
 - Cache-first recent Home shelves: added scoped, versioned Recently Added album
   and Recently Played track snapshots with quiet independent refresh, valid-cache

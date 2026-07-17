@@ -544,6 +544,44 @@ struct JellyfinAPI: Sendable {
         .sorted(by: trackPrecedes)
     }
 
+    /// Music-library catalog paging. The server's SortName/Id ordering is
+    /// requested explicitly; the application repeats the same deterministic
+    /// comparator when merging malformed, overlapping, or cached pages.
+    func trackCatalogPage(
+        userID: String,
+        libraryID: String,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> TrackCatalogPage {
+        let response = try await send(
+            operation: "track_catalog",
+            path: ["Items"],
+            query: [
+                URLQueryItem(name: "userId", value: userID),
+                URLQueryItem(name: "ParentId", value: libraryID),
+                URLQueryItem(name: "IncludeItemTypes", value: "Audio"),
+                URLQueryItem(name: "Recursive", value: "true"),
+                URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists,IndexNumber,ParentIndexNumber"),
+                URLQueryItem(name: "StartIndex", value: String(max(0, startIndex))),
+                URLQueryItem(name: "Limit", value: String(min(max(limit, 1), 200))),
+                URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
+                URLQueryItem(name: "SortBy", value: "SortName,Id"),
+                URLQueryItem(name: "SortOrder", value: "Ascending"),
+            ],
+            as: ItemsResponse<Item>.self
+        )
+        let occurrences = response.wireItems.enumerated().compactMap { offset, item -> TrackCatalogOccurrence? in
+            guard let item, item.`Type` == "Audio", let track = mapTrack(item) else { return nil }
+            return TrackCatalogOccurrence(id: "track-catalog:\(startIndex + offset):\(track.id)", track: track, ordinal: startIndex + offset)
+        }
+        let page = TrackCatalogPage(
+            occurrences: occurrences.sorted(by: TrackCatalogOrdering.precedes),
+            hasMore: hasMore(response: response, startIndex: startIndex, limit: min(max(limit, 1), 200)),
+            nextStartIndex: startIndex + response.receivedItemCount
+        )
+        return page
+    }
+
     func playbackPlan(itemID: String, userID: String) async throws -> PlaybackPlan {
         let response = try await send(
             operation: "playback_info",
@@ -787,7 +825,9 @@ struct JellyfinAPI: Sendable {
             albumID: item.AlbumId?.nonEmpty,
             index: item.IndexNumber,
             disc: item.ParentIndexNumber,
-            durationTicks: item.RunTimeTicks
+            durationTicks: item.RunTimeTicks,
+            artistID: item.ArtistIds?.first?.nonEmpty,
+            imageTag: item.ImageTags?["Primary"]
         )
     }
 
@@ -959,6 +999,7 @@ private struct Item: Decodable {
     let CollectionType: String?
     let AlbumArtist: String?
     let Artists: [String]?
+    let ArtistIds: [String]?
     let Album: String?
     let AlbumId: String?
     let ProductionYear: Int?
@@ -992,6 +1033,7 @@ private struct Item: Decodable {
         CollectionType = container.lossy(String.self, forKey: .CollectionType)
         AlbumArtist = container.lossy(String.self, forKey: .AlbumArtist)
         Artists = container.lossy([String].self, forKey: .Artists)
+        ArtistIds = container.lossy([String].self, forKey: .ArtistIds)
         Album = container.lossy(String.self, forKey: .Album)
         AlbumId = container.lossy(String.self, forKey: .AlbumId)
         ProductionYear = container.lossy(Int.self, forKey: .ProductionYear)
@@ -1008,7 +1050,7 @@ private struct Item: Decodable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case Id, Name, `Type`, CollectionType, AlbumArtist, Artists, Album, AlbumId
+        case Id, Name, `Type`, CollectionType, AlbumArtist, Artists, ArtistIds, Album, AlbumId
         case ProductionYear, ImageTags, IndexNumber, ParentIndexNumber, RunTimeTicks
         case ChildCount, RecursiveItemCount, SongCount, AlbumCount, PlaylistItemId, UserData
     }

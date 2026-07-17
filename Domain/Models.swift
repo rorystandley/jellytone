@@ -127,6 +127,8 @@ struct Track: Identifiable, Codable, Hashable, Sendable {
     let index: Int?
     let disc: Int?
     let durationTicks: Int64?
+    let artistID: String?
+    let imageTag: String?
 
     init(
         id: String,
@@ -136,7 +138,9 @@ struct Track: Identifiable, Codable, Hashable, Sendable {
         albumID: String? = nil,
         index: Int?,
         disc: Int?,
-        durationTicks: Int64?
+        durationTicks: Int64?,
+        artistID: String? = nil,
+        imageTag: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -146,6 +150,8 @@ struct Track: Identifiable, Codable, Hashable, Sendable {
         self.index = index
         self.disc = disc
         self.durationTicks = durationTicks
+        self.artistID = artistID
+        self.imageTag = imageTag
     }
 
     var duration: TimeInterval {
@@ -156,6 +162,43 @@ struct Track: Identifiable, Codable, Hashable, Sendable {
     var durationLabel: String {
         let total = Int(duration.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+/// A browse occurrence is intentionally separate from Track identity. Jellyfin
+/// can return the same item more than once, and each displayed occurrence must
+/// remain selectable at its own queue position.
+struct TrackCatalogOccurrence: Identifiable, Codable, Hashable, Sendable {
+    let id: String
+    let track: Track
+    let ordinal: Int
+}
+
+struct TrackCatalogPage: Equatable, Sendable {
+    let occurrences: [TrackCatalogOccurrence]
+    let hasMore: Bool
+    let nextStartIndex: Int
+}
+
+enum TrackCatalogOrdering {
+    static let version = "title-normalized-artist-album-id-v1"
+
+    static func normalized(_ value: String) -> String {
+        value.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                      locale: Locale(identifier: "en_US_POSIX"))
+            .precomposedStringWithCanonicalMapping
+    }
+
+    static func precedes(_ lhs: TrackCatalogOccurrence, _ rhs: TrackCatalogOccurrence) -> Bool {
+        let l = lhs.track, r = rhs.track
+        let ln = normalized(l.name), rn = normalized(r.name)
+        if ln != rn { return ln < rn }
+        let la = normalized(l.artist), ra = normalized(r.artist)
+        if la != ra { return la < ra }
+        let lal = normalized(l.album), ral = normalized(r.album)
+        if lal != ral { return lal < ral }
+        if l.id != r.id { return l.id < r.id }
+        return lhs.ordinal < rhs.ordinal
     }
 }
 

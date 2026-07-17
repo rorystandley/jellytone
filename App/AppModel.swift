@@ -12,6 +12,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var homeRefreshError: String?
     @Published private(set) var isLoading = false
     @Published private(set) var isLoadingMoreAlbums = false
+    @Published private(set) var trackCatalogState = TrackCatalogState()
     @Published var errorMessage: String?
 
     let playback: PlaybackController
@@ -24,6 +25,7 @@ final class AppModel: ObservableObject {
     private var albumLibraryID: String?
     private var nextAlbumStartIndex = 0
     private var homeRefreshGeneration = 0
+    private var trackCatalogGeneration = 0
 
     init(defaults: UserDefaults = .standard, libraryStore: (any LibraryStoring)? = nil) {
         self.defaults = defaults
@@ -41,12 +43,51 @@ final class AppModel: ObservableObject {
         if arguments.contains("--ui-testing-music-shell")
             || arguments.contains("--ui-testing-playlists")
             || arguments.contains("--ui-testing-genres")
-            || arguments.contains("--ui-testing-favourites") {
+            || arguments.contains("--ui-testing-favourites")
+            || arguments.contains("--ui-testing-tracks") {
             configureUITestMusicShell()
             return
         }
 #endif
         restoreSession()
+    }
+
+    func refreshTrackCatalog() async {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-tracks") {
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing-tracks-empty") {
+                trackCatalogState.replaceCached(TrackCatalogPage(occurrences: [], hasMore: false, nextStartIndex: 0), scope: TrackCatalogScope(serverID: "synthetic-server", accountID: "synthetic-user", libraryID: "music"))
+            }
+            return
+        }
+#endif
+        guard let session, let api, let libraryID = selectedLibraryID else { return }
+        let scope = TrackCatalogScope(serverID: session.serverID, accountID: session.userID, libraryID: libraryID)
+        if trackCatalogState.occurrences.isEmpty,
+           let cached = try? await libraryStore?.cachedTrackCatalogPage(scope: libraryScope(for: session), libraryID: libraryID, limit: 100) {
+            trackCatalogState.replaceCached(cached, scope: scope)
+        }
+        trackCatalogGeneration += 1
+        let generation = "track-catalog-\(trackCatalogGeneration)-\(session.serverID)-\(session.userID)-\(libraryID)"
+        await trackCatalogState.refresh(scope: scope) { [weak self] startIndex in
+            guard let self else { throw APIError.notAuthenticated }
+            let page = try await api.trackCatalogPage(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+            if startIndex == 0 { try? await self.libraryStore?.replaceTrackCatalogPage(page, generation: generation, scope: self.libraryScope(for: session), libraryID: libraryID) }
+            return page
+        }
+    }
+
+    func loadMoreTrackCatalog() async {
+        guard let session, let api, let libraryID = selectedLibraryID else { return }
+        let scope = TrackCatalogScope(serverID: session.serverID, accountID: session.userID, libraryID: libraryID)
+        await trackCatalogState.loadMore(scope: scope) { [weak self] startIndex in
+            guard let self else { throw APIError.notAuthenticated }
+            let page = try await api.trackCatalogPage(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+            // The state has already rejected a stale scope before this page can
+            // affect presentation; persistence also rejects stale generations.
+            try? await self.libraryStore?.appendTrackCatalogPage(page, generation: "track-catalog-\(self.trackCatalogGeneration)-\(session.serverID)-\(session.userID)-\(libraryID)", scope: self.libraryScope(for: session), libraryID: libraryID)
+            return page
+        }
     }
 
     var api: JellyfinAPI? {
@@ -82,6 +123,7 @@ final class AppModel: ObservableObject {
             homeRefreshGeneration += 1
             homeSnapshot = nil
             homeRefreshError = nil
+            trackCatalogState.clear(for: TrackCatalogScope(serverID: info.id, accountID: authentication.userID, libraryID: nil))
             self.session = session
             persistProfile(session)
             try await refreshLibraries()
@@ -155,6 +197,7 @@ final class AppModel: ObservableObject {
         homeRefreshGeneration += 1
         homeSnapshot = nil
         homeRefreshError = nil
+        if let session { trackCatalogState.clear(for: TrackCatalogScope(serverID: session.serverID, accountID: session.userID, libraryID: id)) }
         selectedLibraryID = id
         if let session { persistProfile(session) }
         do { try await refreshAlbums(libraryID: id) }
@@ -504,6 +547,14 @@ final class AppModel: ObservableObject {
         )
     }
 
+    func play(_ occurrence: TrackCatalogOccurrence, in occurrences: [TrackCatalogOccurrence]) {
+        guard let api, let session,
+              let selectedIndex = occurrences.firstIndex(where: { $0.id == occurrence.id }) else { return }
+        let entries = occurrences.map { QueueEntry(id: UUID(), track: $0.track) }
+        playback.play(entries: entries, startingAt: entries[selectedIndex].id, using: api,
+                      userID: session.userID, scope: playbackScope(for: session))
+    }
+
     func play(_ entry: PlaylistEntry, in playlistEntries: [PlaylistEntry]) {
         guard let api, let session,
               let selectedIndex = playlistEntries.firstIndex(where: { $0.id == entry.id }) else { return }
@@ -765,6 +816,13 @@ final class AppModel: ObservableObject {
         ], elapsed: ProcessInfo.processInfo.arguments.contains("--ui-testing-restored-playback") ? 73 : 0)
         if ProcessInfo.processInfo.arguments.contains("--ui-testing-home") {
             homeSnapshot = Self.syntheticHomeSnapshot(albumID: "home-album-new")
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-tracks") {
+            let tracks = [
+                TrackCatalogOccurrence(id: "track-catalog:0:track-1", track: Track(id: "track-1", name: "A First Song", artist: "Synthetic Artist", album: "Synthetic Album", albumID: "album-synthetic", index: 1, disc: 1, durationTicks: 1_800_000_000), ordinal: 0),
+                TrackCatalogOccurrence(id: "track-catalog:1:track-2", track: Track(id: "track-2", name: "B Second Song", artist: "Other Artist", album: "", index: nil, disc: nil, durationTicks: nil), ordinal: 1),
+            ]
+            trackCatalogState.replaceCached(TrackCatalogPage(occurrences: tracks, hasMore: false, nextStartIndex: 2), scope: TrackCatalogScope(serverID: "synthetic-server", accountID: "synthetic-user", libraryID: "music"))
         }
     }
 
