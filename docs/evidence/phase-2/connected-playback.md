@@ -50,14 +50,17 @@ reports, and no new JellyfinAudio crash report appeared. The prior crash report
 and live diagnostics contained no token, server address, username, or library
 item names.
 
-Background survival, Lock Screen commands, termination, and non-zero restored
-position still require their dedicated device evidence and must not be
-described as passing yet.
+The 2026-07-17 listening-shell deployment terminated the prior process and
+restored its single-entry queue at a non-zero 131-second position. The user then
+resumed playback and a successful HTTP 204 progress report followed 48 seconds
+after launch. No new crash report appeared.
+
+Locked-screen survival and Lock Screen commands still require their dedicated
+device evidence and must not be described as passing yet.
 
 ## Remaining Phase 2 work
 
 - Prove background playback and Lock Screen play/pause/seek/next/previous.
-- Terminate and relaunch, then prove the same queue and position are restored.
 - Confirm at least one Direct Play row and one server-transcode row on device.
 - Add measured transition and interruption/route-change evidence before calling
   the phase complete.

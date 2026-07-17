@@ -24,10 +24,12 @@ compatibility for the prior playback snapshot schema.
 
 ## Device state
 
-The signed build installed and launched on the paired iPhone. The live server
-session remains restored. Visual inspection of all new surfaces, locked-screen
-playback duration, Lock Screen commands, and a non-zero terminate/relaunch
-restoration remain open device evidence.
+The signed build installed and launched on the paired iPhone. It restored the
+live server session, a single-entry queue, and a non-zero 131-second playback
+position, then reported successful progress after playback resumed. No new
+JellyfinAudio crash report appeared. Visual inspection of every new surface,
+locked-screen playback duration, and Lock Screen commands remain open device
+evidence.
 
 ## Deliberately not claimed
 
