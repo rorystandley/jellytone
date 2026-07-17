@@ -21,7 +21,9 @@ struct MusicShellView: View {
 
     private var tabs: some View {
         TabView {
-            HomeView()
+            NavigationStack {
+                HomeLibraryView { AlbumView(album: $0) }
+            }
                 .tabItem { Label("Home", systemImage: "house.fill") }
             LibraryView()
                 .tabItem { Label("Library", systemImage: "square.stack.fill") }
@@ -34,71 +36,6 @@ struct MusicShellView: View {
     private var miniPlayer: some View {
         if model.playback.currentTrack != nil {
             MiniPlayerView(playback: model.playback) { showingPlayer = true }
-        }
-    }
-}
-
-private struct HomeView: View {
-    @EnvironmentObject private var model: AppModel
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 28) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Your music")
-                            .font(.largeTitle.bold())
-                        Text(model.session.map { "Listening as \($0.username)" } ?? "")
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if let current = model.playback.currentTrack {
-                        Button { model.playback.toggle() } label: {
-                            HStack(spacing: 16) {
-                                NowPlayingArtwork(playback: model.playback)
-                                    .frame(width: 72, height: 72)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Continue listening")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                    Text(current.name).font(.headline).lineLimit(1)
-                                    Text(current.artist).foregroundStyle(.secondary).lineLimit(1)
-                                }
-                                Spacer()
-                                Image(systemName: model.playback.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                    .font(.system(size: 38))
-                            }
-                            .padding(14)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("Albums").font(.title2.bold())
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(spacing: 16) {
-                                ForEach(model.albums.prefix(12)) { album in
-                                    NavigationLink(value: album) {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            AuthenticatedArtworkView(itemID: album.id)
-                                                .frame(width: 156, height: 156)
-                                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                                            Text(album.name).font(.headline).lineLimit(1)
-                                            Text(album.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                                        }
-                                        .frame(width: 156, alignment: .leading)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding()
-            }
-            .navigationDestination(for: Album.self) { AlbumView(album: $0) }
-            .refreshable { try? await model.refreshAlbums(libraryID: model.selectedLibraryID) }
         }
     }
 }

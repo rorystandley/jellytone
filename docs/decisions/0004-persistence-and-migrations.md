@@ -44,6 +44,12 @@ atomic replacement, and failed-migration rollback with synthetic tests.
 Invalid domain values are rejected before writes; malformed or
 identity-mismatched payloads are skipped on reads without exposing row types.
 
+Migration `002_create_home_shelf_snapshots` adds one atomic, versioned
+application-owned Home payload per server/account/music-library key. It stores
+no Jellyfin wire model, secret, media path, or managed file reference; malformed
+or unsupported payloads are treated as a cache miss without affecting another
+scope.
+
 ## Rollback and migration
 
 Application releases do not downgrade schemas. Rollback uses a compatible app

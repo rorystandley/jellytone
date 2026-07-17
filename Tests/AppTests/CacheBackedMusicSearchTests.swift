@@ -120,6 +120,12 @@ private actor SearchStore: LibraryStoring {
 
     func cachedAlbums(scope: LibraryScope, libraryID: String?) async throws -> [Album] { cached.albums }
     func replaceAlbums(_ albums: [Album], scope: LibraryScope, libraryID: String?) async throws {}
+    func cachedHomeShelfSnapshot(
+        scope: LibraryScope, libraryID: String?
+    ) async throws -> HomeShelfSnapshot? { nil }
+    func replaceHomeShelfSnapshot(
+        _ snapshot: HomeShelfSnapshot, scope: LibraryScope, libraryID: String?
+    ) async throws {}
 
     func storeSearchMetadata(
         artists: [Artist], albums: [Album], scope: LibraryScope, libraryID: String?

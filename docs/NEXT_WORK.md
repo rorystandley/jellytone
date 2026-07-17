@@ -18,23 +18,32 @@ No in-flight work. Select the first unblocked `NEXT` item.
 
 ## NEXT
 
-### 1. Add read-only downloads browsing
+### 1. Add read-only tracks browsing
 
 - State: `READY`.
-- Phase: Phase 3.
-- Outcome: add a native read-only downloads destination through the existing
-  gateway/domain boundaries and authoritative playback flow.
-- Acceptance focus: the next unimplemented Phase 3 library destination.
-- Owned surface: scoped downloaded-music mapping, adaptive browsing,
-  deterministic fixtures, and focused state/playback/UI/accessibility tests.
-- Read after selection: Product Plan Phase 3; Architecture Domain models,
-  JellyfinGateway, state ownership, and Testing architecture.
-- Proof: focused mapping/state/UI tests followed by `./scripts/test.sh`,
+- Phase: explicitly brought-forward Phase 3 library slice.
+- Outcome: browse music-library tracks with correct deterministic ordering and
+  route selected tracks through the authoritative playback queue.
+- Acceptance focus: scoped music-only paging/mapping, adaptive browse states,
+  cache/privacy/race coverage, and accessibility evidence.
+- Proof: focused mapping/state/playback/UI tests followed by `./scripts/test.sh`,
   `./scripts/test-integration.sh`, and `./scripts/test-ui.sh`.
-- Non-goals: download mutation, offline sync changes, playlist writes, or
-  playback-engine changes.
+- Non-goals: downloads, offline playback, writes, or playback-engine changes.
 
 ## BLOCKED
+
+### Read-only downloads browsing (deferred to Phase 5)
+
+- Phase: Phase 5 offline and network resilience; it is not a viable Phase 3
+  destination slice.
+- Blocker: no versioned `DownloadRecord` and `DownloadManifest` domain models,
+  durable manifest storage, verified managed-file inspection, local source
+  resolver, or authoritative playback integration for verified local files.
+- Resume condition: all five prerequisites above have executable evidence. A
+  stray file or a remote server item is not a download, and no empty Downloads
+  screen may be created merely to satisfy a destination list.
+- Non-goals while blocked: download UI, download mutations, and offline
+  playback claims.
 
 ### Agent-operated audible real-device playback
 
@@ -49,6 +58,14 @@ No in-flight work. Select the first unblocked `NEXT` item.
   rediscover this blocker during task selection.
 
 ## RECENTLY COMPLETED
+
+- Cache-first recent Home shelves: added scoped, versioned Recently Added album
+  and Recently Played track snapshots with quiet independent refresh, valid-cache
+  retention on failure, stale-response protection, accessible adaptive Home
+  presentation, Album navigation, authoritative queue playback, synthetic
+  fixtures, and 10.10.7/10.11.11 gateway contracts. Downloads remain deferred
+  to their Phase 5 local-media prerequisites; this does not complete Home or
+  Phase 3.
 
 - Read-only favourites browsing: added active server/account/music-library scoped
   favourite artists, albums, and tracks with independent paging, stale-response

@@ -40,12 +40,13 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertTrue(tableNames.contains("library_scopes"))
         XCTAssertTrue(tableNames.contains("cached_artists"))
         XCTAssertTrue(tableNames.contains("cached_albums"))
+        XCTAssertTrue(tableNames.contains("home_shelf_snapshots"))
         XCTAssertTrue(tableNames.contains("grdb_migrations"))
 
         let appliedMigrations = try await inspectionQueue.read { database in
             try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM grdb_migrations")
         }
-        XCTAssertEqual(appliedMigrations, 1)
+        XCTAssertEqual(appliedMigrations, 2)
         let foreignKeyViolationCount = try await inspectionQueue.read { database in
             try Row.fetchAll(database, sql: "PRAGMA foreign_key_check").count
         }
@@ -63,7 +64,7 @@ final class LibraryStoreTests: XCTestCase {
 
         XCTAssertThrowsError(
             try SQLiteLibraryStore(databaseURL: databaseURL) { migrator in
-                migrator.registerMigration("002_synthetic_failure") { database in
+                migrator.registerMigration("003_synthetic_failure") { database in
                     try database.execute(sql: "CREATE TABLE should_roll_back (value TEXT NOT NULL)")
                     try database.execute(sql: "DELETE FROM cached_albums")
                     throw SyntheticMigrationError.expected
@@ -89,7 +90,10 @@ final class LibraryStoreTests: XCTestCase {
         let appliedMigrations = try await inspectionQueue.read { database in
             try String.fetchAll(database, sql: "SELECT identifier FROM grdb_migrations ORDER BY identifier")
         }
-        XCTAssertEqual(appliedMigrations, ["001_create_library_metadata_cache"])
+        XCTAssertEqual(
+            appliedMigrations,
+            ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots"]
+        )
     }
 
     func testCacheIsIsolatedByServerAccountAndLibrary() async throws {

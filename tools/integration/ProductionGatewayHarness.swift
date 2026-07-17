@@ -18,6 +18,8 @@ enum HarnessFailure: Error {
     case genreMarkerMissing
     case genreAlbumMissing
     case genreTrackMissing
+    case homeRecentlyAddedMissing
+    case homeRecentlyPlayedMissing
     case wrongPlaybackMethod
     case deliveryFailed
     case reportingFailed
@@ -65,6 +67,12 @@ struct ProductionGatewayHarness {
             if selectedTrack == nil { try await Task.sleep(for: .seconds(1)) }
         }
         guard let selectedTrack, let selectedLibrary else { throw HarnessFailure.fixtureMissing }
+
+        let recentlyAdded = try await api.recentlyAddedAlbums(
+            userID: authentication.userID,
+            libraryID: selectedLibrary.id
+        )
+        guard !recentlyAdded.isEmpty else { throw HarnessFailure.homeRecentlyAddedMissing }
 
         var observedGenres = false
         var observedFixtureGenre = false
@@ -133,9 +141,20 @@ struct ProductionGatewayHarness {
             itemID: selectedTrack.id, plan: plan, position: 1.0
         ))
 
+        var observedRecentlyPlayed = false
+        for _ in 0..<30 where !observedRecentlyPlayed {
+            let recentlyPlayed = try await api.recentlyPlayedTracks(
+                userID: authentication.userID,
+                libraryID: selectedLibrary.id
+            )
+            observedRecentlyPlayed = recentlyPlayed.contains { $0.id == selectedTrack.id }
+            if !observedRecentlyPlayed { try await Task.sleep(for: .seconds(1)) }
+        }
+        guard observedRecentlyPlayed else { throw HarnessFailure.homeRecentlyPlayedMissing }
+
         // Only fixed allowlisted values reach stdout. Production diagnostics also
         // emit operation/status metadata, never credentials, endpoints or identity.
-        print("LIVE_GATEWAY_RESULT version=pass genre=complete transcode=aac-mp4 lifecycle=complete")
+        print("LIVE_GATEWAY_RESULT version=pass genre=complete home=complete transcode=aac-mp4 lifecycle=complete")
     }
 
     private static func requireAccepted(_ outcome: PlaybackReportOutcome) throws {

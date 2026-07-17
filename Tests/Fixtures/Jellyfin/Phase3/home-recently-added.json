@@ -1,0 +1,13 @@
+{
+  "Items": [
+    {"Id":"album-newest","Name":"Newest","Type":"MusicAlbum","AlbumArtist":"Synthetic Artist","ProductionYear":2026,"ImageTags":{"Primary":"art-newest"},"DateCreated":"2026-07-16T12:00:00.0000000Z"},
+    {"Id":"album-tie-b","Name":"Same Date","Type":"MusicAlbum","AlbumArtist":"B Artist","DateCreated":"2026-07-15T12:00:00.0000000Z"},
+    {"Id":"album-tie-a","Name":"Same Date","Type":"MusicAlbum","AlbumArtist":"A Artist","DateCreated":"2026-07-15T12:00:00.0000000Z"},
+    {"Id":"album-tie-a","Name":"Duplicate Row","Type":"MusicAlbum","AlbumArtist":"Ignored Duplicate","DateCreated":"2026-07-15T12:00:00.0000000Z"},
+    {"Id":"album-unicode","Name":"Café 東京 🎧","Type":"MusicAlbum","Artists":["Unicode Artist"],"ImageTags":{"Primary":"art-unicode"},"DateCreated":"not-a-date"},
+    {"Id":"album-minimal","Name":"No Artwork","Type":"MusicAlbum","DateCreated":null},
+    {"Id":"video-row","Name":"Not Music","Type":"Movie"},
+    {"Id":"missing-name","Type":"MusicAlbum"},
+    17
+  ]
+}

@@ -102,6 +102,48 @@ struct JellyfinAPI: Sendable {
         )
     }
 
+    // Home shelves deliberately use bounded, music-only item queries. Their
+    // ordering is server-authoritative so a warm cache can be replaced without
+    // reinterpreting Jellyfin's history or creation semantics locally.
+    func recentlyAddedAlbums(
+        userID: String,
+        libraryID: String,
+        limit: Int = 20
+    ) async throws -> [Album] {
+        let response = try await homeShelfItems(
+            operation: "home_recently_added_albums",
+            userID: userID,
+            libraryID: libraryID,
+            itemType: "MusicAlbum",
+            limit: limit,
+            sortBy: "DateCreated,SortName"
+        )
+        return uniqueByID(response.Items.compactMap { item in
+            guard item.`Type` == "MusicAlbum" else { return nil }
+            return mapAlbum(item)
+        })
+    }
+
+    func recentlyPlayedTracks(
+        userID: String,
+        libraryID: String,
+        limit: Int = 20
+    ) async throws -> [Track] {
+        let response = try await homeShelfItems(
+            operation: "home_recently_played_tracks",
+            userID: userID,
+            libraryID: libraryID,
+            itemType: "Audio",
+            limit: limit,
+            sortBy: "DatePlayed",
+            extraQuery: [URLQueryItem(name: "IsPlayed", value: "true")]
+        )
+        return uniqueByID(response.Items.compactMap { item in
+            guard item.`Type` == "Audio" else { return nil }
+            return mapTrack(item)
+        })
+    }
+
     func searchMusic(
         userID: String,
         libraryID: String?,
@@ -696,6 +738,43 @@ struct JellyfinAPI: Sendable {
             ],
             as: ItemsResponse<Item>.self
         )
+    }
+
+    private func homeShelfItems(
+        operation: String,
+        userID: String,
+        libraryID: String,
+        itemType: String,
+        limit: Int,
+        sortBy: String,
+        extraQuery: [URLQueryItem] = []
+    ) async throws -> ItemsResponse<Item> {
+        try await send(
+            operation: operation,
+            path: ["Items"],
+            query: [
+                URLQueryItem(name: "userId", value: userID),
+                URLQueryItem(name: "ParentId", value: libraryID),
+                URLQueryItem(name: "IncludeItemTypes", value: itemType),
+                URLQueryItem(name: "Recursive", value: "true"),
+                URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,UserData,RunTimeTicks"),
+                URLQueryItem(name: "StartIndex", value: "0"),
+                URLQueryItem(name: "Limit", value: String(homeShelfLimit(limit))),
+                URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
+                URLQueryItem(name: "SortBy", value: sortBy),
+                URLQueryItem(name: "SortOrder", value: "Descending"),
+            ] + extraQuery,
+            as: ItemsResponse<Item>.self
+        )
+    }
+
+    private func homeShelfLimit(_ requestedLimit: Int) -> Int {
+        min(max(requestedLimit, 1), 100)
+    }
+
+    private func uniqueByID<Value: Identifiable>(_ values: [Value]) -> [Value] where Value.ID == String {
+        var seen = Set<String>()
+        return values.filter { seen.insert($0.id).inserted }
     }
 
     private func mapTrack(_ item: Item) -> Track? {

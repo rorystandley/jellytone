@@ -79,6 +79,50 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
         }
     }
 
+    func cachedHomeShelfSnapshot(
+        scope: LibraryScope,
+        libraryID: String?
+    ) async throws -> HomeShelfSnapshot? {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        return try await databaseQueue.read { database in
+            guard let payload: Data = try Data.fetchOne(
+                database,
+                sql: """
+                    SELECT payload
+                    FROM home_shelf_snapshots
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            ) else {
+                return nil
+            }
+            return Self.homeShelfSnapshot(from: payload)
+        }
+    }
+
+    func replaceHomeShelfSnapshot(
+        _ snapshot: HomeShelfSnapshot,
+        scope: LibraryScope,
+        libraryID: String?
+    ) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        let payload = try JSONEncoder().encode(snapshot)
+
+        try await databaseQueue.write { database in
+            try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            try database.execute(
+                sql: """
+                    INSERT INTO home_shelf_snapshots
+                        (server_id, account_id, library_scope, payload)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT (server_id, account_id, library_scope)
+                    DO UPDATE SET payload = excluded.payload
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope, payload]
+            )
+        }
+    }
+
     func storeSearchMetadata(
         artists: [Artist],
         albums: [Album],
@@ -186,6 +230,20 @@ private extension SQLiteLibraryStore {
                 ) WITHOUT ROWID;
                 """)
         }
+        migrator.registerMigration("002_create_home_shelf_snapshots") { database in
+            try database.execute(sql: """
+                CREATE TABLE home_shelf_snapshots (
+                    server_id TEXT NOT NULL,
+                    account_id TEXT NOT NULL,
+                    library_scope TEXT NOT NULL,
+                    payload BLOB NOT NULL,
+                    PRIMARY KEY (server_id, account_id, library_scope),
+                    FOREIGN KEY (server_id, account_id, library_scope)
+                        REFERENCES library_scopes (server_id, account_id, library_scope)
+                        ON DELETE CASCADE
+                ) WITHOUT ROWID;
+                """)
+        }
         return migrator
     }
 
@@ -248,6 +306,10 @@ private extension SQLiteLibraryStore {
               isValid(album)
         else { return nil }
         return album
+    }
+
+    static func homeShelfSnapshot(from payload: Data) -> HomeShelfSnapshot? {
+        try? JSONDecoder().decode(HomeShelfSnapshot.self, from: payload)
     }
 
     static func isValid(_ artist: Artist) -> Bool {

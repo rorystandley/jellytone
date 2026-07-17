@@ -57,6 +57,9 @@ diagnostics privacy gate remains authoritative. Full Phase 1 remains open.
   tracks within the active server/account/music-library scope, preserve stable
   identities and duplicate track occurrences, and route play actions through
   the authoritative queue.
+- [x] Cache-first Home shelves persist scoped, versioned Recently Added albums
+  and Recently Played tracks, retain cache on partial failure, and use existing
+  Album navigation and authoritative queue playback.
 - [ ] Every write operation has success, retry, conflict, and expired-auth tests.
 - [ ] Screenshot and accessibility suites cover every primary destination at
   compact and regular widths.

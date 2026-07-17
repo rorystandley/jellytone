@@ -74,6 +74,7 @@ def run(command: list[str], *, capture: bool = False) -> subprocess.CompletedPro
             for failure in (
                 "versionMismatch", "fixtureMissing", "genreListEmpty", "genreMarkerMissing",
                 "genreAlbumMissing", "genreTrackMissing",
+                "homeRecentlyAddedMissing", "homeRecentlyPlayedMissing",
                 "wrongPlaybackMethod", "deliveryFailed", "reportingFailed",
             ):
                 if failure in output:
@@ -317,7 +318,7 @@ def main() -> int:
                     completed = run([
                         str(harness), endpoint, version, str(password_file), str(output), FIXTURE_MARKER,
                     ], capture=True)
-                    if "LIVE_GATEWAY_RESULT version=pass genre=complete transcode=aac-mp4 lifecycle=complete" not in completed.stdout:
+                    if "LIVE_GATEWAY_RESULT version=pass genre=complete home=complete transcode=aac-mp4 lifecycle=complete" not in completed.stdout:
                         raise IntegrationFailure("production gateway harness omitted its fixed success marker")
                     validate_lifecycle(proxy.events)
                     if not proxy.transcode_requested:
@@ -326,6 +327,7 @@ def main() -> int:
                     "serverLabel": label,
                     "version": version,
                     "genreBrowsing": "complete",
+                    "homeShelves": "complete",
                     "lifecycle": [event["event"] for event in proxy.events],
                     "transcode": inspect_transcode(output),
                 })

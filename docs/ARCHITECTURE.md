@@ -131,6 +131,13 @@ first page with server values by stable identity; server pagination stays
 authoritative. Malformed rows are ignored, and authoritative first-page album
 replacement removes stale rows transactionally.
 
+Home shelves use a versioned, application-owned `HomeShelfSnapshot` containing
+only `Album` and `Track` domain values. A snapshot is keyed by server, account,
+and selected music library and replaced transactionally. `AppModel` shows a
+valid cache before bounded music-only Jellyfin refreshes; scope/generation
+checks reject late server, account, or library responses, while partial failure
+keeps valid cached shelves and exposes a retryable non-sensitive error.
+
 ### Playback
 
 Owns the single authoritative playback state machine:
@@ -209,6 +216,10 @@ state and send intents; they do not perform API requests directly.
 `LibraryStore` owns cached rows while `AppModel` owns presented domain arrays.
 Views never observe GRDB records; cache and server paths converge through
 `Artist`, `Album`, and `MusicSearchPage` values.
+
+Home album actions navigate through `AlbumView`; recently played track actions
+delegate to `AppModel` and its existing authoritative playback queue. Home does
+not infer a download or add a local playback source.
 
 `PlaylistFeatureState` owns cancellable, generation-guarded playlist list and
 detail requests. Its scope includes server, account, and selected-library

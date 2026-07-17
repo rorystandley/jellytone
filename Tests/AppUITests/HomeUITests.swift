@@ -1,0 +1,105 @@
+import XCTest
+
+@MainActor
+final class HomeUITests: XCTestCase {
+    override func setUp() async throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+    }
+
+    func testHomeRecentShelvesSupportAccessibleAlbumAndTrackActions() {
+        let app = launchHome()
+        XCTAssertTrue(element(in: app, identifier: "home-screen").waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Recently Added"].exists)
+        XCTAssertTrue(app.staticTexts["Recently Played"].exists)
+
+        let album = element(in: app, identifier: "home-recently-added-album-home-album-new")
+        XCTAssertTrue(album.waitForExistence(timeout: 3))
+        XCTAssertTrue(album.isHittable)
+        XCTAssertTrue(app.descendants(matching: .any)["No artwork for New Album"].exists)
+        album.tap()
+        XCTAssertTrue(app.navigationBars["New Album"].waitForExistence(timeout: 3))
+        app.navigationBars.buttons.firstMatch.tap()
+
+        let track = element(in: app, identifier: "home-recently-played-track-home-track-1")
+        XCTAssertTrue(track.waitForExistence(timeout: 3))
+        XCTAssertTrue(track.isHittable)
+        XCTAssertFalse(track.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        assertNoPrivateConnectionData(in: app)
+    }
+
+    func testHomeSupportsCompactRegularDarkLargeTypeAndReduceMotion() {
+        let configurations: [[String]] = [
+            [],
+            ["-AppleInterfaceStyle", "Dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge", "-UIAccessibilityReduceMotionEnabled", "YES"],
+        ]
+        for arguments in configurations {
+            let app = launchHome(extraArguments: arguments)
+            let album = element(in: app, identifier: "home-recently-added-album-home-album-new")
+            XCTAssertTrue(album.waitForExistence(timeout: 4))
+            XCTAssertTrue(album.isHittable)
+            app.terminate()
+        }
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let regularApp = launchHome()
+        XCTAssertTrue(element(in: regularApp, identifier: "home-recently-played-track-home-track-1").waitForExistence(timeout: 4))
+        XCTAssertTrue(element(in: regularApp, identifier: "home-recently-played-track-home-track-1").isHittable)
+    }
+
+    func testHomeLoadingEmptyFailureAndRetryAreHonestAndPrivate() {
+        var app = launchHome(extraArguments: ["--ui-testing-home-loading"])
+        XCTAssertTrue(app.staticTexts["Loading recently added albums…"].waitForExistence(timeout: 3))
+        assertNoPrivateConnectionData(in: app)
+        app.terminate()
+
+        app = launchHome(extraArguments: ["--ui-testing-home-empty"])
+        XCTAssertTrue(app.staticTexts["Nothing recent yet"].waitForExistence(timeout: 3))
+        assertNoPrivateConnectionData(in: app)
+        app.terminate()
+
+        app = launchHome(extraArguments: ["--ui-testing-home-error"])
+        XCTAssertTrue(app.staticTexts["Couldn’t load Home"].waitForExistence(timeout: 3))
+        let retry = app.buttons["home-retry"]
+        XCTAssertTrue(retry.exists)
+        XCTAssertTrue(retry.isHittable)
+        assertNoPrivateConnectionData(in: app)
+    }
+
+    func testCachedRefreshKeepsShelfReachableAndPartialFailureIsVisible() {
+        let app = launchHome(extraArguments: ["--ui-testing-home-cached-partial-error"])
+        let album = element(in: app, identifier: "home-recently-added-album-home-album-cached")
+        XCTAssertTrue(album.waitForExistence(timeout: 3))
+        XCTAssertTrue(element(in: app, identifier: "home-refreshing").exists)
+        XCTAssertTrue(app.staticTexts["Recently Played"].exists)
+        XCTAssertTrue(element(in: app, identifier: "home-partial-failure").exists)
+        assertNoPrivateConnectionData(in: app)
+    }
+
+    func testContinueListeningUsesTheExistingPlaybackController() {
+        let app = launchHome(extraArguments: ["--ui-testing-restored-playback"])
+        let card = element(in: app, identifier: "home-continue-listening")
+        XCTAssertTrue(card.waitForExistence(timeout: 3))
+        XCTAssertTrue(card.isHittable)
+        XCTAssertTrue(card.label.contains("Continue listening"))
+        assertNoPrivateConnectionData(in: app)
+    }
+
+    private func launchHome(extraArguments: [String] = []) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-home"] + extraArguments
+        app.launch()
+        return app
+    }
+
+    private func element(in app: XCUIApplication, identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)[identifier]
+    }
+
+    private func assertNoPrivateConnectionData(in app: XCUIApplication) {
+        let hierarchy = app.debugDescription.lowercased()
+        for forbiddenValue in ["://", "x-emby-token", "authorization:", "bearer ", "access_token", "synthetic-token", "synthetic-user"] {
+            XCTAssertFalse(hierarchy.contains(forbiddenValue), "Home accessibility hierarchy exposed forbidden connection data: \(forbiddenValue)")
+        }
+    }
+}

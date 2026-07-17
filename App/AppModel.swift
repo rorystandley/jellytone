@@ -7,6 +7,9 @@ final class AppModel: ObservableObject {
     @Published var selectedLibraryID: String?
     @Published private(set) var albums: [Album] = []
     @Published private(set) var tracksByAlbum: [String: [Track]] = [:]
+    @Published private(set) var homeSnapshot: HomeShelfSnapshot?
+    @Published private(set) var isRefreshingHome = false
+    @Published private(set) var homeRefreshError: String?
     @Published private(set) var isLoading = false
     @Published private(set) var isLoadingMoreAlbums = false
     @Published var errorMessage: String?
@@ -20,6 +23,7 @@ final class AppModel: ObservableObject {
     private var hasMoreAlbums = true
     private var albumLibraryID: String?
     private var nextAlbumStartIndex = 0
+    private var homeRefreshGeneration = 0
 
     init(defaults: UserDefaults = .standard, libraryStore: (any LibraryStoring)? = nil) {
         self.defaults = defaults
@@ -75,6 +79,9 @@ final class AppModel: ObservableObject {
                 accessToken: authentication.token,
                 deviceID: deviceID
             )
+            homeRefreshGeneration += 1
+            homeSnapshot = nil
+            homeRefreshError = nil
             self.session = session
             persistProfile(session)
             try await refreshLibraries()
@@ -95,6 +102,7 @@ final class AppModel: ObservableObject {
         }
         persistProfile(session)
         try await refreshAlbums(libraryID: selectedLibraryID)
+        Task { await refreshHomeShelves() }
     }
 
     func refreshAlbums(libraryID: String?) async throws {
@@ -143,10 +151,86 @@ final class AppModel: ObservableObject {
     }
 
     func selectLibrary(_ id: String) async {
+        guard selectedLibraryID != id else { return }
+        homeRefreshGeneration += 1
+        homeSnapshot = nil
+        homeRefreshError = nil
         selectedLibraryID = id
         if let session { persistProfile(session) }
         do { try await refreshAlbums(libraryID: id) }
         catch { errorMessage = error.localizedDescription }
+        await refreshHomeShelves()
+    }
+
+    /// Shows the scoped database snapshot first, then replaces only the shelves
+    /// whose current, music-library-scoped request completed successfully.
+    func refreshHomeShelves() async {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing-home") {
+            if arguments.contains("--ui-testing-home-loading") {
+                isRefreshingHome = true
+                try? await Task.sleep(for: .seconds(5))
+                return
+            }
+            if arguments.contains("--ui-testing-home-empty") {
+                homeSnapshot = .empty
+                isRefreshingHome = false
+                homeRefreshError = nil
+                return
+            }
+            if arguments.contains("--ui-testing-home-error") {
+                homeSnapshot = nil
+                isRefreshingHome = false
+                homeRefreshError = "Recently added albums couldn’t be refreshed."
+                return
+            }
+            if arguments.contains("--ui-testing-home-cached-partial-error") {
+                homeSnapshot = Self.syntheticHomeSnapshot(albumID: "home-album-cached")
+                isRefreshingHome = true
+                homeRefreshError = "Recently played music couldn’t be refreshed."
+                return
+            }
+            isRefreshingHome = false
+            homeRefreshError = nil
+            return
+        }
+#endif
+        guard let session, let api, let libraryID = selectedLibraryID else { return }
+        let scope = libraryScope(for: session)
+        let requestScope = HomeFeatureScope(serverID: scope.serverID, accountID: scope.accountID, libraryID: libraryID)
+        homeRefreshGeneration += 1
+        let generation = homeRefreshGeneration
+        isRefreshingHome = true
+        homeRefreshError = nil
+
+        if homeSnapshot == nil,
+           let cached = try? await libraryStore?.cachedHomeShelfSnapshot(scope: scope, libraryID: libraryID),
+           ownsHomeRefresh(generation, scope: requestScope) {
+            homeSnapshot = cached
+        }
+
+        async let added = homeAlbumsResult(api: api, userID: session.userID, libraryID: libraryID)
+        async let played = homeTracksResult(api: api, userID: session.userID, libraryID: libraryID)
+        let addedResult = await added
+        let playedResult = await played
+        guard ownsHomeRefresh(generation, scope: requestScope) else { return }
+
+        var replacement = homeSnapshot ?? .empty
+        var errors: [String] = []
+        switch addedResult {
+        case let .success(albums): replacement = HomeShelfSnapshot(recentlyAddedAlbums: albums, recentlyPlayedTracks: replacement.recentlyPlayedTracks)
+        case .failure: errors.append("Recently added albums couldn’t be refreshed.")
+        }
+        switch playedResult {
+        case let .success(tracks): replacement = HomeShelfSnapshot(recentlyAddedAlbums: replacement.recentlyAddedAlbums, recentlyPlayedTracks: tracks)
+        case .failure: errors.append("Recently played music couldn’t be refreshed.")
+        }
+        homeSnapshot = replacement
+        if case .success = addedResult { try? await libraryStore?.replaceHomeShelfSnapshot(replacement, scope: scope, libraryID: libraryID) }
+        else if case .success = playedResult { try? await libraryStore?.replaceHomeShelfSnapshot(replacement, scope: scope, libraryID: libraryID) }
+        homeRefreshError = errors.isEmpty ? nil : errors.joined(separator: " ")
+        isRefreshingHome = false
     }
 
     func tracks(for album: Album) async -> [Track] {
@@ -507,6 +591,10 @@ final class AppModel: ObservableObject {
         session = nil
         libraries = []
         albums = []
+        homeSnapshot = nil
+        homeRefreshGeneration += 1
+        isRefreshingHome = false
+        homeRefreshError = nil
         nextAlbumStartIndex = 0
         tracksByAlbum = [:]
         selectedLibraryID = nil
@@ -568,7 +656,10 @@ final class AppModel: ObservableObject {
             playback.restore(using: api, userID: session.userID, scope: playbackScope(for: session))
         }
         Task {
-            if let session { await loadCachedAlbums(for: session, libraryID: selectedLibraryID) }
+            if let session {
+                await loadCachedAlbums(for: session, libraryID: selectedLibraryID)
+                await loadCachedHomeShelves(for: session, libraryID: selectedLibraryID)
+            }
             do { try await refreshLibraries() }
             catch {
                 let failure = error as NSError
@@ -592,6 +683,34 @@ final class AppModel: ObservableObject {
             libraryID: libraryID
         ) else { return }
         albums = cached
+    }
+
+    private func loadCachedHomeShelves(for session: UserSession, libraryID: String?) async {
+        guard let cached = try? await libraryStore?.cachedHomeShelfSnapshot(
+            scope: libraryScope(for: session), libraryID: libraryID
+        ) else { return }
+        homeSnapshot = cached
+    }
+
+    private func ownsHomeRefresh(_ generation: Int, scope: HomeFeatureScope) -> Bool {
+        guard let session else { return false }
+        return homeRefreshGeneration == generation
+            && HomeFeatureScope(serverID: session.serverID, accountID: session.userID, libraryID: selectedLibraryID) == scope
+    }
+
+    private enum HomeQueryResult<Value: Sendable>: Sendable {
+        case success(Value)
+        case failure
+    }
+
+    private func homeAlbumsResult(api: JellyfinAPI, userID: String, libraryID: String) async -> HomeQueryResult<[Album]> {
+        do { return .success(try await api.recentlyAddedAlbums(userID: userID, libraryID: libraryID)) }
+        catch { return .failure }
+    }
+
+    private func homeTracksResult(api: JellyfinAPI, userID: String, libraryID: String) async -> HomeQueryResult<[Track]> {
+        do { return .success(try await api.recentlyPlayedTracks(userID: userID, libraryID: libraryID)) }
+        catch { return .failure }
     }
 
     private static func makeDefaultLibraryStore() -> (any LibraryStoring)? {
@@ -644,6 +763,16 @@ final class AppModel: ObservableObject {
             Track(id: "next-2", name: "Second Up Next", artist: "Synthetic Artist",
                   album: "Synthetic Album", index: 3, disc: 1, durationTicks: 1_800_000_000),
         ], elapsed: ProcessInfo.processInfo.arguments.contains("--ui-testing-restored-playback") ? 73 : 0)
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-home") {
+            homeSnapshot = Self.syntheticHomeSnapshot(albumID: "home-album-new")
+        }
+    }
+
+    private static func syntheticHomeSnapshot(albumID: String) -> HomeShelfSnapshot {
+        HomeShelfSnapshot(
+            recentlyAddedAlbums: [Album(id: albumID, name: "New Album", artist: "Synthetic Artist", productionYear: 2026, imageTag: nil)],
+            recentlyPlayedTracks: [Track(id: "home-track-1", name: "Recently Played", artist: "Synthetic Artist", album: "New Album", albumID: albumID, index: 1, disc: 1, durationTicks: 1_800_000_000)]
+        )
     }
 #endif
 }
