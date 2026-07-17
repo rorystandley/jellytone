@@ -99,6 +99,131 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertFalse(page.hasMore)
     }
 
+    func testMusicSearchConstructsScopedMusicOnlyPagedRequestAndMapsResults() async throws {
+        MockURLProtocol.handler = { request in
+            let components = try XCTUnwrap(
+                URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)
+            )
+            XCTAssertEqual(components.path, "/jellyfin/Items")
+            let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value) })
+            XCTAssertEqual(query["userId"], "user")
+            XCTAssertEqual(query["ParentId"], "music-library")
+            XCTAssertEqual(query["SearchTerm"], "Björk & Friends")
+            XCTAssertEqual(query["IncludeItemTypes"], "MusicArtist,MusicAlbum")
+            XCTAssertEqual(query["Recursive"], "true")
+            XCTAssertEqual(query["StartIndex"], "40")
+            XCTAssertEqual(query["Limit"], "40")
+            XCTAssertEqual(query["EnableTotalRecordCount"], "true")
+            return Self.response(
+                for: request,
+                json: #"{"Items":[{"Id":"artist","Name":"Björk","Type":"MusicArtist","ImageTags":{"Primary":"artist-tag"}},{"Id":"album","Name":"Debut","Type":"MusicAlbum","AlbumArtist":"Björk","ProductionYear":1993,"ImageTags":{"Primary":"album-tag"}},{"Id":"video","Name":"Private Music Video","Type":"Video"}],"TotalRecordCount":44}"#
+            )
+        }
+        let api = JellyfinAPI(
+            baseURL: try XCTUnwrap(URL(string: "https://example.com/jellyfin")),
+            deviceID: "synthetic-device",
+            token: "token",
+            urlSession: makeSession()
+        )
+
+        let page = try await api.searchMusic(
+            userID: "user",
+            libraryID: "music-library",
+            query: "Björk & Friends",
+            startIndex: 40
+        )
+
+        XCTAssertEqual(page.artists, [Artist(id: "artist", name: "Björk", imageTag: "artist-tag")])
+        XCTAssertEqual(
+            page.albums,
+            [Album(id: "album", name: "Debut", artist: "Björk", productionYear: 1993, imageTag: "album-tag")]
+        )
+        XCTAssertTrue(page.hasMore)
+        XCTAssertEqual(page.nextStartIndex, 43)
+    }
+
+    func testArtistAlbumsUseArtistIdentityAndMapOnlyMusicAlbums() async throws {
+        MockURLProtocol.handler = { request in
+            let components = try XCTUnwrap(
+                URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)
+            )
+            let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value) })
+            XCTAssertEqual(components.path, "/base/Items")
+            XCTAssertEqual(query["ArtistIds"], "artist-id")
+            XCTAssertEqual(query["ParentId"], "music-library")
+            XCTAssertEqual(query["IncludeItemTypes"], "MusicAlbum")
+            XCTAssertEqual(query["StartIndex"], "50")
+            return Self.response(
+                for: request,
+                json: #"{"Items":[{"Id":"album","Name":"Post","Type":"MusicAlbum","Artists":["Björk"]},{"Id":"audio","Name":"Track","Type":"Audio"}],"TotalRecordCount":52}"#
+            )
+        }
+        let api = JellyfinAPI(
+            baseURL: try XCTUnwrap(URL(string: "https://example.com/base")),
+            deviceID: "device",
+            token: "token",
+            urlSession: makeSession()
+        )
+
+        let page = try await api.albums(
+            userID: "user",
+            artistID: "artist-id",
+            libraryID: "music-library",
+            startIndex: 50
+        )
+
+        XCTAssertEqual(page.albums.map(\.id), ["album"])
+        XCTAssertEqual(page.albums.first?.artist, "Björk")
+        XCTAssertFalse(page.hasMore)
+        XCTAssertEqual(page.nextStartIndex, 52)
+    }
+
+    @MainActor
+    func testCancelledSearchDoesNotPublishResultsOrAnError() async {
+        let controller = MusicSearchController()
+        let task = Task {
+            await controller.search(query: "cancel me", debounceNanoseconds: 0) { _, _ in
+                do {
+                    try await Task.sleep(nanoseconds: 5_000_000_000)
+                } catch {
+                    // URLSession commonly surfaces cancellation as URLError.cancelled.
+                    throw URLError(.cancelled)
+                }
+                return Self.searchPage(named: "Never")
+            }
+        }
+
+        await Task.yield()
+        task.cancel()
+        await task.value
+
+        XCTAssertTrue(controller.isEmpty)
+        XCTAssertNil(controller.errorMessage)
+        XCTAssertFalse(controller.isLoading)
+    }
+
+    @MainActor
+    func testStaleSearchCannotReplaceNewerResults() async {
+        let controller = MusicSearchController()
+        let loader = ControlledSearchLoader()
+        let oldSearch = Task {
+            await controller.search(query: "old", debounceNanoseconds: 0) { query, _ in
+                await loader.load(query: query)
+            }
+        }
+        await loader.waitUntilOldStarted()
+
+        await controller.search(query: "new", debounceNanoseconds: 0) { query, _ in
+            await loader.load(query: query)
+        }
+        await loader.releaseOld()
+        await oldSearch.value
+
+        XCTAssertEqual(controller.query, "new")
+        XCTAssertEqual(controller.albums.map(\.name), ["New"])
+        XCTAssertEqual(controller.artists.map(\.name), ["New Artist"])
+    }
+
     func testPlaybackInfoSelectsSupportedDirectSource() async throws {
         MockURLProtocol.handler = { request in
             XCTAssertEqual(request.url?.path, "/jellyfin/Items/track/PlaybackInfo")
@@ -271,6 +396,16 @@ final class MinimumWorkingAppTests: XCTestCase {
         }
         return data
     }
+
+    private static func searchPage(named name: String) -> MusicSearchPage {
+        MusicSearchPage(
+            artists: [Artist(id: "\(name)-artist", name: "\(name) Artist", imageTag: nil)],
+            albums: [Album(id: "\(name)-album", name: name, artist: "\(name) Artist",
+                           productionYear: nil, imageTag: nil)],
+            hasMore: false,
+            nextStartIndex: 2
+        )
+    }
 }
 
 private struct UncheckedSendable<Value>: @unchecked Sendable {
@@ -283,6 +418,45 @@ private struct SeededGenerator: RandomNumberGenerator {
     mutating func next() -> UInt64 {
         state = state &* 6_364_136_223_846_793_005 &+ 1
         return state
+    }
+}
+
+private actor ControlledSearchLoader {
+    private var oldStarted = false
+    private var oldStartedWaiter: CheckedContinuation<Void, Never>?
+    private var oldReleaseWaiter: CheckedContinuation<Void, Never>?
+
+    func load(query: String) async -> MusicSearchPage {
+        if query == "old" {
+            oldStarted = true
+            oldStartedWaiter?.resume()
+            oldStartedWaiter = nil
+            await withCheckedContinuation { oldReleaseWaiter = $0 }
+            return MusicSearchPage(
+                artists: [Artist(id: "old-artist", name: "Old Artist", imageTag: nil)],
+                albums: [Album(id: "old-album", name: "Old", artist: "Old Artist",
+                               productionYear: nil, imageTag: nil)],
+                hasMore: false,
+                nextStartIndex: 2
+            )
+        }
+        return MusicSearchPage(
+            artists: [Artist(id: "new-artist", name: "New Artist", imageTag: nil)],
+            albums: [Album(id: "new-album", name: "New", artist: "New Artist",
+                           productionYear: nil, imageTag: nil)],
+            hasMore: false,
+            nextStartIndex: 2
+        )
+    }
+
+    func waitUntilOldStarted() async {
+        if oldStarted { return }
+        await withCheckedContinuation { oldStartedWaiter = $0 }
+    }
+
+    func releaseOld() {
+        oldReleaseWaiter?.resume()
+        oldReleaseWaiter = nil
     }
 }
 

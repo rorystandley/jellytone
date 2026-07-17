@@ -18,6 +18,7 @@ final class AppModel: ObservableObject {
     private static let deviceIDKey = "installation-device-id"
     private var hasMoreAlbums = true
     private var albumLibraryID: String?
+    private var nextAlbumStartIndex = 0
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -91,6 +92,7 @@ final class AppModel: ObservableObject {
         let page = try await api.albums(userID: session.userID, libraryID: libraryID)
         albums = page.albums
         hasMoreAlbums = page.hasMore
+        nextAlbumStartIndex = page.nextStartIndex
         Diagnostics.event("albums_loaded", ["count": albums.count, "has_more": page.hasMore, "scoped": libraryID != nil])
     }
 
@@ -103,11 +105,12 @@ final class AppModel: ObservableObject {
             let page = try await api.albums(
                 userID: session.userID,
                 libraryID: albumLibraryID,
-                startIndex: albums.count
+                startIndex: nextAlbumStartIndex
             )
             let existing = Set(albums.map(\.id))
             albums.append(contentsOf: page.albums.filter { !existing.contains($0.id) })
             hasMoreAlbums = page.hasMore
+            nextAlbumStartIndex = page.nextStartIndex
             Diagnostics.event("albums_page_loaded", ["count": page.albums.count, "total": albums.count])
         } catch {
             errorMessage = error.localizedDescription
@@ -131,6 +134,26 @@ final class AppModel: ObservableObject {
             errorMessage = error.localizedDescription
             return []
         }
+    }
+
+    func searchMusic(query: String, startIndex: Int = 0) async throws -> MusicSearchPage {
+        guard let session, let api else { throw APIError.notAuthenticated }
+        return try await api.searchMusic(
+            userID: session.userID,
+            libraryID: selectedLibraryID,
+            query: query,
+            startIndex: startIndex
+        )
+    }
+
+    func albums(for artist: Artist, startIndex: Int = 0) async throws -> AlbumPage {
+        guard let session, let api else { throw APIError.notAuthenticated }
+        return try await api.albums(
+            userID: session.userID,
+            artistID: artist.id,
+            libraryID: selectedLibraryID,
+            startIndex: startIndex
+        )
     }
 
     func play(_ track: Track, in queue: [Track]) {
@@ -159,6 +182,7 @@ final class AppModel: ObservableObject {
         session = nil
         libraries = []
         albums = []
+        nextAlbumStartIndex = 0
         tracksByAlbum = [:]
         selectedLibraryID = nil
     }

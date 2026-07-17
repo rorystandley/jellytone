@@ -89,54 +89,6 @@ private struct HomeView: View {
     }
 }
 
-private struct SearchView: View {
-    @EnvironmentObject private var model: AppModel
-    @State private var query = ""
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    ContentUnavailableView(
-                        "Search your library",
-                        systemImage: "magnifyingglass",
-                        description: Text("Find an album or artist from the music already loaded.")
-                    )
-                } else if results.isEmpty {
-                    ContentUnavailableView.search(text: query)
-                } else {
-                    List(results) { album in
-                        NavigationLink(value: album) {
-                            HStack(spacing: 12) {
-                                AuthenticatedArtworkView(itemID: album.id)
-                                    .frame(width: 54, height: 54)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                                VStack(alignment: .leading) {
-                                    Text(album.name).font(.headline)
-                                    Text(album.artist).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                }
-            }
-            .navigationTitle("Search")
-            .navigationDestination(for: Album.self) { AlbumView(album: $0) }
-            .searchable(text: $query, prompt: "Albums and artists")
-        }
-    }
-
-    private var results: [Album] {
-        let value = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty else { return [] }
-        return model.albums.filter {
-            $0.name.localizedCaseInsensitiveContains(value)
-                || $0.artist.localizedCaseInsensitiveContains(value)
-        }
-    }
-}
-
 struct NowPlayingArtwork: View {
     @ObservedObject var playback: PlaybackController
 

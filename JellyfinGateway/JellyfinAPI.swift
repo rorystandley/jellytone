@@ -94,8 +94,102 @@ struct JellyfinAPI: Sendable {
             Album(id: $0.Id, name: $0.Name, artist: $0.AlbumArtist ?? $0.Artists?.first ?? "Unknown Artist",
                   productionYear: $0.ProductionYear, imageTag: $0.ImageTags?["Primary"])
         }
-        let hasMore = response.TotalRecordCount.map { startIndex + albums.count < $0 } ?? (albums.count == limit)
-        return AlbumPage(albums: albums, hasMore: hasMore)
+        let hasMore = !response.Items.isEmpty
+            && (response.TotalRecordCount.map { startIndex + response.Items.count < $0 }
+                ?? (response.Items.count == limit))
+        return AlbumPage(
+            albums: albums,
+            hasMore: hasMore,
+            nextStartIndex: startIndex + response.Items.count
+        )
+    }
+
+    func searchMusic(
+        userID: String,
+        libraryID: String?,
+        query searchTerm: String,
+        startIndex: Int = 0,
+        limit: Int = 40
+    ) async throws -> MusicSearchPage {
+        var query = [
+            URLQueryItem(name: "userId", value: userID),
+            URLQueryItem(name: "SearchTerm", value: searchTerm),
+            URLQueryItem(name: "IncludeItemTypes", value: "MusicArtist,MusicAlbum"),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
+            URLQueryItem(name: "StartIndex", value: String(startIndex)),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
+            URLQueryItem(name: "SortBy", value: "SortName"),
+            URLQueryItem(name: "SortOrder", value: "Ascending"),
+        ]
+        if let libraryID {
+            query.append(URLQueryItem(name: "ParentId", value: libraryID))
+        }
+        let response = try await send(
+            operation: "music_search",
+            path: ["Items"],
+            query: query,
+            as: ItemsResponse<Item>.self
+        )
+        let artists = response.Items.compactMap { item -> Artist? in
+            guard item.`Type` == "MusicArtist" else { return nil }
+            return Artist(id: item.Id, name: item.Name, imageTag: item.ImageTags?["Primary"])
+        }
+        let albums = response.Items.compactMap { item -> Album? in
+            guard item.`Type` == "MusicAlbum" else { return nil }
+            return mapAlbum(item)
+        }
+        let hasMore = !response.Items.isEmpty
+            && (response.TotalRecordCount.map { startIndex + response.Items.count < $0 }
+                ?? (response.Items.count == limit))
+        return MusicSearchPage(
+            artists: artists,
+            albums: albums,
+            hasMore: hasMore,
+            nextStartIndex: startIndex + response.Items.count
+        )
+    }
+
+    func albums(
+        userID: String,
+        artistID: String,
+        libraryID: String?,
+        startIndex: Int = 0,
+        limit: Int = 50
+    ) async throws -> AlbumPage {
+        var query = [
+            URLQueryItem(name: "userId", value: userID),
+            URLQueryItem(name: "ArtistIds", value: artistID),
+            URLQueryItem(name: "IncludeItemTypes", value: "MusicAlbum"),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
+            URLQueryItem(name: "StartIndex", value: String(startIndex)),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
+            URLQueryItem(name: "SortBy", value: "ProductionYear,SortName"),
+            URLQueryItem(name: "SortOrder", value: "Descending"),
+        ]
+        if let libraryID {
+            query.append(URLQueryItem(name: "ParentId", value: libraryID))
+        }
+        let response = try await send(
+            operation: "artist_albums",
+            path: ["Items"],
+            query: query,
+            as: ItemsResponse<Item>.self
+        )
+        let albums = response.Items.compactMap { item in
+            item.`Type` == nil || item.`Type` == "MusicAlbum" ? mapAlbum(item) : nil
+        }
+        let hasMore = !response.Items.isEmpty
+            && (response.TotalRecordCount.map { startIndex + response.Items.count < $0 }
+                ?? (response.Items.count == limit))
+        return AlbumPage(
+            albums: albums,
+            hasMore: hasMore,
+            nextStartIndex: startIndex + response.Items.count
+        )
     }
 
     func tracks(userID: String, albumID: String) async throws -> [Track] {
@@ -276,6 +370,16 @@ struct JellyfinAPI: Sendable {
         }
     }
 
+    private func mapAlbum(_ item: Item) -> Album {
+        Album(
+            id: item.Id,
+            name: item.Name,
+            artist: item.AlbumArtist ?? item.Artists?.first ?? "Unknown Artist",
+            productionYear: item.ProductionYear,
+            imageTag: item.ImageTags?["Primary"]
+        )
+    }
+
     private func report<Body: Encodable>(operation: String, path: [String], body: Body) async {
         do {
             var request = URLRequest(url: try makeURL(path: path))
@@ -341,6 +445,10 @@ struct JellyfinAPI: Sendable {
         do {
             (data, response) = try await urlSession.data(for: request)
         } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                Diagnostics.event("request_cancelled", ["operation": operation])
+                throw CancellationError()
+            }
             let failure = error as NSError
             Diagnostics.event("request_failed", [
                 "code": failure.code,
@@ -402,6 +510,7 @@ private struct ItemsResponse<Value: Decodable>: Decodable {
 private struct Item: Decodable {
     let Id: String
     let Name: String
+    let `Type`: String?
     let CollectionType: String?
     let AlbumArtist: String?
     let Artists: [String]?

@@ -72,6 +72,7 @@ struct LibraryView: View {
 struct AuthenticatedArtworkView: View {
     @EnvironmentObject private var model: AppModel
     let itemID: String
+    var accessibilityLabel = "Album artwork"
     @State private var image: UIImage?
 
     var body: some View {
@@ -93,6 +94,6 @@ struct AuthenticatedArtworkView: View {
                 image = UIImage(data: data)
             }
         }
-        .accessibilityLabel("Album artwork")
+        .accessibilityLabel(accessibilityLabel)
     }
 }

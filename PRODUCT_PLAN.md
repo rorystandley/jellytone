@@ -366,7 +366,10 @@ Implementation note (2026-07-17): the product owner explicitly brought forward
 the listening shell, local album/artist search, persistent mini-player, visible
 queue, Play Next, Add to Queue, shuffle, and repeat after the minimum connected
 player became usable. This does not waive the remaining Phase 2 gate or mark the
-rest of Phase 3 complete.
+rest of Phase 3 complete. Server-backed, debounced artist/album search and native
+artist album pages were subsequently brought forward as another bounded slice;
+cached/local result merging, the remaining destinations, and the full Phase 3
+acceptance matrix remain open.
 
 Deliverables:
 

@@ -27,6 +27,20 @@ struct Album: Identifiable, Codable, Hashable, Sendable {
 struct AlbumPage: Equatable, Sendable {
     let albums: [Album]
     let hasMore: Bool
+    let nextStartIndex: Int
+}
+
+struct Artist: Identifiable, Codable, Hashable, Sendable {
+    let id: String
+    let name: String
+    let imageTag: String?
+}
+
+struct MusicSearchPage: Equatable, Sendable {
+    let artists: [Artist]
+    let albums: [Album]
+    let hasMore: Bool
+    let nextStartIndex: Int
 }
 
 struct Track: Identifiable, Codable, Hashable, Sendable {
