@@ -15,6 +15,9 @@ Last updated: 2026-07-17
   authenticated media URLs.
 - Relaunch restoration prepares the same queue and position in a paused state.
 - Authenticated album artwork drives the app and system Now Playing surfaces.
+- The production audio session uses the `.playback` category and is activated
+  before stream preparation so locking the device does not invoke the default
+  ambient-session stop behavior.
 - Privacy-safe on-device diagnostics record operation names, status/error codes,
   byte counts, and aggregate counts only.
 
@@ -24,7 +27,8 @@ Last updated: 2026-07-17
 reverse-proxy URL construction, supported Direct Play selection, unsupported
 codec fallback to the AAC transcode profile, playback-report position ticks,
 playback snapshot round-tripping, and requesting Now Playing artwork away from
-the main actor.
+the main actor. A recording audio-session adapter also proves activation occurs
+before playback preparation and deactivation occurs on an explicit stop.
 
 The pre-existing disposable-server contract probe covers PlaybackInfo, Direct
 Play delivery, forced AAC delivery, and start/progress/stop endpoints against

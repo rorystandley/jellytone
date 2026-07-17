@@ -3,6 +3,25 @@ import Foundation
 import MediaPlayer
 import UIKit
 
+@MainActor
+protocol AudioSessionManaging {
+    func activateForPlayback() throws
+    func deactivateAfterPlayback() throws
+}
+
+@MainActor
+struct SystemAudioSessionManager: AudioSessionManaging {
+    func activateForPlayback() throws {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playback, mode: .default)
+        try session.setActive(true)
+    }
+
+    func deactivateAfterPlayback() throws {
+        try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+}
+
 enum NowPlayingArtworkFactory {
     nonisolated static func make(from image: UIImage) -> MPMediaItemArtwork {
         MPMediaItemArtwork(boundsSize: image.size) { _ in image }
@@ -23,6 +42,7 @@ final class PlaybackController: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     private let defaults: UserDefaults
+    private let audioSession: AudioSessionManaging
     private let snapshotKey = "active-playback-snapshot-v1"
     private var player: AVPlayer?
     private var timeObserver: Any?
@@ -38,8 +58,12 @@ final class PlaybackController: ObservableObject {
     private var lastProgressBucket = -1
     private var lastPersistenceBucket = -1
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        audioSession: AudioSessionManaging = SystemAudioSessionManager()
+    ) {
         self.defaults = defaults
+        self.audioSession = audioSession
         configureRemoteCommands()
     }
 
@@ -141,6 +165,7 @@ final class PlaybackController: ObservableObject {
         qualityLabel = ""
         updateQueueControls()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        try? audioSession.deactivateAfterPlayback()
         if clearSnapshot { defaults.removeObject(forKey: snapshotKey) }
     }
 
@@ -171,6 +196,7 @@ final class PlaybackController: ObservableObject {
         preparationTask = Task { [weak self] in
             guard let self else { return }
             do {
+                try audioSession.activateForPlayback()
                 if let previousTrack, let previousPlan {
                     await api.reportStopped(
                         itemID: previousTrack.id,

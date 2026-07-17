@@ -174,6 +174,43 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertTrue(generatedImage)
     }
 
+    @MainActor
+    func testPlaybackActivatesBackgroundAudioSessionBeforePreparingStream() async throws {
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/Items/track/PlaybackInfo")
+            return Self.response(
+                for: request,
+                json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"session"}"#
+            )
+        }
+        let session = RecordingAudioSession()
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        let playback = PlaybackController(defaults: defaults, audioSession: session)
+        let api = JellyfinAPI(
+            baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+            deviceID: "device",
+            token: "token",
+            urlSession: makeSession()
+        )
+        let track = Track(
+            id: "track",
+            name: "Track",
+            artist: "Artist",
+            album: "Album",
+            index: 1,
+            disc: 1,
+            durationTicks: 600_000_000
+        )
+
+        playback.play(track, queue: [track], using: api, userID: "user", scope: "server:user")
+        for _ in 0..<20 where session.activationCount == 0 { await Task.yield() }
+
+        XCTAssertEqual(session.activationCount, 1)
+        playback.stop()
+        XCTAssertEqual(session.deactivationCount, 1)
+    }
+
     private func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
@@ -212,6 +249,15 @@ final class MinimumWorkingAppTests: XCTestCase {
 
 private struct UncheckedSendable<Value>: @unchecked Sendable {
     let value: Value
+}
+
+@MainActor
+private final class RecordingAudioSession: AudioSessionManaging {
+    private(set) var activationCount = 0
+    private(set) var deactivationCount = 0
+
+    func activateForPlayback() throws { activationCount += 1 }
+    func deactivateAfterPlayback() throws { deactivationCount += 1 }
 }
 
 private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
