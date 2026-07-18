@@ -15,6 +15,8 @@ final class TrackCatalogUITests: XCTestCase {
         XCTAssertTrue(first.waitForExistence(timeout: 3)); XCTAssertTrue(first.isHittable)
         XCTAssertTrue(first.label.contains("A First Song"))
         XCTAssertTrue(app.descendants(matching: .any)["track-catalog-row-track-catalog:1:track-2"].exists)
+        XCTAssertFalse(app.buttons["Favourite A First Song"].exists)
+        XCTAssertFalse(app.buttons["Unfavourite A First Song"].exists)
     }
 
 }

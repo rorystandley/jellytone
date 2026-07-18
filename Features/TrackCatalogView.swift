@@ -59,13 +59,6 @@ struct TrackCatalogView: View {
                     }
                 }
                 Spacer(minLength: 4)
-                Button { model.toggleTrackFavourite(track) } label: {
-                    Image(systemName: model.pendingTrackFavourites[track.id] == true ? "heart.fill" : "heart")
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(model.pendingTrackFavourites[track.id] == true ? "Unfavourite \(track.name)" : "Favourite \(track.name)")
-                .accessibilityValue(model.pendingTrackFavourites[track.id] == nil ? "Not favourite or confirmed by server" : "Pending")
                 if track.durationTicks != nil { Text(track.durationLabel).font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
             }
             .frame(minHeight: 56)

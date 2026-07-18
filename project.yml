@@ -30,6 +30,7 @@ targets:
       - LibraryStore
       - Playback
       - Features
+      - DesignSystem
     dependencies:
       - package: GRDB
     settings:

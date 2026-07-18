@@ -14,6 +14,7 @@ struct MusicShellView: View {
                 tabs.safeAreaInset(edge: .bottom, spacing: 0) { miniPlayer }
             }
         }
+        .tint(AudioDesign.accent)
         .sheet(isPresented: $showingPlayer) {
             NowPlayingView(playback: model.playback)
         }
@@ -46,17 +47,10 @@ struct NowPlayingArtwork: View {
     var body: some View {
         Group {
             if let artwork = playback.artwork {
-                Image(uiImage: artwork).resizable().scaledToFill()
+                AudioArtwork(image: artwork, label: playback.currentTrack?.name ?? "current track")
             } else {
-                ZStack {
-                    LinearGradient(colors: [.indigo, .purple, .black], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    Image(systemName: "music.note")
-                        .font(.title)
-                        .foregroundStyle(.white.opacity(0.9))
-                }
+                AudioArtwork(image: nil, label: playback.currentTrack?.name ?? "current track")
             }
         }
-        .background(.quaternary)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }

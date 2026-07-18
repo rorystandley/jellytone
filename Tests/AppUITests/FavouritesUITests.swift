@@ -72,19 +72,22 @@ final class FavouritesUITests: XCTestCase {
         XCTAssertTrue(element(in: app, identifier: "favourites-artist-artist-favourite").waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["favourites-play-all"].isHittable)
         XCTAssertTrue(app.buttons["favourites-shuffle"].isHittable)
-        XCTAssertTrue(element(in: app, identifier: "favourites-track-favourite-occurrence-1").isHittable)
+        let firstTrack = element(in: app, identifier: "favourites-track-favourite-occurrence-1")
+        scrollUntilHittable(firstTrack, in: app)
+        XCTAssertTrue(firstTrack.isHittable)
+        XCTAssertFalse(app.buttons["Unfavourite Repeated Favourite"].exists)
     }
 
     func testFavouriteLoadingAndEmptyStatesAreAccessible() {
         var app = launchFavourites(extraArguments: ["--ui-testing-favourites-loading"])
         openFavourites(in: app)
-        XCTAssertTrue(app.staticTexts["Loading favourite artists"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Loading favourite artists…"].waitForExistence(timeout: 8))
         assertNoPrivateConnectionData(in: app)
         app.terminate()
 
         app = launchFavourites(extraArguments: ["--ui-testing-favourites-empty"])
         openFavourites(in: app)
-        XCTAssertTrue(app.staticTexts["No favourite artists"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["No favourites found"].waitForExistence(timeout: 3))
         XCTAssertFalse(firstElement(in: app, identifierPrefix: "favourites-artist-").exists)
         XCTAssertFalse(firstElement(in: app, identifierPrefix: "favourites-album-").exists)
         XCTAssertFalse(firstElement(in: app, identifierPrefix: "favourites-track-").exists)
@@ -95,7 +98,7 @@ final class FavouritesUITests: XCTestCase {
         let app = launchFavourites(extraArguments: ["--ui-testing-favourites-error"])
         openFavourites(in: app)
 
-        XCTAssertTrue(app.staticTexts["Couldn’t load favourite artists"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Couldn’t load favourites"].waitForExistence(timeout: 8))
         assertAction(app.buttons["Try Again"], label: "Try Again")
         assertNoPrivateConnectionData(in: app)
     }
@@ -106,7 +109,8 @@ final class FavouritesUITests: XCTestCase {
 
         XCTAssertTrue(element(in: app, identifier: "favourites-artist-artist-favourite").waitForExistence(timeout: 3))
         let retry = app.buttons["favourites-retry-more-tracks"]
-        XCTAssertTrue(retry.waitForExistence(timeout: 3))
+        for _ in 0..<4 where !retry.isHittable { app.swipeUp() }
+        XCTAssertTrue(retry.waitForExistence(timeout: 8))
         XCTAssertEqual(retry.label, "Retry More Tracks")
         XCTAssertTrue(retry.isEnabled)
         XCTAssertTrue(retry.isHittable)
@@ -149,6 +153,10 @@ final class FavouritesUITests: XCTestCase {
         app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH %@", identifierPrefix)
         ).firstMatch
+    }
+
+    private func scrollUntilHittable(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<4 where !element.isHittable { app.swipeUp() }
     }
 
     private func assertNoPrivateConnectionData(in app: XCUIApplication) {

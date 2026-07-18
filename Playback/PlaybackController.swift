@@ -191,13 +191,25 @@ final class PlaybackController: ObservableObject {
     }
 
 #if DEBUG
-    func configureForUITesting(track: Track, upcoming: [Track] = [], elapsed: TimeInterval = 0) {
+    func configureForUITesting(
+        track: Track,
+        upcoming: [Track] = [],
+        elapsed: TimeInterval = 0,
+        isPlaying: Bool = false,
+        isPreparing: Bool = false,
+        artwork: UIImage? = nil,
+        errorMessage: String? = nil
+    ) {
         queue = ([track] + upcoming).map { QueueEntry(track: $0) }
         originalQueue = queue
         currentIndex = 0
         currentTrack = track
         duration = track.duration
         self.elapsed = min(max(elapsed, 0), duration)
+        self.isPlaying = isPlaying
+        self.isPreparing = isPreparing
+        self.artwork = artwork
+        self.errorMessage = errorMessage
         canGoPrevious = false
         canGoNext = !upcoming.isEmpty
     }

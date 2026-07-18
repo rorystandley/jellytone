@@ -11,6 +11,7 @@ struct RootView: View {
                 MusicShellView()
             }
         }
+        .tint(AudioDesign.accent)
         .alert("Something went wrong", isPresented: Binding(
             get: { model.errorMessage != nil || model.playback.errorMessage != nil },
             set: {

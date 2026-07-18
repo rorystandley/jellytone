@@ -9,38 +9,73 @@ struct ConnectionView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("https://jellyfin.example.com", text: $server)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.URL)
-                        .autocorrectionDisabled()
-                    TextField("Username", text: $username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    SecureField("Password", text: $password)
-                } header: {
-                    Text("Your Jellyfin server")
-                } footer: {
-                    Text("Your access token is stored in Keychain. The password is used only for this sign-in request.")
-                }
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AudioDesign.Space.lg) {
+                        VStack(alignment: .leading, spacing: AudioDesign.Space.sm) {
+                            Image(systemName: "music.note.house.fill")
+                                .font(.system(size: 34, weight: .medium))
+                                .foregroundStyle(AudioDesign.accent)
+                                .accessibilityHidden(true)
+                            Text("Your music, on your terms.")
+                                .font(.largeTitle.weight(.bold))
+                            Text("Sign in directly to a Jellyfin server you trust. Your password is used only for this request.")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
 
-                Button {
-                    if URLComponents(string: server)?.scheme?.lowercased() == "http" {
-                        showingHTTPWarning = true
-                    } else {
-                        connect()
+                        VStack(spacing: 0) {
+                            TextField("https://jellyfin.example.com", text: $server)
+                                .textInputAutocapitalization(.never)
+                                .keyboardType(.URL)
+                                .autocorrectionDisabled()
+                                .textContentType(.URL)
+                                .padding(AudioDesign.Space.md)
+                            Divider()
+                            TextField("Username", text: $username)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .textContentType(.username)
+                                .padding(AudioDesign.Space.md)
+                            Divider()
+                            SecureField("Password", text: $password)
+                                .textContentType(.password)
+                                .padding(AudioDesign.Space.md)
+                        }
+                        .audioElevatedSurface(cornerRadius: AudioDesign.Radius.compact)
+
+                        Button {
+                            if URLComponents(string: server)?.scheme?.lowercased() == "http" {
+                                showingHTTPWarning = true
+                            } else {
+                                connect()
+                            }
+                        } label: {
+                            HStack {
+                                Spacer()
+                                if model.isLoading { ProgressView().tint(.white) } else { Text("Connect") }
+                                Spacer()
+                            }
+                            .font(.headline)
+                            .frame(minHeight: 52)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AudioDesign.accent)
+                        .disabled(server.isEmpty || username.isEmpty || password.isEmpty || model.isLoading)
+
+                        Label("Your access token is stored in Keychain. We never save your password.", systemImage: "lock.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                } label: {
-                    HStack {
-                        Spacer()
-                        if model.isLoading { ProgressView() } else { Text("Connect") }
-                        Spacer()
-                    }
+                    .padding(.horizontal, AudioDesign.Space.lg)
+                    .padding(.vertical, AudioDesign.Space.xl)
+                    .frame(maxWidth: proxy.size.width > 700 ? 540 : .infinity, minHeight: proxy.size.height, alignment: .center)
                 }
-                .disabled(server.isEmpty || username.isEmpty || password.isEmpty || model.isLoading)
             }
+            .audioCanvas()
             .navigationTitle("Jellyfin Audio")
+            .navigationBarTitleDisplayMode(.inline)
             .alert("HTTP is not encrypted", isPresented: $showingHTTPWarning) {
                 Button("Cancel", role: .cancel) {}
                 Button("Connect over Tailscale") { connect() }

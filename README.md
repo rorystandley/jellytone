@@ -1,55 +1,41 @@
-# Jellyfin iOS Music Player
+# Jellyfin Audio for iOS
 
-This repository is building a native iPhone and iPad music-only client for
-personal Jellyfin servers. The current priority is a Minimum Working App that
-connects, authenticates, browses music, and plays a track. Earlier Phase 0 proof
-work remains as evidence and risk documentation, but exhaustive hardware gates
-no longer block the first usable vertical slice.
+A premium personal, music-only Jellyfin client for iPhone and iPad. The app currently
+supports manual server sign-in, music-library browsing, cached Home content,
+search, albums, tracks, playlists, genres, favourites, a durable editable queue,
+background playback, system Now Playing, and playback restoration.
 
-To select the next implementation slice without re-reading the entire roadmap:
+Version 1.0 is intentionally a polished connected player for one user-operated
+server. “Spotify-level” means the quality of its visual system and interaction,
+not Spotify's breadth of features. Offline downloads, multiple saved servers,
+CarPlay, widgets, Siri, lyrics, and crossfade are deferred.
 
-```sh
-./scripts/next-work.sh
-```
+## Work and product status
 
-The command combines the live [work queue](docs/NEXT_WORK.md) with branch,
-worktree, and stale-routing checks. A dirty worktree is in-flight work and takes
-priority over selecting another slice.
+- `PRODUCT_PLAN.md` defines the release contract.
+- `docs/NEXT_WORK.md` is the live ordered queue.
+- `docs/ARCHITECTURE.md` defines implementation boundaries.
+- `docs/decisions/` records durable technical decisions.
+- `docs/evidence/README.md` points to retained executable evidence.
 
-Reference authorities:
+Use `./scripts/next-work.sh` to select work without loading the full repository.
 
-1. [AGENTS.md](AGENTS.md) defines the context-efficient selection and
-   implementation workflow.
-2. [PRODUCT_PLAN.md](PRODUCT_PLAN.md) defines the product, version 1.0 scope,
-   quality targets, roadmap phases, and machine-verifiable exit gates.
-3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) defines state ownership, module
-   boundaries, data flows, and the decisions that Phase 0 must prove.
-
-Implementation is active on the connected-playback vertical slice defined by
-the current delivery override in the product plan. Security and privacy
-decisions remain mandatory; deferred device and ecosystem proofs are not
-silently treated as passing.
-
-Current execution status and reproducible proof entry points are tracked in
-[docs/EXECUTION_CHECKLIST.md](docs/EXECUTION_CHECKLIST.md) and
-[docs/evidence/phase-0/README.md](docs/evidence/phase-0/README.md).
-
-## Run the app
-
-Generate the Xcode project and run the local unit/simulator gate:
+## Build and test
 
 ```sh
 ./scripts/bootstrap.sh
 ./scripts/test.sh
+./scripts/test-integration.sh
+./scripts/test-ui.sh
+./scripts/build-release.sh
 ```
 
-Open `JellyfinAudio.xcodeproj` to run in Xcode, or connect an unlocked, paired
-iPhone and install a signed development build directly:
+For a paired device:
 
 ```sh
 ./scripts/deploy-app.sh --launch
+./scripts/test-device.sh
 ```
 
-Enter the full base URL of a Jellyfin server, including any reverse-proxy path,
-then sign in. The current slice lists music libraries and albums, opens album
-tracks, and streams a selected track with play/pause and Now Playing info.
+Enter the complete Jellyfin base URL, including any reverse-proxy path, then
+sign in. Tokens are stored in Keychain; passwords are used only for sign-in.

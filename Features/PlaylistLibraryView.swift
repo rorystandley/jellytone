@@ -4,8 +4,6 @@ struct PlaylistLibraryView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var state = PlaylistLibraryState()
-    @State private var renameTarget: Playlist?
-    @State private var renameText = ""
 
     var body: some View {
         Group {
@@ -27,11 +25,6 @@ struct PlaylistLibraryView: View {
         .accessibilityIdentifier("playlists-screen")
         .navigationTitle("Playlists")
         .task(id: scope) { await load() }
-        .alert("Rename Playlist", isPresented: Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } }), presenting: renameTarget) { playlist in
-            TextField("Name", text: $renameText)
-            Button("Rename") { model.renamePlaylist(playlist, to: renameText); renameTarget = nil }
-            Button("Cancel", role: .cancel) { renameTarget = nil }
-        } message: { _ in Text("The new name will be synced with Jellyfin.") }
     }
 
     private var scope: PlaylistFeatureScope {
@@ -49,7 +42,7 @@ struct PlaylistLibraryView: View {
                     NavigationLink {
                         PlaylistDetailView(playlist: playlist)
                     } label: {
-                        PlaylistCard(playlist: model.effectivePlaylist(playlist))
+                        PlaylistCard(playlist: playlist)
                     }
                     .accessibilityIdentifier("playlist-row-\(playlist.id)")
                     .buttonStyle(.plain)
@@ -57,7 +50,6 @@ struct PlaylistLibraryView: View {
                     .task {
                         if playlist.id == state.playlists.last?.id { await loadMore() }
                     }
-                    .contextMenu { Button("Rename Playlist") { renameText = model.effectivePlaylist(playlist).name; renameTarget = playlist } }
                 }
             }
             .padding()

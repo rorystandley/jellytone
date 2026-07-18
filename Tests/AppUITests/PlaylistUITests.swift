@@ -97,6 +97,8 @@ final class PlaylistUITests: XCTestCase {
         XCTAssertTrue(app.buttons["playlist-play-all"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["playlist-shuffle"].isHittable)
         XCTAssertTrue(element(in: app, identifier: "playlist-track-occurrence-1").isHittable)
+        XCTAssertFalse(app.buttons["Rename playlist"].exists)
+        XCTAssertFalse(app.buttons["Rename"].exists)
     }
 
     func testPlaylistErrorIsActionableAndDoesNotExposeConnectionData() {

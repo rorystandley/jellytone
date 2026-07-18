@@ -186,13 +186,6 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
                     Button { play(occurrence, state.trackOccurrences) } label: {
                         HStack {
                             FavouriteTrackRow(position: offset + 1, occurrence: occurrence)
-                            Button { model.toggleTrackFavourite(occurrence.track, desired: false) } label: {
-                                Image(systemName: "heart.slash.fill")
-                                    .frame(width: 44, height: 44)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Unfavourite \(occurrence.track.name)")
-                            .accessibilityValue(model.pendingTrackFavourites[occurrence.track.id] == false ? "Pending unfavourite" : "Favourite")
                         }
                     }
                     .buttonStyle(.plain)

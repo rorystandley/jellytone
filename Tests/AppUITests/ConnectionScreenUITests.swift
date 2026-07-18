@@ -2,6 +2,11 @@ import XCTest
 
 @MainActor
 final class ConnectionScreenUITests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        XCUIDevice.shared.orientation = .portrait
+    }
+
     func testMiniPlayerKeepsEveryPrimaryTabReachable() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-music-shell"]
@@ -52,6 +57,46 @@ final class ConnectionScreenUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1:13"].exists)
         XCTAssertTrue(app.staticTexts["−1:47"].exists)
         XCTAssertTrue(app.buttons["Play"].exists)
+    }
+
+    func testPlayerFixturesExposeArtworkPlaybackAndAccessibleControls() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-player-artwork", "--ui-testing-player-playing"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Pause"].waitForExistence(timeout: 3))
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Pause"].exists)
+        XCTAssertEqual(app.buttons["Enable shuffle"].value as? String, "Off")
+        XCTAssertTrue(app.buttons["show-queue"].isHittable)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "now-playing-artwork"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    func testPlayerLongMetadataAndPreparingStateKeepControlsAvailable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-player-long-unicode", "--ui-testing-player-preparing", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["夜明けの街で聴く A deliberately very long song title that should remain readable"].waitForExistence(timeout: 3))
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.staticTexts["Preparing playback"].waitForExistence(timeout: 3))
+        for _ in 0..<3 where !app.buttons["show-queue"].isHittable { app.swipeUp() }
+        XCTAssertTrue(app.buttons["show-queue"].isHittable)
+    }
+
+    func testPlaybackFailureIsActionableAndDoesNotHideShell() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-player-failure"]
+        app.launch()
+
+        XCTAssertTrue(app.alerts["Something went wrong"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Playback could not continue. Try another track."].exists)
+        app.buttons["OK"].tap()
+        XCTAssertTrue(app.buttons["mini-player-details"].exists)
     }
 
     func testColdLaunchShowsConnectionForm() {

@@ -64,6 +64,14 @@ installed and launched successfully and redacted diagnostics proved connected
 restoration plus paused start reporting. The lane remains install/launch smoke;
 CI and that smoke do not substitute for agent-operated audible playback.
 
+The local unit and UI gates select and report an available iPhone deterministically,
+wait for bounded simulator readiness, serialize access to that simulator, disable
+XCTest parallelization, and give every run fresh DerivedData and xcresult paths.
+DerivedData is removed on exit while the result bundle is retained for diagnosis.
+A gate refuses to overlap an existing xcodebuild process on its selected simulator
+rather than masking an infrastructure failure with a retry. UI launch fixtures
+continue to clear only their synthetic profile and Keychain state.
+
 ## Rollback and migration
 
 CI changes remain reviewable and pinned. A runner/tool update first runs in a

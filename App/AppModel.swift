@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -14,8 +15,6 @@ final class AppModel: ObservableObject {
     @Published private(set) var isLoadingMoreAlbums = false
     @Published private(set) var trackCatalogState = TrackCatalogState()
     @Published var errorMessage: String?
-    @Published private(set) var pendingTrackFavourites: [String: Bool] = [:]
-    @Published private(set) var pendingPlaylistRenames: [String: String] = [:]
 
     let playback: PlaybackController
 
@@ -28,7 +27,6 @@ final class AppModel: ObservableObject {
     private var nextAlbumStartIndex = 0
     private var homeRefreshGeneration = 0
     private var trackCatalogGeneration = 0
-    private var favouriteSequence: Int64 = 0
 
     init(defaults: UserDefaults = .standard, libraryStore: (any LibraryStoring)? = nil) {
         self.defaults = defaults
@@ -96,39 +94,6 @@ final class AppModel: ObservableObject {
     var api: JellyfinAPI? {
         guard let session else { return nil }
         return JellyfinAPI(baseURL: session.serverURL, deviceID: session.deviceID, token: session.accessToken)
-    }
-
-    func toggleTrackFavourite(_ track: Track, desired: Bool? = nil) {
-        guard let session, let store = libraryStore else { return }
-        let value = desired ?? !(pendingTrackFavourites[track.id] ?? false)
-        pendingTrackFavourites[track.id] = value
-        let scope = libraryScope(for: session)
-        Task {
-            favouriteSequence += 1
-            let sequence = favouriteSequence
-            _ = try? await store.enqueueTrackFavourite(scope: scope, itemID: track.id, desired: value, sequence: sequence)
-            if let api { await TrackFavouriteReconciler(store: store).reconcile(scope: scope, gateway: api, now: sequence) }
-        }
-    }
-
-    func renamePlaylist(_ playlist: Playlist, to requestedName: String) {
-        guard let session, let store = libraryStore else { return }
-        let scope = libraryScope(for: session)
-        guard let desired = try? PlaylistRenameValidation.validate(requestedName) else {
-            errorMessage = "Playlist names must be non-empty, printable, and at most 255 characters."
-            return
-        }
-        pendingPlaylistRenames[playlist.id] = desired
-        let sequence = Int64(Date().timeIntervalSince1970 * 1000)
-        Task {
-            let mutation = try? await store.enqueuePlaylistRename(scope: scope, playlistID: playlist.id, baseRevision: "name:\(playlist.name)", baseName: playlist.name, desiredName: desired, sequence: sequence)
-            if let mutation, let api { await PlaylistRenameReconciler(store: store).reconcile(scope: scope, gateway: api, now: sequence); if mutation.state == .completed { pendingPlaylistRenames[playlist.id] = nil } }
-        }
-    }
-
-    func effectivePlaylist(_ playlist: Playlist) -> Playlist {
-        guard let name = pendingPlaylistRenames[playlist.id] else { return playlist }
-        return Playlist(id: playlist.id, name: name, imageTag: playlist.imageTag, itemCount: playlist.itemCount)
     }
 
     func connect(server: String, username: String, password: String) async {
@@ -676,7 +641,6 @@ final class AppModel: ObservableObject {
         KeychainTokenStore.delete()
         defaults.removeObject(forKey: Self.profileKey)
         session = nil
-        pendingPlaylistRenames = [:]
         libraries = []
         albums = []
         homeSnapshot = nil
@@ -819,11 +783,14 @@ final class AppModel: ObservableObject {
     private func favouriteUITestDelayIfNeeded(startIndex: Int) async throws {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--ui-testing-favourites-loading"), startIndex == 0 {
-            try await Task.sleep(for: .seconds(5))
+            while !Task.isCancelled {
+                try await Task.sleep(for: .seconds(60))
+            }
         }
     }
 
     private func configureUITestMusicShell() {
+        let arguments = ProcessInfo.processInfo.arguments
         guard let serverURL = URL(string: "https://example.invalid") else { return }
         session = UserSession(
             serverURL: serverURL,
@@ -837,21 +804,29 @@ final class AppModel: ObservableObject {
         )
         libraries = [MusicLibrary(id: "music", name: "Music")]
         selectedLibraryID = "music"
-        playback.configureForUITesting(track: Track(
+        let longMetadata = arguments.contains("--ui-testing-player-long-unicode")
+        let track = Track(
             id: "track",
-            name: "Visible Mini Player",
-            artist: "Synthetic Artist",
-            album: "Synthetic Album",
+            name: longMetadata ? "夜明けの街で聴く A deliberately very long song title that should remain readable" : "Visible Mini Player",
+            artist: longMetadata ? "Björk Guðmundsdóttir & The Synthetic Orchestra" : "Synthetic Artist",
+            album: longMetadata ? "An exceptionally long album name for accessibility testing" : "Synthetic Album",
             index: 1,
             disc: 1,
             durationTicks: 1_800_000_000
-        ), upcoming: [
+        )
+        playback.configureForUITesting(track: track, upcoming: [
             Track(id: "next-1", name: "First Up Next", artist: "Synthetic Artist",
                   album: "Synthetic Album", index: 2, disc: 1, durationTicks: 1_800_000_000),
             Track(id: "next-2", name: "Second Up Next", artist: "Synthetic Artist",
                   album: "Synthetic Album", index: 3, disc: 1, durationTicks: 1_800_000_000),
-        ], elapsed: ProcessInfo.processInfo.arguments.contains("--ui-testing-restored-playback") ? 73 : 0)
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing-home") {
+            Track(id: "next-1", name: "First Up Next (again)", artist: "Synthetic Artist",
+                  album: "Synthetic Album", index: 4, disc: 1, durationTicks: 1_800_000_000),
+        ], elapsed: arguments.contains("--ui-testing-restored-playback") ? 73 : 0,
+        isPlaying: arguments.contains("--ui-testing-player-playing"),
+        isPreparing: arguments.contains("--ui-testing-player-preparing"),
+        artwork: arguments.contains("--ui-testing-player-artwork") ? Self.syntheticArtwork() : nil,
+        errorMessage: arguments.contains("--ui-testing-player-failure") ? "Playback could not continue. Try another track." : nil)
+        if arguments.contains("--ui-testing-home") {
             homeSnapshot = Self.syntheticHomeSnapshot(albumID: "home-album-new")
         }
         if ProcessInfo.processInfo.arguments.contains("--ui-testing-tracks") {
@@ -868,6 +843,20 @@ final class AppModel: ObservableObject {
             recentlyAddedAlbums: [Album(id: albumID, name: "New Album", artist: "Synthetic Artist", productionYear: 2026, imageTag: nil)],
             recentlyPlayedTracks: [Track(id: "home-track-1", name: "Recently Played", artist: "Synthetic Artist", album: "New Album", albumID: albumID, index: 1, disc: 1, durationTicks: 1_800_000_000)]
         )
+    }
+
+    private static func syntheticArtwork() -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 600))
+        return renderer.image { context in
+            UIColor(red: 0.10, green: 0.12, blue: 0.17, alpha: 1).setFill()
+            context.cgContext.fill(CGRect(x: 0, y: 0, width: 600, height: 600))
+            let colors = [UIColor(red: 0.93, green: 0.34, blue: 0.27, alpha: 1).cgColor,
+                          UIColor(red: 0.98, green: 0.72, blue: 0.24, alpha: 1).cgColor]
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0, 1])!
+            context.cgContext.drawLinearGradient(gradient, start: CGPoint(x: 0, y: 600), end: CGPoint(x: 600, y: 0), options: [])
+            let paragraph = NSMutableParagraphStyle(); paragraph.alignment = .center
+            "J A".draw(in: CGRect(x: 0, y: 238, width: 600, height: 90), withAttributes: [.font: UIFont.systemFont(ofSize: 94, weight: .bold), .foregroundColor: UIColor.white, .paragraphStyle: paragraph])
+        }
     }
 #endif
 }

@@ -75,7 +75,7 @@ profile above. All 24 responses passed bounded `ffprobe` inspection with exactly
 one expected audio stream and no video stream. The report deliberately calls the
 first operation `original-static-source`, not Direct Play, and records
 `deviceDecodeClaimed: false`; actual iOS decode and playback remain owned by
-`docs/evidence/phase-0/playback/capability-findings.md` and the device procedure.
+`docs/evidence/README.md` and the retained playback JSON records.
 
 The Phase 2 production-gateway lane compiles the repository's current
 `JellyfinAPI.swift` and exercises it against digest-pinned disposable Jellyfin

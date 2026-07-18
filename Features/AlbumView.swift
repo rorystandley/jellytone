@@ -70,76 +70,82 @@ struct AlbumView: View {
 struct MiniPlayerView: View {
     @ObservedObject var playback: PlaybackController
     let showPlayer: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
             ProgressView(value: playback.elapsed, total: max(playback.duration, 1))
                 .progressViewStyle(.linear)
-                .tint(.accentColor)
-            HStack(spacing: 12) {
+                .tint(AudioDesign.accent)
+            HStack(spacing: AudioDesign.Space.sm) {
                 Button(action: showPlayer) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: AudioDesign.Space.sm) {
                         NowPlayingArtwork(playback: playback)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 48, height: 48)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(playback.currentTrack?.name ?? "").font(.headline).lineLimit(1)
                             Text(playback.currentTrack?.artist ?? "")
                                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("mini-player-details")
-                Spacer()
-                Button { playback.toggle() } label: {
-                    if playback.isPreparing {
-                        ProgressView()
-                    } else {
-                        Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill").font(.title2)
-                    }
+                .accessibilityLabel("Now playing \(playback.currentTrack?.name ?? "") by \(playback.currentTrack?.artist ?? "")")
+                .accessibilityHint("Opens Now Playing")
+                if playback.isPreparing {
+                    ProgressView("Preparing playback").frame(width: 48, height: 48)
+                } else {
+                    AudioIconButton(systemImage: playback.isPlaying ? "pause.fill" : "play.fill", label: playback.isPlaying ? "Pause" : "Play", action: playback.toggle)
                 }
-                .accessibilityLabel(playback.isPlaying ? "Pause" : "Play")
-                Button { playback.next() } label: {
-                    Image(systemName: "forward.end.fill").font(.title3)
-                }
-                .disabled(!playback.canGoNext && playback.repeatMode != .all)
-                .accessibilityLabel("Next track")
+                AudioIconButton(systemImage: "forward.end.fill", label: "Next track", action: playback.next)
+                    .disabled(!playback.canGoNext && playback.repeatMode != .all)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 9)
+            .padding(.horizontal, AudioDesign.Space.md)
+            .padding(.vertical, AudioDesign.Space.xs)
         }
-        .background(.regularMaterial)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: AudioDesign.Radius.card, style: .continuous))
+        .padding(.horizontal, AudioDesign.Space.xs)
+        .padding(.bottom, AudioDesign.Space.xs)
+        .animation(reduceMotion ? nil : AudioDesign.Motion.quick, value: playback.isPlaying)
     }
 }
 
 struct NowPlayingView: View {
     @ObservedObject var playback: PlaybackController
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showingQueue = false
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: dynamicTypeSize.isAccessibilitySize ? AudioDesign.Space.md : AudioDesign.Space.lg) {
                     NowPlayingArtwork(playback: playback)
-                        .aspectRatio(1, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 24))
+                        .frame(width: artworkSize(for: proxy.size.width), height: artworkSize(for: proxy.size.width))
                         .shadow(color: .black.opacity(0.25), radius: 20, y: 10)
 
-                    VStack(spacing: 6) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text(playback.currentTrack?.name ?? "Nothing playing")
-                            .font(.title2.bold()).lineLimit(2).multilineTextAlignment(.center)
+                            .font(dynamicTypeSize.isAccessibilitySize ? .title2.bold() : .title.bold()).lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                         Text(playback.currentTrack?.artist ?? "")
-                            .font(.headline).foregroundStyle(.secondary).lineLimit(1)
+                            .font(.headline).foregroundStyle(.secondary).lineLimit(2)
                         Text(playback.currentTrack?.album ?? "")
-                            .font(.subheadline).foregroundStyle(.tertiary).lineLimit(1)
+                            .font(.subheadline).foregroundStyle(.tertiary).lineLimit(2)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     VStack(spacing: 4) {
                         Slider(
                             value: Binding(get: { playback.elapsed }, set: { playback.seek(to: $0) }),
                             in: 0...max(playback.duration, 1)
                         )
+                        .tint(AudioDesign.accent)
+                        .accessibilityLabel("Playback position")
                         HStack {
                             Text(time(playback.elapsed))
                             Spacer()
@@ -148,51 +154,45 @@ struct NowPlayingView: View {
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     }
 
-                    HStack {
-                        Button { playback.toggleShuffle() } label: {
-                            Image(systemName: "shuffle")
-                                .foregroundStyle(playback.isShuffled ? Color.accentColor : .primary)
+                    HStack(spacing: dynamicTypeSize.isAccessibilitySize ? 8 : 16) {
+                        AudioIconButton(systemImage: "shuffle", label: playback.isShuffled ? "Disable shuffle" : "Enable shuffle", value: playback.isShuffled ? "On" : "Off", isActive: playback.isShuffled, action: playback.toggleShuffle)
+                        AudioIconButton(systemImage: "backward.end.fill", label: "Previous track", action: playback.previous)
+                            .disabled(!playback.canGoPrevious)
+                        if playback.isPreparing {
+                            ProgressView("Preparing playback").frame(width: 64, height: 64)
+                        } else {
+                            AudioIconButton(systemImage: playback.isPlaying ? "pause.fill" : "play.fill", label: playback.isPlaying ? "Pause" : "Play", kind: .primary, action: playback.toggle)
                         }
-                        .accessibilityLabel(playback.isShuffled ? "Disable shuffle" : "Enable shuffle")
-                        Spacer()
-                        Button { playback.previous() } label: {
-                            Image(systemName: "backward.end.fill").font(.title)
-                        }
-                        .disabled(!playback.canGoPrevious)
-                        Spacer()
-                        Button { playback.toggle() } label: {
-                            Image(systemName: playback.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                .font(.system(size: 72))
-                        }
-                        .accessibilityLabel(playback.isPlaying ? "Pause" : "Play")
-                        Spacer()
-                        Button { playback.next() } label: {
-                            Image(systemName: "forward.end.fill").font(.title)
-                        }
-                        .disabled(!playback.canGoNext && playback.repeatMode != .all)
-                        Spacer()
-                        Button { playback.cycleRepeatMode() } label: {
-                            Image(systemName: playback.repeatMode == .one ? "repeat.1" : "repeat")
-                                .foregroundStyle(playback.repeatMode == .off ? Color.primary : Color.accentColor)
-                        }
-                        .accessibilityLabel(repeatAccessibilityLabel)
+                        AudioIconButton(systemImage: "forward.end.fill", label: "Next track", action: playback.next)
+                            .disabled(!playback.canGoNext && playback.repeatMode != .all)
+                        AudioIconButton(systemImage: playback.repeatMode == .one ? "repeat.1" : "repeat", label: repeatAccessibilityLabel, value: repeatAccessibilityLabel, isActive: playback.repeatMode != .off, action: playback.cycleRepeatMode)
                     }
+                    .frame(maxWidth: .infinity)
 
                     HStack {
                         Label(playback.qualityLabel, systemImage: "waveform")
                         Spacer()
-                        Button("Queue", systemImage: "list.bullet") { showingQueue = true }
-                            .accessibilityIdentifier("show-queue")
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 28)
+                .frame(maxWidth: min(proxy.size.width - 40, 620))
+                .padding(.horizontal, 20)
                 .padding(.vertical, 16)
+                .animation(reduceMotion ? nil : AudioDesign.Motion.standard, value: playback.currentTrack?.id)
+                }
             }
+            .audioCanvas()
             .navigationTitle("Now Playing")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Queue", systemImage: "list.bullet") { showingQueue = true }
+                        .accessibilityIdentifier("show-queue")
+                        .accessibilityHint("Shows the current queue")
+                }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
             .sheet(isPresented: $showingQueue) { PlaybackQueueView(playback: playback) }
         }
         .presentationDetents([.large])
@@ -204,6 +204,13 @@ struct NowPlayingView: View {
         case .all: "Repeat queue"
         case .one: "Repeat one"
         }
+    }
+
+    private func artworkSize(for availableWidth: CGFloat) -> CGFloat {
+        if availableWidth > 700 {
+            return min(availableWidth * 0.38, 300)
+        }
+        return min(availableWidth - 48, 560)
     }
 
     private func time(_ seconds: TimeInterval) -> String {
@@ -222,17 +229,15 @@ private struct PlaybackQueueView: View {
                 if let current = playback.currentTrack {
                     Section("Now Playing") {
                         QueueTrackRow(track: current, isCurrent: true)
-                            .listRowBackground(Color.accentColor.opacity(0.12))
+                            .listRowBackground(AudioDesign.accent.opacity(0.14))
                             .accessibilityHint("Currently playing. This track cannot be removed.")
                     }
                 }
                 Section("Up Next") {
                     if playback.upcomingEntries.isEmpty {
-                        ContentUnavailableView(
-                            "Nothing Up Next",
-                            systemImage: "text.line.last.and.arrowtriangle.forward",
-                            description: Text("The current track will keep playing.")
-                        )
+                        AudioStateView(kind: .empty, title: "Nothing Up Next", detail: "The current track will keep playing.")
+                            .frame(maxWidth: .infinity)
+                            .listRowBackground(Color.clear)
                     } else {
                         ForEach(playback.upcomingEntries) { entry in
                             Button { playback.jump(to: entry.id) } label: {
@@ -266,9 +271,15 @@ private struct PlaybackQueueView: View {
             }
             .navigationTitle("Queue")
             .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .background(Color(uiColor: .systemGroupedBackground))
             .toolbar {
                 if !playback.upcomingEntries.isEmpty {
-                    ToolbarItem(placement: .topBarLeading) { EditButton() }
+                    ToolbarItemGroup(placement: .topBarLeading) {
+                        EditButton()
+                        Button("Clear Up Next") { playback.clearUpNext() }
+                            .accessibilityHint("Keeps the current track playing")
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
@@ -285,7 +296,7 @@ private struct QueueTrackRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Image(systemName: isCurrent ? "speaker.wave.2.fill" : "music.note")
                 .frame(width: 24)
-                .foregroundStyle(isCurrent ? Color.accentColor : .secondary)
+                .foregroundStyle(isCurrent ? AudioDesign.accent : .secondary)
             VStack(alignment: .leading, spacing: 3) {
                 Text(track.name)
                     .fontWeight(isCurrent ? .semibold : .regular)
