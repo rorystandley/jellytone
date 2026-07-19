@@ -106,7 +106,7 @@ final class LargeLibraryScaleEvidenceRecorder {
 }
 
 private final class ProcessResidentMemorySampler: @unchecked Sendable {
-    private let queue = DispatchQueue(label: "org.example.jellyfinaudio.scale-memory-sampler")
+    private let queue = DispatchQueue(label: "org.example.jellytone.scale-memory-sampler")
     private var timer: DispatchSourceTimer?
     private var peakResidentBytes: UInt64 = 0
 

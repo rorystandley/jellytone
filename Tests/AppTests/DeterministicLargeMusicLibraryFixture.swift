@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-@testable import JellyfinAudio
+@testable import Jellytone
 
 enum DeterministicLargeMusicLibraryGenerator {
     struct Configuration: Codable, Equatable, Sendable {
@@ -320,7 +320,7 @@ enum DeterministicLargeMusicLibraryGenerator {
         }
 
         let payload = CanonicalPayload(
-            format: "jellyfin-audio-large-music-library/v\(configuration.version)",
+            format: "jellytone-large-music-library/v\(configuration.version)",
             configuration: configuration,
             artists: artists,
             albums: albums,

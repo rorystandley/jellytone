@@ -10,8 +10,8 @@ struct GenreDetailView: View {
     var body: some View {
         Group {
             if state.isLoading && state.albums.isEmpty && state.trackOccurrences.isEmpty {
-                ProgressView("Loading genre…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                AudioStateView(kind: .loading, title: "Loading genre", detail: "Collecting albums and playable tracks…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
             } else if let message = initialError, state.albums.isEmpty, state.trackOccurrences.isEmpty {
                 unavailable(message)
             } else if state.hasLoaded && state.albums.isEmpty && state.trackOccurrences.isEmpty {
@@ -23,6 +23,7 @@ struct GenreDetailView: View {
         .accessibilityIdentifier("genre-detail-screen")
         .navigationTitle(genre.name)
         .navigationBarTitleDisplayMode(.inline)
+        .audioCanvas()
         .task(id: requestIdentity) { await load() }
     }
 
@@ -51,6 +52,8 @@ struct GenreDetailView: View {
             trackSection
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.clear)
         .refreshable { await refresh() }
         .overlay(alignment: .top) {
             if state.isLoading && (!state.albums.isEmpty || !state.trackOccurrences.isEmpty) {
@@ -182,25 +185,10 @@ struct GenreDetailView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
 
-            HStack(spacing: 12) {
-                Button { model.playAll(state.trackOccurrences) } label: {
-                    Label("Play All", systemImage: "play.fill")
-                        .frame(minHeight: 44)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(state.trackOccurrences.isEmpty)
-                .accessibilityIdentifier("genre-play-all")
-                .keyboardShortcut(.return, modifiers: [.command])
-
-                Button { model.shuffle(state.trackOccurrences) } label: {
-                    Label("Shuffle", systemImage: "shuffle")
-                        .frame(minHeight: 44)
-                }
-                .buttonStyle(.bordered)
-                .disabled(state.trackOccurrences.isEmpty)
-                .accessibilityIdentifier("genre-shuffle")
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-            }
+            AudioPlayActions(isDisabled: state.trackOccurrences.isEmpty,
+                             play: { model.playAll(state.trackOccurrences) },
+                             shuffle: { model.shuffle(state.trackOccurrences) },
+                             playIdentifier: "genre-play-all", shuffleIdentifier: "genre-shuffle")
         }
         .frame(maxWidth: .infinity, alignment: horizontalSizeClass == .regular ? .leading : .center)
     }
@@ -211,15 +199,9 @@ struct GenreDetailView: View {
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label(emptyTitle, systemImage: "music.note.slash")
-        } description: {
-            Text(emptyDescription)
-        } actions: {
-            Button("Refresh") { Task { await refresh() } }
-                .buttonStyle(.borderedProminent)
-                .frame(minHeight: 44)
-        }
+        AudioStateView(kind: .empty, title: emptyTitle, detail: emptyDescription,
+                       actionTitle: "Refresh") { Task { await refresh() } }
+            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
     }
 
     private var emptyTitle: String {
@@ -234,15 +216,9 @@ struct GenreDetailView: View {
     }
 
     private func unavailable(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Genre unavailable", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Try Again") { Task { await load() } }
-                .buttonStyle(.borderedProminent)
-                .frame(minHeight: 44)
-        }
+        AudioStateView(kind: .error, title: "Genre unavailable", detail: message,
+                       actionTitle: "Try Again") { Task { await load() } }
+            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
     }
 
     private func centeredProgress(_ title: String) -> some View {
@@ -313,22 +289,14 @@ private struct GenreAlbumCard: View {
     let album: Album
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            AuthenticatedArtworkView(
-                itemID: album.id,
-                accessibilityLabel: album.imageTag == nil
-                    ? "No artwork for \(album.name)"
-                    : "Artwork for \(album.name)"
-            )
-            .frame(width: 132, height: 132)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            Text(album.name)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(2)
-            Text(album.artist)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+        AudioMusicCard(title: album.name, subtitle: album.artist) {
+            Group {
+                if album.imageTag != nil {
+                    AuthenticatedArtworkView(itemID: album.id, accessibilityLabel: "Artwork for \(album.name)")
+                } else {
+                    AudioMissingArtwork(label: album.name)
+                }
+            }.frame(width: 132, height: 132)
         }
         .frame(width: 132, alignment: .leading)
         .frame(minHeight: 44)
@@ -343,27 +311,8 @@ private struct GenreTrackRow: View {
     let occurrence: GenreTrackOccurrence
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(String(position))
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 28, alignment: .trailing)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(occurrence.track.name)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                Text(occurrence.track.artist)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if occurrence.track.durationTicks != nil {
-                Text(occurrence.track.durationLabel)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .contentShape(Rectangle())
+        AudioTrackRow(position: position, title: occurrence.track.name, artist: occurrence.track.artist,
+                      album: occurrence.track.album,
+                      duration: occurrence.track.durationTicks == nil ? nil : occurrence.track.durationLabel)
     }
 }

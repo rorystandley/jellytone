@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 enum KeychainTokenStore {
-    private static let service = "org.example.jellyfinaudio.credentials"
+    private static let service = "org.example.jellytone.credentials"
     private static let account = "active-access-token"
 
     static func save(_ token: String) throws {

@@ -1,6 +1,6 @@
 import GRDB
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 final class LibraryStoreTests: XCTestCase {
     func testInitializationCreatesSchemaAndMigrationIsIdempotent() async throws {

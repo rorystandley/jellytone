@@ -74,7 +74,7 @@ struct ConnectionView: View {
                 }
             }
             .audioCanvas()
-            .navigationTitle("Jellyfin Audio")
+            .navigationTitle("Jellytone")
             .navigationBarTitleDisplayMode(.inline)
             .alert("HTTP is not encrypted", isPresented: $showingHTTPWarning) {
                 Button("Cancel", role: .cancel) {}

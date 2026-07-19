@@ -8,29 +8,15 @@ deferred features before the release gates pass.
 
 ## NOW
 
-Premium UI pass is the active product slice. The simulator harness and focused
-Favourites regressions are hardened; repeat full-suite proof is intentionally
-deferred until after the UI changes so it validates the release candidate rather
-than a UI that is about to be replaced.
+The premium UI pass is complete across the playback shell and every primary
+browsing destination. Final repeated Gate A/C proof is now the active release
+slice.
 
 ## NEXT
 
-### 1. Premium UI Batch 2 — Home and browsing destinations
+### 1. Run final deterministic Gate A/C proof
 
 - State: `NEXT`
-- Gate: C — coherent premium interface with no unfinished primary destination.
-- Outcome: apply the established artwork-led visual system to Home, Library,
-  Search, album, artist, playlist, genre, favourites, and track destinations;
-  refine their hierarchy, loading/empty/error states, iPad composition, Dynamic
-  Type, VoiceOver, and Reduce Motion.
-- Proof: deterministic screenshot/accessibility matrix plus agent inspection at
-  compact and regular widths, light/dark, content/loading/empty/error, large text,
-  and missing artwork; then `./scripts/test-ui.sh`.
-- Non-goals: cloning Spotify branding or adding Spotify-scale features.
-
-### 2. Run final deterministic Gate A/C proof
-
-- State: `AFTER UI PASS`
 - Gate: A/C — deterministic unit and complete primary-destination UI/accessibility
   gates against the finished interface.
 - Outcome: run the hardened unit gate three consecutive times and the complete UI
@@ -39,7 +25,7 @@ than a UI that is about to be replaced.
   `./scripts/build-release.sh`, shell validation, and clean generated-project diff.
 - Non-goals: further visual redesign or feature work.
 
-### 3. Close the connected-player device gate
+### 2. Close the connected-player device gate
 
 - State: `READY WHEN DEVICE CONTROL IS AVAILABLE`
 - Gate: B — current-build audible start/pause/resume/seek/skip, background and
@@ -47,7 +33,7 @@ than a UI that is about to be replaced.
 - Proof: `./scripts/test-device.sh` plus redacted agent-captured results.
 - Non-goals: Bluetooth, AirPlay, CarPlay, or eight-hour endurance claims.
 
-### 4. Produce a personal release candidate
+### 3. Produce a personal release candidate
 
 - State: `AFTER 1-4`
 - Gate: D — local identity/version/privacy configuration, clean simulator
@@ -68,14 +54,23 @@ than a UI that is about to be replaced.
 
 ## RECENTLY COMPLETED
 
+- Premium UI Batch 2 — Home and browsing destinations: added shared browse
+  containers, headings, artwork cards, track rows, playback actions, pagination,
+  and intentional state/missing-artwork treatments; redesigned Home, Library,
+  Search, album, artist, playlist, genre, favourites, and track catalogue while
+  preserving occurrence order and existing intents. Focused destination UI tests
+  passed on iPhone 17 Pro and iPad Pro 13-inch simulators (iOS 26.5), inspected
+  light/dark, large-text, missing-artwork, error/empty/loading, and regular-width
+  screenshots were coherent, all 141 unit tests passed, and Release built. The
+  overall premium UI pass is complete; repeated full Gate A/C proof remains next.
 - Premium UI Batch 1 — visual foundation and playback shell: added a small
   semantic SwiftUI design layer for surfaces, typography, spacing, artwork,
   controls, feedback, and Reduce Motion-aware motion; redesigned connection,
   tab shell, mini-player, Now Playing, and queue. Deterministic artwork/missing
   artwork, Unicode metadata, playing/preparing/failure, duplicate queue, large
   text, and accessibility regression coverage passed in focused shell UI tests.
-  Batch 2 owns Home and browsing destination redesign; the overall premium UI
-  pass remains active.
+  Batch 2 completed Home and the remaining browsing destinations, closing the
+  overall premium UI pass.
 - Gate-harness hardening: isolated DerivedData/xcresult paths, deterministic
   pinned simulator selection, bounded boot readiness, serial execution, locking,
   stale-lock recovery, and competing-runner diagnostics remove the confirmed

@@ -10,8 +10,8 @@ struct PlaylistDetailView: View {
     var body: some View {
         Group {
             if state.isLoading && state.entries.isEmpty {
-                ProgressView("Loading playlist…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                AudioStateView(kind: .loading, title: "Loading playlist", detail: "Preparing its saved track order…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
             } else if let message = state.errorMessage, state.entries.isEmpty {
                 unavailable(message)
             } else if state.hasLoaded && state.entries.isEmpty {
@@ -23,6 +23,7 @@ struct PlaylistDetailView: View {
         .accessibilityIdentifier("playlist-detail-screen")
         .navigationTitle(playlist.name)
         .navigationBarTitleDisplayMode(.inline)
+        .audioCanvas()
         .task(id: requestIdentity) { await load() }
     }
 
@@ -68,6 +69,8 @@ struct PlaylistDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.clear)
         .refreshable { await refresh() }
         .overlay(alignment: .top) {
             if state.isLoading && !state.entries.isEmpty {
@@ -115,37 +118,18 @@ struct PlaylistDetailView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
 
-            HStack(spacing: 12) {
-                Button { model.playAll(state.entries) } label: {
-                    Label("Play All", systemImage: "play.fill")
-                        .frame(minHeight: 44)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("playlist-play-all")
-                .keyboardShortcut(.return, modifiers: [.command])
-
-                Button { model.shuffle(state.entries) } label: {
-                    Label("Shuffle", systemImage: "shuffle")
-                        .frame(minHeight: 44)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("playlist-shuffle")
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-            }
+            AudioPlayActions(isDisabled: state.entries.isEmpty,
+                             play: { model.playAll(state.entries) },
+                             shuffle: { model.shuffle(state.entries) },
+                             playIdentifier: "playlist-play-all", shuffleIdentifier: "playlist-shuffle")
         }
         .frame(maxWidth: .infinity, alignment: horizontalSizeClass == .regular ? .leading : .center)
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label(emptyTitle, systemImage: "music.note.slash")
-        } description: {
-            Text(emptyDescription)
-        } actions: {
-            Button("Refresh") { Task { await refresh() } }
-                .buttonStyle(.borderedProminent)
-                .frame(minHeight: 44)
-        }
+        AudioStateView(kind: .empty, title: emptyTitle, detail: emptyDescription,
+                       actionTitle: "Refresh") { Task { await refresh() } }
+            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
     }
 
     private var emptyTitle: String {
@@ -182,15 +166,9 @@ struct PlaylistDetailView: View {
     }
 
     private func unavailable(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Playlist unavailable", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Try Again") { Task { await load() } }
-                .buttonStyle(.borderedProminent)
-                .frame(minHeight: 44)
-        }
+        AudioStateView(kind: .error, title: "Playlist unavailable", detail: message,
+                       actionTitle: "Try Again") { Task { await load() } }
+            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
     }
 
     private func trackAccessibilityLabel(_ entry: PlaylistEntry, position: Int) -> String {
@@ -226,27 +204,8 @@ private struct PlaylistEntryRow: View {
     let entry: PlaylistEntry
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(String(position))
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 28, alignment: .trailing)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(entry.track.name)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                Text(entry.track.artist)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if entry.track.durationTicks != nil {
-                Text(entry.track.durationLabel)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .contentShape(Rectangle())
+        AudioTrackRow(position: position, title: entry.track.name, artist: entry.track.artist,
+                      album: entry.track.album,
+                      duration: entry.track.durationTicks == nil ? nil : entry.track.durationLabel)
     }
 }

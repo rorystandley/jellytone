@@ -1,5 +1,5 @@
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 @MainActor
 final class GenreFeatureStateTests: XCTestCase {

@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 @MainActor
 final class PlaylistPlaybackIntegrationTests: XCTestCase {

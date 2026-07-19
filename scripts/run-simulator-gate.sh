@@ -50,7 +50,7 @@ print("|".join((chosen[3], chosen[2], chosen[4])))
 IFS='|' read -r runtime device simulator <<< "$simulator_info"
 [[ -n "$simulator" ]] || fail "simulator selection returned no UDID"
 
-LOCK_ROOT="$TMP_ROOT/jellyfin-audio-simulator-gate-locks"
+LOCK_ROOT="$TMP_ROOT/jellytone-simulator-gate-locks"
 LOCK_DIR="$LOCK_ROOT/$simulator"
 mkdir -p "$LOCK_ROOT"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
@@ -67,7 +67,7 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
 fi
 printf 'pid=%s gate=%s scheme=%s started=%s\n' "$$" "$GATE_NAME" "$SCHEME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$LOCK_DIR/owner"
 
-RUN_ROOT="$(mktemp -d "$TMP_ROOT/jellyfin-audio-${GATE_NAME}.XXXXXX")"
+RUN_ROOT="$(mktemp -d "$TMP_ROOT/jellytone-${GATE_NAME}.XXXXXX")"
 DERIVED_DATA="$RUN_ROOT/DerivedData"
 RESULT_BUNDLE="$RUN_ROOT/${GATE_NAME}.xcresult"
 
@@ -105,7 +105,7 @@ fi
 
 set +e
 build_arguments=(
-  -project "$ROOT/JellyfinAudio.xcodeproj"
+  -project "$ROOT/Jellytone.xcodeproj"
   -scheme "$SCHEME"
   -destination "platform=iOS Simulator,id=$simulator"
   -derivedDataPath "$DERIVED_DATA"
@@ -120,7 +120,7 @@ if [[ -n "${JELLYFIN_TEST_ONLY:-}" ]]; then
   done
 fi
 xcodebuild "${build_arguments[@]}" \
-  APP_TEAM_ID=LOCALONLY00 APP_BUNDLE_ID="org.example.jellyfinaudio.${GATE_NAME}" CODE_SIGNING_ALLOWED=NO test
+  APP_TEAM_ID=LOCALONLY00 APP_BUNDLE_ID="org.example.jellytone.${GATE_NAME}" CODE_SIGNING_ALLOWED=NO test
 result_code=$?
 set -e
 

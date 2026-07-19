@@ -7,7 +7,10 @@ final class PlaylistUITests: XCTestCase {
     }
 
     func testPlaylistFixtureSupportsBrowsingAndPlaybackActions() {
-        let app = launchPlaylists()
+        let app = launchPlaylists(extraArguments: [
+            "-AppleInterfaceStyle", "Light",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL",
+        ])
 
         openPlaylists(in: app)
 
@@ -39,6 +42,7 @@ final class PlaylistUITests: XCTestCase {
         XCTAssertTrue(track.waitForExistence(timeout: 2))
         XCTAssertFalse(track.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         XCTAssertTrue(track.isHittable)
+        capture("playlist-detail-duplicates", app: app)
     }
 
     func testPlaylistNavigationRemainsReachableInPortraitAndLandscape() {
@@ -176,5 +180,10 @@ final class PlaylistUITests: XCTestCase {
                 "Playlist accessibility hierarchy exposed forbidden connection data: \(forbiddenValue)"
             )
         }
+    }
+
+    private func capture(_ name: String, app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
 }

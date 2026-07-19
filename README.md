@@ -1,4 +1,4 @@
-# Jellyfin Audio for iOS
+# Jellytone for iOS
 
 A premium personal, music-only Jellyfin client for iPhone and iPad. The app currently
 supports manual server sign-in, music-library browsing, cached Home content,

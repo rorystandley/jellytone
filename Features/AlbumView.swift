@@ -2,59 +2,48 @@ import SwiftUI
 
 struct AlbumView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let album: Album
     @State private var tracks: [Track] = []
     @State private var isLoading = true
 
     var body: some View {
-        List {
-            Section {
-                HStack(alignment: .top, spacing: 16) {
-                    AuthenticatedArtworkView(itemID: album.id)
-                        .frame(width: 120, height: 120)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(album.name).font(.title2.bold())
-                        Text(album.artist).foregroundStyle(.secondary)
-                        if let year = album.productionYear { Text(String(year)).foregroundStyle(.tertiary) }
-                        Button {
-                            if let first = tracks.first { model.play(first, in: tracks) }
-                        } label: {
-                            Label("Play album", systemImage: "play.fill")
-                                .font(.headline)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .clipShape(Capsule())
-                        .disabled(tracks.isEmpty)
+        AudioBrowseContainer(spacing: AudioDesign.Space.xl) {
+            albumHeader
+            AudioSectionHeading(title: "Tracks", detail: trackSummary)
+            if isLoading {
+                AudioStateView(kind: .loading, title: "Loading tracks", detail: "Preparing the album sequence…")
+                    .frame(maxWidth: .infinity)
+            } else if tracks.isEmpty {
+                AudioStateView(kind: .empty, title: "No playable tracks",
+                               detail: "Jellyfin did not return playable audio for this album.")
+                    .frame(maxWidth: .infinity)
+            } else {
+                ForEach(discNumbers, id: \.self) { disc in
+                    if discNumbers.count > 1 {
+                        Text("Disc \(disc)").font(.headline).foregroundStyle(.secondary).accessibilityAddTraits(.isHeader)
                     }
-                }
-                .padding(.vertical, 8)
-            }
-
-            Section("Tracks") {
-                if isLoading {
-                    HStack { Spacer(); ProgressView(); Spacer() }
-                } else {
-                    ForEach(tracks) { track in
-                        Button { model.play(track, in: tracks) } label: {
-                            HStack(spacing: 12) {
-                                Text(track.index.map(String.init) ?? "–")
-                                    .foregroundStyle(.secondary).frame(width: 24, alignment: .trailing)
-                                VStack(alignment: .leading) {
-                                    Text(track.name).foregroundStyle(.primary)
-                                    Text(track.artist).font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Text(track.durationLabel).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    LazyVStack(spacing: 0) {
+                        ForEach(tracksForDisc(disc)) { track in
+                            Button { model.play(track, in: tracks) } label: {
+                                AudioTrackRow(position: track.index, title: track.name, artist: track.artist,
+                                              duration: track.durationTicks == nil ? nil : track.durationLabel)
                             }
-                        }
-                        .contextMenu {
-                            Button("Play Next", systemImage: "text.insert") { model.playNext(track) }
-                                .disabled(model.playback.currentTrack == nil)
-                            Button("Add to Queue", systemImage: "text.badge.plus") { model.addToQueue(track) }
-                                .disabled(model.playback.currentTrack == nil)
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("album-track-\(track.id)")
+                            .accessibilityLabel("Track \(track.index.map(String.init) ?? "unknown"), \(track.name), by \(track.artist)")
+                            .accessibilityHint("Starts playback from this album track")
+                            .contextMenu {
+                                Button("Play Next", systemImage: "text.insert") { model.playNext(track) }
+                                    .disabled(model.playback.currentTrack == nil)
+                                Button("Add to Queue", systemImage: "text.badge.plus") { model.addToQueue(track) }
+                                    .disabled(model.playback.currentTrack == nil)
+                            }
+                            Divider()
                         }
                     }
+                    .padding(.horizontal, AudioDesign.Space.sm)
+                    .audioElevatedSurface(cornerRadius: AudioDesign.Radius.compact)
                 }
             }
         }
@@ -64,6 +53,61 @@ struct AlbumView: View {
             tracks = await model.tracks(for: album)
             isLoading = false
         }
+    }
+
+    private var albumHeader: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: AudioDesign.Space.lg) {
+                artwork.frame(width: horizontalSizeClass == .regular ? 260 : 168,
+                              height: horizontalSizeClass == .regular ? 260 : 168)
+                identity.frame(maxWidth: 520, alignment: .leading)
+                Spacer(minLength: 0)
+            }
+            VStack(spacing: AudioDesign.Space.md) {
+                artwork.frame(width: 220, height: 220)
+                identity.multilineTextAlignment(.center)
+            }
+        }
+    }
+
+    private var artwork: some View {
+        Group {
+            if album.imageTag != nil {
+                AuthenticatedArtworkView(itemID: album.id, accessibilityLabel: "Artwork for \(album.name)")
+            } else {
+                AudioMissingArtwork(label: album.name)
+            }
+        }
+        .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
+    }
+
+    private var identity: some View {
+        VStack(alignment: horizontalSizeClass == .regular ? .leading : .center, spacing: AudioDesign.Space.sm) {
+            Text("Album").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Text(album.name).font(.largeTitle.bold()).fixedSize(horizontal: false, vertical: true)
+            Text(album.artist).font(.title3.weight(.medium)).foregroundStyle(.secondary)
+            if let year = album.productionYear { Text(String(year)).font(.subheadline).foregroundStyle(.tertiary) }
+            AudioPlayActions(isDisabled: tracks.isEmpty,
+                             play: { if let first = tracks.first { model.play(first, in: tracks) } },
+                             shuffle: { model.shuffle(tracks) },
+                             playIdentifier: "album-play-all", shuffleIdentifier: "album-shuffle")
+        }
+        .frame(maxWidth: .infinity, alignment: horizontalSizeClass == .regular ? .leading : .center)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var discNumbers: [Int] {
+        let values = Set(tracks.map { $0.disc ?? 1 })
+        return values.sorted()
+    }
+
+    private func tracksForDisc(_ disc: Int) -> [Track] { tracks.filter { ($0.disc ?? 1) == disc } }
+
+    private var trackSummary: String {
+        if isLoading { return "Loading album sequence" }
+        let discs = discNumbers.count
+        let trackLabel = tracks.count == 1 ? "1 track" : "\(tracks.count) tracks"
+        return discs > 1 ? "\(trackLabel) across \(discs) discs" : trackLabel
     }
 }
 

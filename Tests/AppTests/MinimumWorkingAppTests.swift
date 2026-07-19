@@ -2,7 +2,7 @@ import Foundation
 import MediaPlayer
 import UIKit
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 final class MinimumWorkingAppTests: XCTestCase {
     override func tearDown() {

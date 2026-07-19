@@ -103,7 +103,7 @@ final class ConnectionScreenUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]
         app.launch()
-        XCTAssertTrue(app.navigationBars["Jellyfin Audio"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Jellytone"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textFields["https://jellyfin.example.com"].exists)
         XCTAssertTrue(app.buttons["Connect"].exists)
     }

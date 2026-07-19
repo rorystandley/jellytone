@@ -1,5 +1,5 @@
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 final class PlaylistRenameTests: XCTestCase {
     func testValidationTrimsUnicodeAndRejectsUnsafeNames() throws {

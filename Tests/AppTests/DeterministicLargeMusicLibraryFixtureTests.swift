@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 final class DeterministicLargeMusicLibraryFixtureTests: XCTestCase {
     private let fixedSeed: UInt64 = 0x5EED_F17E_2026_0001

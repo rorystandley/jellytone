@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 final class HomeGatewayTests: XCTestCase {
     override func tearDown() {

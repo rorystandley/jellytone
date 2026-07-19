@@ -42,6 +42,10 @@ final class AppModel: ObservableObject {
         }
 #if DEBUG
         if arguments.contains("--ui-testing-music-shell")
+            || arguments.contains("--ui-testing-home")
+            || arguments.contains("--ui-testing-library")
+            || arguments.contains("--ui-testing-search")
+            || arguments.contains("--ui-testing-browse-details")
             || arguments.contains("--ui-testing-playlists")
             || arguments.contains("--ui-testing-genres")
             || arguments.contains("--ui-testing-favourites")
@@ -56,9 +60,6 @@ final class AppModel: ObservableObject {
     func refreshTrackCatalog() async {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-testing-tracks") {
-            if ProcessInfo.processInfo.arguments.contains("--ui-testing-tracks-empty") {
-                trackCatalogState.replaceCached(TrackCatalogPage(occurrences: [], hasMore: false, nextStartIndex: 0), scope: TrackCatalogScope(serverID: "synthetic-server", accountID: "synthetic-user", libraryID: "music"))
-            }
             return
         }
 #endif
@@ -79,6 +80,11 @@ final class AppModel: ObservableObject {
     }
 
     func loadMoreTrackCatalog() async {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-tracks-pagination-error") {
+            return
+        }
+#endif
         guard let session, let api, let libraryID = selectedLibraryID else { return }
         let scope = TrackCatalogScope(serverID: session.serverID, accountID: session.userID, libraryID: libraryID)
         await trackCatalogState.loadMore(scope: scope) { [weak self] startIndex in
@@ -278,6 +284,14 @@ final class AppModel: ObservableObject {
     }
 
     func tracks(for album: Album) async -> [Track] {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-browse-details")
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-search")
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-library")
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-home") {
+            return Self.syntheticAlbumTracks(albumID: album.id, albumName: album.name, artist: album.artist)
+        }
+#endif
         if let existing = tracksByAlbum[album.id] { return existing }
         guard let session, let api else { return [] }
         do {
@@ -291,6 +305,25 @@ final class AppModel: ObservableObject {
     }
 
     func searchMusic(query: String, startIndex: Int = 0) async throws -> MusicSearchPage {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing-search-loading") {
+            while !Task.isCancelled { try await Task.sleep(for: .seconds(60)) }
+        }
+        if arguments.contains("--ui-testing-search-error") { throw APIError.httpStatus(503) }
+        if arguments.contains("--ui-testing-search-no-results") {
+            return MusicSearchPage(artists: [], albums: [], hasMore: false, nextStartIndex: 0)
+        }
+        if arguments.contains("--ui-testing-search") {
+            return MusicSearchPage(
+                artists: [Artist(id: "artist-unicode", name: "Björk Guðmundsdóttir & The Synthetic Orchestra", imageTag: nil)],
+                albums: [
+                    Album(id: "album-artwork", name: "Aurora Lines", artist: "Björk Guðmundsdóttir", productionYear: 2026, imageTag: "synthetic-art"),
+                    Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title", artist: "Synthetic Artist", productionYear: 2025, imageTag: nil),
+                ], hasMore: false, nextStartIndex: 3
+            )
+        }
+#endif
         guard let session, let api else { throw APIError.notAuthenticated }
         let scope = libraryScope(for: session)
         return try await CacheBackedMusicSearch.execute(
@@ -310,6 +343,16 @@ final class AppModel: ObservableObject {
     }
 
     func albums(for artist: Artist, startIndex: Int = 0) async throws -> AlbumPage {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-search")
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-browse-details") {
+            let albums = [
+                Album(id: "album-artwork", name: "Aurora Lines", artist: artist.name, productionYear: 2026, imageTag: "synthetic-art"),
+                Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title", artist: artist.name, productionYear: 2025, imageTag: nil),
+            ]
+            return AlbumPage(albums: startIndex == 0 ? albums : [], hasMore: false, nextStartIndex: albums.count)
+        }
+#endif
         guard let session, let api else { throw APIError.notAuthenticated }
         return try await api.albums(
             userID: session.userID,
@@ -548,6 +591,17 @@ final class AppModel: ObservableObject {
         )
     }
 
+    func playAll(_ tracks: [Track]) {
+        guard let first = tracks.first else { return }
+        play(first, in: tracks)
+    }
+
+    func shuffle(_ tracks: [Track]) {
+        guard !tracks.isEmpty else { return }
+        playAll(tracks)
+        playback.toggleShuffle()
+    }
+
     func play(_ occurrence: TrackCatalogOccurrence, in occurrences: [TrackCatalogOccurrence]) {
         guard let api, let session,
               let selectedIndex = occurrences.firstIndex(where: { $0.id == occurrence.id }) else { return }
@@ -653,7 +707,7 @@ final class AppModel: ObservableObject {
     }
 
     private var installationDeviceID: String {
-        defaults.string(forKey: Self.deviceIDKey) ?? "jellyfin-audio-installation"
+        defaults.string(forKey: Self.deviceIDKey) ?? "jellytone-installation"
     }
 
     private func normalizedServerURL(_ value: String) -> URL? {
@@ -770,7 +824,7 @@ final class AppModel: ObservableObject {
             for: .applicationSupportDirectory,
             in: .userDomainMask
         ).first else { return nil }
-        let directory = support.appendingPathComponent("JellyfinAudio", isDirectory: true)
+        let directory = support.appendingPathComponent("Jellytone", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             return try SQLiteLibraryStore(databaseURL: directory.appendingPathComponent("library.sqlite"))
@@ -804,6 +858,14 @@ final class AppModel: ObservableObject {
         )
         libraries = [MusicLibrary(id: "music", name: "Music")]
         selectedLibraryID = "music"
+        albums = [
+            Album(id: "album-artwork", name: "Aurora Lines", artist: "Synthetic Artist", productionYear: 2026, imageTag: "synthetic-art"),
+            Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title", artist: "Björk Guðmundsdóttir", productionYear: 2025, imageTag: nil),
+        ]
+        if arguments.contains("--ui-testing-library-empty") { albums = [] }
+        hasMoreAlbums = false
+        albumLibraryID = "music"
+        nextAlbumStartIndex = albums.count
         let longMetadata = arguments.contains("--ui-testing-player-long-unicode")
         let track = Track(
             id: "track",
@@ -814,28 +876,54 @@ final class AppModel: ObservableObject {
             disc: 1,
             durationTicks: 1_800_000_000
         )
-        playback.configureForUITesting(track: track, upcoming: [
-            Track(id: "next-1", name: "First Up Next", artist: "Synthetic Artist",
-                  album: "Synthetic Album", index: 2, disc: 1, durationTicks: 1_800_000_000),
-            Track(id: "next-2", name: "Second Up Next", artist: "Synthetic Artist",
-                  album: "Synthetic Album", index: 3, disc: 1, durationTicks: 1_800_000_000),
-            Track(id: "next-1", name: "First Up Next (again)", artist: "Synthetic Artist",
-                  album: "Synthetic Album", index: 4, disc: 1, durationTicks: 1_800_000_000),
-        ], elapsed: arguments.contains("--ui-testing-restored-playback") ? 73 : 0,
-        isPlaying: arguments.contains("--ui-testing-player-playing"),
-        isPreparing: arguments.contains("--ui-testing-player-preparing"),
-        artwork: arguments.contains("--ui-testing-player-artwork") ? Self.syntheticArtwork() : nil,
-        errorMessage: arguments.contains("--ui-testing-player-failure") ? "Playback could not continue. Try another track." : nil)
-        if arguments.contains("--ui-testing-home") {
+        if !arguments.contains("--ui-testing-home") || arguments.contains("--ui-testing-restored-playback") {
+            playback.configureForUITesting(track: track, upcoming: [
+                Track(id: "next-1", name: "First Up Next", artist: "Synthetic Artist",
+                      album: "Synthetic Album", index: 2, disc: 1, durationTicks: 1_800_000_000),
+                Track(id: "next-2", name: "Second Up Next", artist: "Synthetic Artist",
+                      album: "Synthetic Album", index: 3, disc: 1, durationTicks: 1_800_000_000),
+                Track(id: "next-1", name: "First Up Next (again)", artist: "Synthetic Artist",
+                      album: "Synthetic Album", index: 4, disc: 1, durationTicks: 1_800_000_000),
+            ], elapsed: arguments.contains("--ui-testing-restored-playback") ? 73 : 0,
+            isPlaying: arguments.contains("--ui-testing-player-playing"),
+            isPreparing: arguments.contains("--ui-testing-player-preparing"),
+            artwork: arguments.contains("--ui-testing-player-artwork") ? Self.syntheticArtwork() : nil,
+            errorMessage: arguments.contains("--ui-testing-player-failure") ? "Playback could not continue. Try another track." : nil)
+        }
+        if arguments.contains("--ui-testing-home")
+            && !arguments.contains("--ui-testing-home-loading")
+            && !arguments.contains("--ui-testing-home-empty")
+            && !arguments.contains("--ui-testing-home-error") {
             homeSnapshot = Self.syntheticHomeSnapshot(albumID: "home-album-new")
         }
         if ProcessInfo.processInfo.arguments.contains("--ui-testing-tracks") {
+            let scope = TrackCatalogScope(serverID: "synthetic-server", accountID: "synthetic-user", libraryID: "music")
             let tracks = [
                 TrackCatalogOccurrence(id: "track-catalog:0:track-1", track: Track(id: "track-1", name: "A First Song", artist: "Synthetic Artist", album: "Synthetic Album", albumID: "album-synthetic", index: 1, disc: 1, durationTicks: 1_800_000_000), ordinal: 0),
                 TrackCatalogOccurrence(id: "track-catalog:1:track-2", track: Track(id: "track-2", name: "B Second Song", artist: "Other Artist", album: "", index: nil, disc: nil, durationTicks: nil), ordinal: 1),
             ]
-            trackCatalogState.replaceCached(TrackCatalogPage(occurrences: tracks, hasMore: false, nextStartIndex: 2), scope: TrackCatalogScope(serverID: "synthetic-server", accountID: "synthetic-user", libraryID: "music"))
+            let page = TrackCatalogPage(occurrences: tracks, hasMore: false, nextStartIndex: 2)
+            if arguments.contains("--ui-testing-tracks-loading") {
+                trackCatalogState.configureLoadingForUITesting(scope: scope)
+            } else if arguments.contains("--ui-testing-tracks-empty") {
+                trackCatalogState.replaceCached(TrackCatalogPage(occurrences: [], hasMore: false, nextStartIndex: 0), scope: scope)
+            } else if arguments.contains("--ui-testing-tracks-pagination-error") {
+                trackCatalogState.configurePaginationFailureForUITesting(page, scope: scope, error: APIError.httpStatus(503))
+            } else {
+                trackCatalogState.replaceCached(page, scope: scope)
+            }
         }
+    }
+
+    private static func syntheticAlbumTracks(albumID: String, albumName: String, artist: String) -> [Track] {
+        [
+            Track(id: "\(albumID)-track-1", name: "Opening Light", artist: artist, album: albumName,
+                  albumID: albumID, index: 1, disc: 1, durationTicks: 1_810_000_000),
+            Track(id: "\(albumID)-track-2", name: "夜明けの街で聴く — A Long Unicode Movement", artist: artist,
+                  album: albumName, albumID: albumID, index: 2, disc: 1, durationTicks: 2_420_000_000),
+            Track(id: "\(albumID)-track-3", name: "Second Disc Prelude", artist: artist, album: albumName,
+                  albumID: albumID, index: 1, disc: 2, durationTicks: 1_500_000_000),
+        ]
     }
 
     private static func syntheticHomeSnapshot(albumID: String) -> HomeShelfSnapshot {

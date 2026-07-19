@@ -46,7 +46,7 @@ enum Diagnostics {
         case unavailable
     }
 
-    private static let logger = Logger(subsystem: "org.example.jellyfinaudio", category: "state")
+    private static let logger = Logger(subsystem: "org.example.jellytone", category: "state")
     private static let fileLock = NSLock()
 
     private static let allowedEvents: Set<String> = [

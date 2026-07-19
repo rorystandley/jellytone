@@ -8,22 +8,21 @@ struct PlaylistLibraryView: View {
     var body: some View {
         Group {
             if state.isLoading && state.playlists.isEmpty {
-                ProgressView("Loading playlists…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                AudioStateView(kind: .loading, title: "Loading playlists", detail: "Fetching your saved sequences…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
             } else if let message = state.errorMessage, state.playlists.isEmpty {
                 unavailable(message)
             } else if state.hasLoaded && state.playlists.isEmpty {
-                ContentUnavailableView(
-                    "No playlists found",
-                    systemImage: "music.note.list",
-                    description: Text("This user has no music playlists available in Jellyfin.")
-                )
+                AudioStateView(kind: .empty, title: "No playlists found",
+                               detail: "This user has no music playlists available in Jellyfin.")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
             } else {
                 playlistGrid
             }
         }
         .accessibilityIdentifier("playlists-screen")
         .navigationTitle("Playlists")
+        .audioCanvas()
         .task(id: scope) { await load() }
     }
 
@@ -36,8 +35,9 @@ struct PlaylistLibraryView: View {
     }
 
     private var playlistGrid: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+        AudioBrowseContainer(spacing: AudioDesign.Space.lg) {
+            AudioSectionHeading(title: "Your Playlists", detail: "Saved mixes in Jellyfin order")
+            LazyVGrid(columns: columns, alignment: .leading, spacing: AudioDesign.Space.lg) {
                 ForEach(state.playlists) { playlist in
                     NavigationLink {
                         PlaylistDetailView(playlist: playlist)
@@ -52,10 +52,7 @@ struct PlaylistLibraryView: View {
                     }
                 }
             }
-            .padding()
-
             paginationStatus
-                .padding(.bottom, 24)
         }
         .refreshable { await refresh() }
         .overlay(alignment: .top) {
@@ -79,34 +76,18 @@ struct PlaylistLibraryView: View {
             ProgressView("Loading more playlists…")
                 .frame(maxWidth: .infinity)
         } else if let message = state.paginationError {
-            VStack(spacing: 8) {
-                Text(message).font(.footnote).foregroundStyle(.secondary)
-                Button("Retry More Playlists") { Task { await loadMore() } }
-                    .buttonStyle(.bordered)
-                    .frame(minHeight: 44)
-            }
-            .frame(maxWidth: .infinity)
+            AudioPaginationView(isLoading: false, message: message, loadingTitle: "",
+                                retryTitle: "Retry More Playlists") { Task { await loadMore() } }
         } else if let message = state.errorMessage {
-            VStack(spacing: 8) {
-                Text(message).font(.footnote).foregroundStyle(.secondary)
-                Button("Retry Refresh") { Task { await refresh() } }
-                    .buttonStyle(.bordered)
-                    .frame(minHeight: 44)
-            }
-            .frame(maxWidth: .infinity)
+            AudioPaginationView(isLoading: false, message: message, loadingTitle: "",
+                                retryTitle: "Retry Refresh") { Task { await refresh() } }
         }
     }
 
     private func unavailable(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Couldn’t load playlists", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Try Again") { Task { await load() } }
-                .buttonStyle(.borderedProminent)
-                .frame(minHeight: 44)
-        }
+        AudioStateView(kind: .error, title: "Couldn’t load playlists", detail: message,
+                       actionTitle: "Try Again") { Task { await load() } }
+            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
     }
 
     private func load() async {
@@ -135,18 +116,8 @@ private struct PlaylistCard: View {
     let playlist: Playlist
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        AudioMusicCard(title: playlist.name, subtitle: countLabel) {
             PlaylistArtwork(playlist: playlist)
-                .aspectRatio(1, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            Text(playlist.name)
-                .font(.headline)
-                .lineLimit(2)
-            if let itemCount = playlist.itemCount {
-                Text(itemCount == 1 ? "1 item" : "\(itemCount) items")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -157,6 +128,11 @@ private struct PlaylistCard: View {
     private var accessibilityLabel: String {
         guard let count = playlist.itemCount else { return playlist.name }
         return "\(playlist.name), \(count == 1 ? "1 item" : "\(count) items")"
+    }
+
+    private var countLabel: String? {
+        guard let itemCount = playlist.itemCount else { return nil }
+        return itemCount == 1 ? "1 item" : "\(itemCount) items"
     }
 }
 
@@ -170,13 +146,7 @@ struct PlaylistArtwork: View {
                 accessibilityLabel: "Artwork for \(playlist.name)"
             )
         } else {
-            ZStack {
-                Rectangle().fill(.quaternary)
-                Image(systemName: "music.note.list")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
-            }
-            .accessibilityLabel("No artwork for \(playlist.name)")
+            AudioMissingArtwork(label: playlist.name, systemImage: "music.note.list")
         }
     }
 }

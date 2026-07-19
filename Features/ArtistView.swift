@@ -11,12 +11,9 @@ struct ArtistView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 24) {
-                artistHeader
-                albumContent
-            }
-            .padding()
+        AudioBrowseContainer(spacing: AudioDesign.Space.xl) {
+            artistHeader
+            albumContent
         }
         .navigationTitle(artist.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -39,8 +36,15 @@ struct ArtistView: View {
     }
 
     private var artwork: some View {
-        AuthenticatedArtworkView(itemID: artist.id, accessibilityLabel: "Artwork for \(artist.name)")
-            .clipShape(Circle())
+        Group {
+            if artist.imageTag != nil {
+                AuthenticatedArtworkView(itemID: artist.id, accessibilityLabel: "Artwork for \(artist.name)")
+            } else {
+                AudioMissingArtwork(label: artist.name, systemImage: "music.mic")
+            }
+        }
+        .clipShape(Circle())
+        .shadow(color: .black.opacity(0.16), radius: 14, y: 7)
     }
 
     private var identity: some View {
@@ -54,53 +58,42 @@ struct ArtistView: View {
     @ViewBuilder
     private var albumContent: some View {
         if isLoading && albums.isEmpty {
-            HStack { Spacer(); ProgressView("Loading albums…"); Spacer() }
-                .frame(minHeight: 160)
+            AudioStateView(kind: .loading, title: "Loading albums", detail: "Fetching this artist’s releases…")
+                .frame(maxWidth: .infinity)
         } else if let errorMessage, albums.isEmpty {
-            ContentUnavailableView {
-                Label("Albums unavailable", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text(errorMessage)
-            } actions: {
-                Button("Try Again") { Task { await loadAlbums(replacing: true) } }
-                    .buttonStyle(.borderedProminent)
-            }
+            AudioStateView(kind: .error, title: "Albums unavailable", detail: errorMessage,
+                           actionTitle: "Try Again") { Task { await loadAlbums(replacing: true) } }
+                .frame(maxWidth: .infinity)
         } else if albums.isEmpty {
-            ContentUnavailableView(
-                "No albums found",
-                systemImage: "square.stack",
-                description: Text("Jellyfin did not return music albums for this artist.")
-            )
+            AudioStateView(kind: .empty, title: "No albums found",
+                           detail: "Jellyfin did not return music albums for this artist.")
+                .frame(maxWidth: .infinity)
         } else {
-            Text("Albums").font(.title2.bold())
+            AudioSectionHeading(title: "Albums", detail: "Releases by \(artist.name)")
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: 220), spacing: 16)], spacing: 20) {
                 ForEach(albums) { album in
                     NavigationLink(value: album) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            AuthenticatedArtworkView(
-                                itemID: album.id,
-                                accessibilityLabel: "Artwork for \(album.name)"
-                            )
-                            .aspectRatio(1, contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            Text(album.name).font(.headline).lineLimit(2)
-                            if let year = album.productionYear {
-                                Text(String(year)).font(.subheadline).foregroundStyle(.secondary)
+                        AudioMusicCard(title: album.name, subtitle: album.artist,
+                                       detail: album.productionYear.map(String.init)) {
+                            if album.imageTag != nil {
+                                AuthenticatedArtworkView(itemID: album.id, accessibilityLabel: "Artwork for \(album.name)")
+                            } else {
+                                AudioMissingArtwork(label: album.name)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityElement(children: .combine)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("artist-album-\(album.id)")
+                    .accessibilityLabel("Album, \(album.name), by \(album.artist)")
+                    .accessibilityHint("Opens album")
                     .task {
                         if album.id == albums.last?.id, hasMore { await loadAlbums(replacing: false) }
                     }
                 }
             }
-            if isLoadingMore { ProgressView("Loading more albums…").frame(maxWidth: .infinity) }
-            if errorMessage != nil && !isLoadingMore {
-                Button("Retry More Albums") { Task { await loadAlbums(replacing: false) } }
-                    .frame(maxWidth: .infinity)
+            AudioPaginationView(isLoading: isLoadingMore, message: isLoadingMore ? nil : errorMessage,
+                                loadingTitle: "Loading more albums…", retryTitle: "Retry More Albums") {
+                Task { await loadAlbums(replacing: false) }
             }
         }
     }

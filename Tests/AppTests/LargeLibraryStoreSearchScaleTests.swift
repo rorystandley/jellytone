@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 final class LargeLibraryStoreSearchScaleTests: XCTestCase {
     private static let seed: UInt64 = 0x5CA1_E2026

@@ -25,6 +25,7 @@ final class HomeUITests: XCTestCase {
         XCTAssertTrue(track.waitForExistence(timeout: 3))
         XCTAssertTrue(track.isHittable)
         XCTAssertFalse(track.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        capture("home-light-content", app: app)
         assertNoPrivateConnectionData(in: app)
     }
 
@@ -38,13 +39,15 @@ final class HomeUITests: XCTestCase {
             let album = element(in: app, identifier: "home-recently-added-album-home-album-new")
             XCTAssertTrue(album.waitForExistence(timeout: 4))
             XCTAssertTrue(album.isHittable)
+            if !arguments.isEmpty { capture("home-dark-missing-artwork-large-type", app: app) }
             app.terminate()
         }
 
         XCUIDevice.shared.orientation = .landscapeLeft
         let regularApp = launchHome()
-        XCTAssertTrue(element(in: regularApp, identifier: "home-recently-played-track-home-track-1").waitForExistence(timeout: 4))
-        XCTAssertTrue(element(in: regularApp, identifier: "home-recently-played-track-home-track-1").isHittable)
+        let landscapeAlbum = element(in: regularApp, identifier: "home-recently-added-album-home-album-new")
+        XCTAssertTrue(landscapeAlbum.waitForExistence(timeout: 4))
+        XCTAssertTrue(landscapeAlbum.isHittable)
     }
 
     func testHomeLoadingEmptyFailureAndRetryAreHonestAndPrivate() {
@@ -101,5 +104,10 @@ final class HomeUITests: XCTestCase {
         for forbiddenValue in ["://", "x-emby-token", "authorization:", "bearer ", "access_token", "synthetic-token", "synthetic-user"] {
             XCTAssertFalse(hierarchy.contains(forbiddenValue), "Home accessibility hierarchy exposed forbidden connection data: \(forbiddenValue)")
         }
+    }
+
+    private func capture(_ name: String, app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
 }

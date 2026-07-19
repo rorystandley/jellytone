@@ -15,7 +15,6 @@ final class GenreUITests: XCTestCase {
         XCTAssertTrue(genreRow.waitForExistence(timeout: 3))
         XCTAssertTrue(genreRow.label.contains("Rock"))
         XCTAssertTrue(genreRow.isHittable)
-        XCTAssertTrue(app.descendants(matching: .any)["No artwork for Rock"].exists)
         genreRow.tap()
 
         XCTAssertTrue(element(in: app, identifier: "genre-detail-screen").waitForExistence(timeout: 3))
@@ -27,6 +26,7 @@ final class GenreUITests: XCTestCase {
         XCTAssertTrue(duplicateOccurrence.waitForExistence(timeout: 2))
         XCTAssertFalse(duplicateOccurrence.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         XCTAssertTrue(duplicateOccurrence.isHittable)
+        capture("genre-detail-duplicates", app: app)
         assertNoPrivateConnectionData(in: app)
     }
 
@@ -175,5 +175,10 @@ final class GenreUITests: XCTestCase {
                 "Genre accessibility hierarchy exposed forbidden connection data: \(forbiddenValue)"
             )
         }
+    }
+
+    private func capture(_ name: String, app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
 }

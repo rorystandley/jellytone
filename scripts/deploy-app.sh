@@ -2,17 +2,17 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 key="$(printf '%s' "$ROOT" | shasum -a 256 | awk '{print substr($1,1,12)}')"
-ARTIFACTS="${TMPDIR:-/tmp}/jellyfin-audio-app-$key"
+ARTIFACTS="${TMPDIR:-/tmp}/jellytone-app-$key"
 mkdir -p "$ARTIFACTS"
 python3 "$ROOT/tools/device-proof/signing.py" "$ARTIFACTS/signing.env" >/dev/null
 # shellcheck source=/dev/null
 source "$ARTIFACTS/signing.env"
 APP_TEAM_ID="$DEVICE_PROOF_TEAM_ID"
-APP_BUNDLE_ID="org.example.jellyfinaudio.${DEVICE_PROOF_BUNDLE_ID##*.}"
+APP_BUNDLE_ID="org.example.jellytone.${DEVICE_PROOF_BUNDLE_ID##*.}"
 export APP_TEAM_ID APP_BUNDLE_ID
 "$ROOT/scripts/bootstrap.sh"
 set +e
-xcodebuild -project "$ROOT/JellyfinAudio.xcodeproj" -scheme JellyfinAudio -configuration Debug \
+xcodebuild -project "$ROOT/Jellytone.xcodeproj" -scheme Jellytone -configuration Debug \
   -destination 'generic/platform=iOS' -derivedDataPath "$ARTIFACTS/Derived" \
   APP_TEAM_ID="$APP_TEAM_ID" APP_BUNDLE_ID="$APP_BUNDLE_ID" build >"$ARTIFACTS/build.raw.log" 2>&1
 build_status=$?
@@ -26,7 +26,7 @@ fi
 xcrun devicectl list devices --json-output "$ARTIFACTS/devices.json" >/dev/null
 device="$(python3 "$ROOT/tools/device-proof/select_device.py" \
   "$ARTIFACTS/devices.json" --allow-disconnected)"
-app="$ARTIFACTS/Derived/Build/Products/Debug-iphoneos/JellyfinAudio.app"
+app="$ARTIFACTS/Derived/Build/Products/Debug-iphoneos/Jellytone.app"
 # CoreDevice creates or refreshes the developer tunnel as part of this probe.
 # A paired wired phone can legitimately report a disconnected tunnel beforehand.
 xcrun devicectl device info details --device "$device" --timeout 15 >/dev/null
@@ -43,4 +43,4 @@ fi
 if [[ "${1:-}" == "--launch" ]]; then
   xcrun devicectl device process launch --device "$device" --timeout 30 --terminate-existing "$APP_BUNDLE_ID" >/dev/null
 fi
-echo "Jellyfin Audio installed on the paired device (identifiers redacted)."
+echo "Jellytone installed on the paired device (identifiers redacted)."

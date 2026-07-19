@@ -11,6 +11,7 @@ struct HomeLibraryView<AlbumDestination: View>: View {
     var body: some View {
         content
             .navigationTitle("Home")
+            .audioCanvas()
             .accessibilityIdentifier("home-screen")
             .task { await model.refreshHomeShelves() }
             .refreshable { await model.refreshHomeShelves() }
@@ -33,25 +34,23 @@ struct HomeLibraryView<AlbumDestination: View>: View {
 
     @ViewBuilder private var content: some View {
         if !hasContent, let error = model.homeRefreshError {
-            ContentUnavailableView {
-                Label("Couldn’t load Home", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text(error)
-            } actions: { retryButton }
-        } else if !hasContent, !model.isRefreshingHome, model.homeSnapshot != nil {
-            ContentUnavailableView(
-                "Nothing recent yet",
-                systemImage: "music.note.list",
-                description: Text("Recently added albums and recently played music will appear here."))
-        } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 28) {
-                    continueListening
-                    recentlyAddedSection
-                    recentlyPlayedSection
-                    if hasContent, let error = model.homeRefreshError { partialFailure(message: error) }
-                }
+            AudioStateView(kind: .error, title: "Couldn’t load Home", detail: error,
+                           actionTitle: "Try Again", actionIdentifier: "home-retry") {
+                Task { await model.refreshHomeShelves() }
+            }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
+        } else if !hasContent, !model.isRefreshingHome, model.homeSnapshot != nil {
+            AudioStateView(kind: .empty, title: "Nothing recent yet",
+                           detail: "Recently added albums and recently played music will appear here.")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+        } else {
+            AudioBrowseContainer(spacing: AudioDesign.Space.xl) {
+                continueListening
+                recentlyAddedSection
+                recentlyPlayedSection
+                if hasContent, let error = model.homeRefreshError { partialFailure(message: error) }
             }
         }
     }
@@ -73,9 +72,9 @@ struct HomeLibraryView<AlbumDestination: View>: View {
                     Image(systemName: model.playback.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                         .font(.system(size: 38))
                 }
-                .padding(14)
+                .padding(AudioDesign.Space.md)
                 .contentShape(RoundedRectangle(cornerRadius: 18))
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: AudioDesign.Radius.card, style: .continuous))
             }
             .buttonStyle(.plain)
             .frame(minHeight: 44)
@@ -86,7 +85,7 @@ struct HomeLibraryView<AlbumDestination: View>: View {
     }
 
     @ViewBuilder private var recentlyAddedSection: some View {
-        heading("Recently Added", image: "clock.arrow.circlepath")
+        AudioSectionHeading(title: "Recently Added", detail: "Fresh from your music library", systemImage: "clock.arrow.circlepath")
         if model.isRefreshingHome && (model.homeSnapshot?.recentlyAddedAlbums.isEmpty ?? true) {
             loading("Loading recently added albums…")
         } else if model.homeSnapshot?.recentlyAddedAlbums.isEmpty ?? true {
@@ -106,7 +105,7 @@ struct HomeLibraryView<AlbumDestination: View>: View {
     }
 
     @ViewBuilder private var recentlyPlayedSection: some View {
-        heading("Recently Played", image: "clock")
+        AudioSectionHeading(title: "Recently Played", detail: "Pick up where you left off", systemImage: "clock")
         if model.isRefreshingHome && (model.homeSnapshot?.recentlyPlayedTracks.isEmpty ?? true) {
             loading("Loading recently played music…")
         } else if model.homeSnapshot?.recentlyPlayedTracks.isEmpty ?? true {
@@ -135,18 +134,12 @@ struct HomeLibraryView<AlbumDestination: View>: View {
             .accessibilityIdentifier("home-retry")
     }
 
-    private func heading(_ title: String, image: String) -> some View {
-        Label(title, systemImage: image)
-            .font(.title2.bold())
-            .accessibilityAddTraits(.isHeader)
-    }
-
     private func loading(_ title: String) -> some View {
         HStack { Spacer(); ProgressView(title); Spacer() }.frame(minHeight: 72)
     }
 
     private func empty(_ title: String, detail: String) -> some View {
-        ContentUnavailableView(title, systemImage: "music.note", description: Text(detail))
+        AudioStateView(kind: .empty, title: title, detail: detail)
             .frame(maxWidth: .infinity)
     }
 
@@ -157,6 +150,8 @@ struct HomeLibraryView<AlbumDestination: View>: View {
             Text(message).font(.subheadline).foregroundStyle(.secondary)
             retryButton
         }
+        .padding(AudioDesign.Space.md)
+        .audioElevatedSurface(cornerRadius: AudioDesign.Radius.compact)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home-partial-failure")
     }
@@ -169,7 +164,7 @@ private struct HomeAlbumCard: View {
         VStack(alignment: .leading, spacing: 8) {
             homeArtwork(for: album)
                 .frame(width: 156, height: 156)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
             Text(album.name).font(.headline).lineLimit(2)
             Text(album.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
@@ -186,10 +181,8 @@ private func homeArtwork(for album: Album) -> some View {
         AuthenticatedArtworkView(itemID: album.id, accessibilityLabel: "Artwork for \(album.name)")
     } else {
         ZStack {
-            Rectangle().fill(.quaternary)
-            Image(systemName: "music.note").font(.largeTitle).foregroundStyle(.secondary)
+            AudioMissingArtwork(label: album.name)
         }
-        .accessibilityLabel("No artwork for \(album.name)")
     }
 }
 
@@ -197,15 +190,7 @@ private struct HomeTrackRow: View {
     let position: Int
     let track: Track
     var body: some View {
-        HStack(spacing: 12) {
-            Text("\(position)").foregroundStyle(.secondary).frame(width: 24, alignment: .trailing)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(track.name).foregroundStyle(.primary).lineLimit(2)
-                Text(track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            Text(track.durationLabel).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-        }
-        .contentShape(Rectangle())
+        AudioTrackRow(position: position, title: track.name, artist: track.artist,
+                      album: track.album, duration: track.durationTicks == nil ? nil : track.durationLabel)
     }
 }

@@ -1,4 +1,4 @@
-# ADR 0006: Direct Play detection and Jellyfin audio transcode profile
+# ADR 0006: Direct Play detection and Jellytone audio transcode profile
 
 Status: Accepted provisionally; iOS device playback rows remain open
 

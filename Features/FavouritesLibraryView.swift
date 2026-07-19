@@ -4,7 +4,6 @@ import SwiftUI
 /// surface stays independent of `AppModel` and can be reused by another coordinator.
 struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var state = FavouritesState()
 
     let scope: FavouritesFeatureScope
@@ -20,6 +19,7 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
     var body: some View {
         content
         .navigationTitle("Favourites")
+        .audioCanvas()
         .accessibilityIdentifier("favourites-screen")
         .refreshable { await refresh() }
         .overlay(alignment: .top) {
@@ -41,29 +41,20 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
     @ViewBuilder
     private var content: some View {
         if allSectionsFailedWithoutContent {
-            ContentUnavailableView {
-                Label("Couldn’t load favourites", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text("Jellyfin could not load your favourite music right now.")
-            } actions: {
-                Button("Try Again") { Task { await refresh() } }
-                    .buttonStyle(.borderedProminent)
-                    .frame(minHeight: 44)
-            }
+            AudioStateView(kind: .error, title: "Couldn’t load favourites",
+                           detail: "Jellyfin could not load your favourite music right now.",
+                           actionTitle: "Try Again") { Task { await refresh() } }
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
         } else if state.hasLoaded && hasNoContent && allErrorsAreNil {
-            ContentUnavailableView(
-                "No favourites found",
-                systemImage: "heart.slash",
-                description: Text("Favourite artists, albums, and tracks will appear here."))
+            AudioStateView(kind: .empty, title: "No favourites found",
+                           detail: "Favourite artists, albums, and tracks will appear here.")
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
         } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 28) {
-                    trackActions
-                    artistsSection
-                    albumsSection
-                    tracksSection
-                }
-                .padding()
+            AudioBrowseContainer(spacing: AudioDesign.Space.xl) {
+                trackActions
+                artistsSection
+                albumsSection
+                tracksSection
             }
         }
     }
@@ -86,25 +77,9 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
     @ViewBuilder
     private var trackActions: some View {
         if !state.trackOccurrences.isEmpty {
-            HStack(spacing: 12) {
-                Button { playAll(state.trackOccurrences) } label: {
-                    Label("Play All", systemImage: "play.fill")
-                        .frame(minHeight: 44)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("favourites-play-all")
-                .accessibilityHint("Starts with the first displayed favourite track")
-                .keyboardShortcut(.return, modifiers: [.command])
-
-                Button { shuffle(state.trackOccurrences) } label: {
-                    Label("Shuffle", systemImage: "shuffle")
-                        .frame(minHeight: 44)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("favourites-shuffle")
-                .accessibilityHint("Shuffles the displayed favourite tracks")
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-            }
+            AudioPlayActions(isDisabled: false, play: { playAll(state.trackOccurrences) },
+                             shuffle: { shuffle(state.trackOccurrences) },
+                             playIdentifier: "favourites-play-all", shuffleIdentifier: "favourites-shuffle")
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -119,14 +94,14 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
         } else if state.hasLoadedArtists && state.artists.isEmpty {
             emptySection("No favourite artists", description: "Favourite artists will appear here.")
         } else {
-            LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 20) {
-                ForEach(state.artists) { artist in
-                    NavigationLink { artistDestination(artist) } label: {
-                        FavouriteArtistCard(artist: artist)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: AudioDesign.Space.md) {
+                    ForEach(state.artists) { artist in
+                        NavigationLink { artistDestination(artist) } label: { FavouriteArtistCard(artist: artist) }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("favourites-artist-\(artist.id)")
+                            .task { if artist.id == state.artists.last?.id { await loadMoreArtists() } }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("favourites-artist-\(artist.id)")
-                    .task { if artist.id == state.artists.last?.id { await loadMoreArtists() } }
                 }
             }
             sectionPagination(
@@ -150,14 +125,14 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
         } else if state.hasLoadedAlbums && state.albums.isEmpty {
             emptySection("No favourite albums", description: "Favourite albums will appear here.")
         } else {
-            LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 20) {
-                ForEach(state.albums) { album in
-                    NavigationLink { albumDestination(album) } label: {
-                        FavouriteAlbumCard(album: album)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: AudioDesign.Space.md) {
+                    ForEach(state.albums) { album in
+                        NavigationLink { albumDestination(album) } label: { FavouriteAlbumCard(album: album) }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("favourites-album-\(album.id)")
+                            .task { if album.id == state.albums.last?.id { await loadMoreAlbums() } }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("favourites-album-\(album.id)")
-                    .task { if album.id == state.albums.last?.id { await loadMoreAlbums() } }
                 }
             }
             sectionPagination(
@@ -208,15 +183,8 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
         }
     }
 
-    private var cardColumns: [GridItem] {
-        let minimum: CGFloat = horizontalSizeClass == .regular ? 210 : 145
-        return [GridItem(.adaptive(minimum: minimum, maximum: 280), spacing: 16)]
-    }
-
     private func sectionHeading(_ title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.title2.bold())
-            .accessibilityAddTraits(.isHeader)
+        AudioSectionHeading(title: title, systemImage: systemImage)
     }
 
     private func loading(_ title: String) -> some View {
@@ -225,7 +193,7 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
     }
 
     private func emptySection(_ title: String, description: String) -> some View {
-        ContentUnavailableView(title, systemImage: "heart.slash", description: Text(description))
+        AudioStateView(kind: .empty, title: title, detail: description)
             .frame(maxWidth: .infinity)
     }
 
@@ -234,15 +202,8 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
         message: String,
         retry: @escaping () async -> Void
     ) -> some View {
-        ContentUnavailableView {
-            Label(title, systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Try Again") { Task { await retry() } }
-                .buttonStyle(.borderedProminent)
-                .frame(minHeight: 44)
-        }
+        AudioStateView(kind: .error, title: title, detail: message,
+                       actionTitle: "Try Again") { Task { await retry() } }
         .frame(maxWidth: .infinity)
     }
 
@@ -303,13 +264,11 @@ private struct FavouriteArtistCard: View {
     let artist: Artist
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        AudioMusicCard(title: artist.name, subtitle: "Artist", circular: true) {
             favouriteArtwork(itemID: artist.id, imageTag: artist.imageTag, name: artist.name, symbol: "music.mic")
-                .aspectRatio(1, contentMode: .fit)
-                .clipShape(Circle())
-            Text(artist.name).font(.headline).lineLimit(2)
         }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .frame(width: 156)
+        .frame(minHeight: 44)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(artist.name)
         .accessibilityHint("Opens artist")
@@ -320,15 +279,12 @@ private struct FavouriteAlbumCard: View {
     let album: Album
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        AudioMusicCard(title: album.name, subtitle: album.artist,
+                       detail: album.productionYear.map(String.init)) {
             favouriteArtwork(itemID: album.id, imageTag: album.imageTag, name: album.name, symbol: "square.stack")
-                .aspectRatio(1, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            Text(album.name).font(.headline).lineLimit(2)
-            Text(album.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-            if let year = album.productionYear { Text(String(year)).font(.caption).foregroundStyle(.tertiary) }
         }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .frame(width: 156)
+        .frame(minHeight: 44)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(album.name), by \(album.artist)\(album.productionYear.map { ", \($0)" } ?? "")")
         .accessibilityHint("Opens album")
@@ -340,23 +296,9 @@ private struct FavouriteTrackRow: View {
     let occurrence: FavouriteTrackOccurrence
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(String(position))
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 28, alignment: .trailing)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(occurrence.track.name).foregroundStyle(.primary).lineLimit(2)
-                Text("\(occurrence.track.artist) · \(occurrence.track.album)")
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if occurrence.track.durationTicks != nil {
-                Text(occurrence.track.durationLabel)
-                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            }
-        }
-        .contentShape(Rectangle())
+        AudioTrackRow(position: position, title: occurrence.track.name, artist: occurrence.track.artist,
+                      album: occurrence.track.album,
+                      duration: occurrence.track.durationTicks == nil ? nil : occurrence.track.durationLabel)
     }
 }
 
@@ -365,10 +307,6 @@ private func favouriteArtwork(itemID: String, imageTag: String?, name: String, s
     if imageTag != nil {
         AuthenticatedArtworkView(itemID: itemID, accessibilityLabel: "Artwork for \(name)")
     } else {
-        ZStack {
-            Rectangle().fill(.quaternary)
-            Image(systemName: symbol).font(.largeTitle).foregroundStyle(.secondary)
-        }
-        .accessibilityLabel("No artwork for \(name)")
+        AudioMissingArtwork(label: name, systemImage: symbol)
     }
 }

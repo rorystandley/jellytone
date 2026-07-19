@@ -1,6 +1,6 @@
 import GRDB
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 @MainActor
 final class HomeShelfPersistenceTests: XCTestCase {

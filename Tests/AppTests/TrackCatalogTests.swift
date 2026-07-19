@@ -1,5 +1,5 @@
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 final class TrackCatalogTests: XCTestCase {
     private func track(_ id: String, _ name: String, artist: String = "Artist") -> Track {

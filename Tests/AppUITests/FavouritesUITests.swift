@@ -8,13 +8,17 @@ final class FavouritesUITests: XCTestCase {
     }
 
     func testFavouriteFixtureSupportsAccessibleBrowsingNavigationAndPlaybackActions() {
-        let app = launchFavourites()
+        let app = launchFavourites(extraArguments: [
+            "-AppleInterfaceStyle", "Light",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL",
+        ])
         openFavourites(in: app)
 
         let artist = element(in: app, identifier: "favourites-artist-artist-favourite")
         XCTAssertTrue(artist.waitForExistence(timeout: 3))
         XCTAssertTrue(artist.isHittable)
         XCTAssertTrue(artist.label.contains("Favourite Artist"))
+        capture("favourites-populated", app: app)
 
         let album = element(in: app, identifier: "favourites-album-album-favourite")
         XCTAssertTrue(album.waitForExistence(timeout: 3))
@@ -91,6 +95,7 @@ final class FavouritesUITests: XCTestCase {
         XCTAssertFalse(firstElement(in: app, identifierPrefix: "favourites-artist-").exists)
         XCTAssertFalse(firstElement(in: app, identifierPrefix: "favourites-album-").exists)
         XCTAssertFalse(firstElement(in: app, identifierPrefix: "favourites-track-").exists)
+        capture("favourites-empty", app: app)
         assertNoPrivateConnectionData(in: app)
     }
 
@@ -175,5 +180,10 @@ final class FavouritesUITests: XCTestCase {
                 "Favourites accessibility hierarchy exposed forbidden connection data: \(forbiddenValue)"
             )
         }
+    }
+
+    private func capture(_ name: String, app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
 }

@@ -1,4 +1,4 @@
-# Jellyfin Audio product plan
+# Jellytone product plan
 
 Status: release-scope authority
 Last updated: 2026-07-18

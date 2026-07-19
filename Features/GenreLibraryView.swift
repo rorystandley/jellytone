@@ -8,22 +8,21 @@ struct GenreLibraryView: View {
     var body: some View {
         Group {
             if state.isLoading && state.genres.isEmpty {
-                ProgressView("Loading genres")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                AudioStateView(kind: .loading, title: "Loading genres", detail: "Organising your library by sound…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
             } else if let message = state.errorMessage, state.genres.isEmpty {
                 unavailable(message)
             } else if state.hasLoaded && state.genres.isEmpty {
-                ContentUnavailableView(
-                    "No genres found",
-                    systemImage: "guitars",
-                    description: Text("This music library has no genres available in Jellyfin.")
-                )
+                AudioStateView(kind: .empty, title: "No genres found",
+                               detail: "This music library has no genres available in Jellyfin.")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
             } else {
                 genreGrid
             }
         }
         .accessibilityIdentifier("genres-screen")
         .navigationTitle("Genres")
+        .audioCanvas()
         .task(id: scope) { await load() }
     }
 
@@ -36,7 +35,8 @@ struct GenreLibraryView: View {
     }
 
     private var genreGrid: some View {
-        ScrollView {
+        AudioBrowseContainer(spacing: AudioDesign.Space.lg) {
+            AudioSectionHeading(title: "Explore Genres", detail: "Browse the library without invented cover art")
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                 ForEach(state.genres) { genre in
                     NavigationLink {
@@ -52,10 +52,7 @@ struct GenreLibraryView: View {
                     }
                 }
             }
-            .padding()
-
             paginationStatus
-                .padding(.bottom, 24)
         }
         .refreshable { await refresh() }
         .overlay(alignment: .top) {
@@ -101,15 +98,9 @@ struct GenreLibraryView: View {
     }
 
     private func unavailable(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Couldn’t load genres", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Try Again") { Task { await load() } }
-                .buttonStyle(.borderedProminent)
-                .frame(minHeight: 44)
-        }
+        AudioStateView(kind: .error, title: "Couldn’t load genres", detail: message,
+                       actionTitle: "Try Again") { Task { await load() } }
+            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
     }
 
     private func load() async {
@@ -138,20 +129,21 @@ private struct GenreCard: View {
     let genre: Genre
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            GenreArtwork(genre: genre)
-                .aspectRatio(1, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            Text(genre.name)
-                .font(.headline)
-                .lineLimit(2)
-            if let summary {
-                Text(summary)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+        VStack(alignment: .leading, spacing: AudioDesign.Space.md) {
+            HStack {
+                Image(systemName: "guitars")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(AudioDesign.accent)
+                    .frame(width: 52, height: 52)
+                    .background(AudioDesign.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: AudioDesign.Radius.compact))
+                Spacer()
+                Image(systemName: "chevron.forward").foregroundStyle(.tertiary)
             }
+            Text(genre.name).font(.title3.bold()).lineLimit(2)
+            if let summary { Text(summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2) }
         }
+        .padding(AudioDesign.Space.md)
+        .audioElevatedSurface(cornerRadius: AudioDesign.Radius.compact)
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
@@ -184,13 +176,7 @@ struct GenreArtwork: View {
                 accessibilityLabel: "Artwork for \(genre.name)"
             )
         } else {
-            ZStack {
-                Rectangle().fill(.quaternary)
-                Image(systemName: "guitars")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
-            }
-            .accessibilityLabel("No artwork for \(genre.name)")
+            AudioMissingArtwork(label: genre.name, systemImage: "guitars")
         }
     }
 }

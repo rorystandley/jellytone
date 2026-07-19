@@ -1,6 +1,6 @@
-name: JellyfinAudio
+name: Jellytone
 options:
-  bundleIdPrefix: org.example.jellyfinaudio
+  bundleIdPrefix: org.example.jellytone
   deploymentTarget:
     iOS: "18.4"
   xcodeVersion: "26.6"
@@ -18,7 +18,7 @@ packages:
     url: https://github.com/groue/GRDB.swift.git
     exactVersion: 7.11.1
 targets:
-  JellyfinAudio:
+  Jellytone:
     type: application
     platform: iOS
     sources:
@@ -35,11 +35,11 @@ targets:
       - package: GRDB
     settings:
       base:
-        PRODUCT_NAME: JellyfinAudio
+        PRODUCT_NAME: Jellytone
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: App/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
-  JellyfinAudioTests:
+  JellytoneTests:
     type: bundle.unit-test
     platform: iOS
     sources:
@@ -47,35 +47,35 @@ targets:
       - path: Tests/Fixtures/Jellyfin/Phase3
         buildPhase: resources
     dependencies:
-      - target: JellyfinAudio
+      - target: Jellytone
       - package: GRDB
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "$(APP_BUNDLE_ID).tests"
-  JellyfinAudioUITests:
+  JellytoneUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
       - Tests/AppUITests
     dependencies:
-      - target: JellyfinAudio
+      - target: Jellytone
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "$(APP_BUNDLE_ID).uitests"
 schemes:
-  JellyfinAudio:
+  Jellytone:
     build:
       targets:
-        JellyfinAudio: all
-        JellyfinAudioTests: [test]
+        Jellytone: all
+        JellytoneTests: [test]
     test:
       targets:
-        - JellyfinAudioTests
-  JellyfinAudioUI:
+        - JellytoneTests
+  JellytoneUI:
     build:
       targets:
-        JellyfinAudio: all
-        JellyfinAudioUITests: [test]
+        Jellytone: all
+        JellytoneUITests: [test]
     test:
       targets:
-        - JellyfinAudioUITests
+        - JellytoneUITests

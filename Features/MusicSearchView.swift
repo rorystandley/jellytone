@@ -114,6 +114,8 @@ struct SearchView: View {
         NavigationStack {
             content
                 .navigationTitle("Search")
+                .audioCanvas()
+                .accessibilityIdentifier("search-screen")
                 .navigationDestination(for: Album.self) { AlbumView(album: $0) }
                 .navigationDestination(for: Artist.self) { ArtistView(artist: $0) }
                 .searchable(text: $query, prompt: "Artists and albums")
@@ -128,91 +130,78 @@ struct SearchView: View {
     @ViewBuilder
     private var content: some View {
         if search.query.isEmpty {
-            ContentUnavailableView(
-                "Search your music",
-                systemImage: "magnifyingglass",
-                description: Text("Find artists and albums across your selected Jellyfin music library.")
-            )
+            AudioStateView(kind: .empty, title: "Search your music",
+                           detail: "Find artists and albums across your selected Jellyfin music library.")
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
         } else if search.isLoading && search.isEmpty {
-            ProgressView("Searching music…")
+            AudioStateView(kind: .loading, title: "Searching music", detail: "Looking across your selected library…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
         } else if let message = search.errorMessage, search.isEmpty {
-            ContentUnavailableView {
-                Label("Search unavailable", systemImage: "exclamationmark.magnifyingglass")
-            } description: {
-                Text(message)
-            } actions: {
-                Button("Try Again") {
-                    Task { await retrySearch() }
-                }
-                .buttonStyle(.borderedProminent)
-            }
+            AudioStateView(kind: .error, title: "Search unavailable", detail: message,
+                           actionTitle: "Try Again") { Task { await retrySearch() } }
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
         } else if search.isEmpty {
-            ContentUnavailableView.search(text: search.query)
+            AudioStateView(kind: .empty, title: "No results for “\(search.query)”",
+                           detail: "Try another artist or album name.")
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
         } else {
             resultsList
         }
     }
 
     private var resultsList: some View {
-        List {
+        AudioBrowseContainer(spacing: AudioDesign.Space.xl) {
             if !search.artists.isEmpty {
-                Section("Artists") {
+                AudioSectionHeading(title: "Artists", detail: "Matching identities")
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130, maximum: 190), spacing: AudioDesign.Space.md)], spacing: AudioDesign.Space.lg) {
                     ForEach(search.artists) { artist in
                         NavigationLink(value: artist) {
-                            HStack(spacing: 12) {
-                                AuthenticatedArtworkView(
-                                    itemID: artist.id,
-                                    accessibilityLabel: "Artwork for \(artist.name)"
-                                )
-                                .frame(width: 56, height: 56)
-                                .clipShape(Circle())
-                                Text(artist.name).font(.headline).lineLimit(2)
+                            AudioMusicCard(title: artist.name, subtitle: "Artist", circular: true) {
+                                if artist.imageTag != nil {
+                                    AuthenticatedArtworkView(itemID: artist.id, accessibilityLabel: "Artwork for \(artist.name)")
+                                } else {
+                                    AudioMissingArtwork(label: artist.name, systemImage: "music.mic")
+                                }
                             }
-                            .accessibilityElement(children: .combine)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("search-artist-\(artist.id)")
+                        .accessibilityLabel("Artist, \(artist.name)")
+                        .accessibilityHint("Opens artist")
                     }
                 }
             }
 
             if !search.albums.isEmpty {
-                Section("Albums") {
+                AudioSectionHeading(title: "Albums", detail: "Matching releases")
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 145, maximum: 220), spacing: AudioDesign.Space.md)], spacing: AudioDesign.Space.lg) {
                     ForEach(search.albums) { album in
                         NavigationLink(value: album) {
-                            HStack(spacing: 12) {
-                                AuthenticatedArtworkView(
-                                    itemID: album.id,
-                                    accessibilityLabel: "Artwork for \(album.name)"
-                                )
-                                .frame(width: 56, height: 56)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(album.name).font(.headline).lineLimit(2)
-                                    Text(album.artist).foregroundStyle(.secondary).lineLimit(1)
+                            AudioMusicCard(title: album.name, subtitle: album.artist,
+                                           detail: album.productionYear.map(String.init)) {
+                                if album.imageTag != nil {
+                                    AuthenticatedArtworkView(itemID: album.id, accessibilityLabel: "Artwork for \(album.name)")
+                                } else {
+                                    AudioMissingArtwork(label: album.name)
                                 }
                             }
-                            .accessibilityElement(children: .combine)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("search-album-\(album.id)")
+                        .accessibilityLabel("Album, \(album.name), by \(album.artist)")
+                        .accessibilityHint("Opens album")
                     }
                 }
             }
 
             if search.canLoadMore || search.isLoadingMore || search.paginationError != nil {
-                Section {
-                    HStack {
-                        Spacer()
-                        if search.isLoadingMore {
-                            ProgressView("Loading more…")
-                        } else if search.paginationError != nil {
-                            Button("Retry More Results") { Task { await loadMore() } }
-                        } else {
-                            ProgressView().task { await loadMore() }
-                        }
-                        Spacer()
-                    }
+                AudioPaginationView(isLoading: search.isLoadingMore, message: search.paginationError,
+                                    loadingTitle: "Loading more results…", retryTitle: "Retry More Results") {
+                    Task { await loadMore() }
                 }
+                .task { if search.canLoadMore && !search.isLoadingMore { await loadMore() } }
             }
         }
-        .listStyle(.plain)
         .overlay(alignment: .top) {
             if search.isLoading && !search.isEmpty { ProgressView().padding(.top, 8) }
         }

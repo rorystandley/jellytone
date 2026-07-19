@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import JellyfinAudio
+@testable import Jellytone
 
 final class JellyfinPhase3FixtureMappingTests: XCTestCase {
     override func tearDown() {

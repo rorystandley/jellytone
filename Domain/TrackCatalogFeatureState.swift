@@ -60,6 +60,19 @@ final class TrackCatalogState: ObservableObject {
         catch { if !Task.isCancelled { paginationError = error.localizedDescription } }
     }
 
+#if DEBUG
+    func configureLoadingForUITesting(scope: TrackCatalogScope) {
+        clear(for: scope)
+        isLoading = true
+    }
+
+    func configurePaginationFailureForUITesting(_ page: TrackCatalogPage, scope: TrackCatalogScope, error: Error) {
+        replaceCached(page, scope: scope)
+        hasMore = false
+        paginationError = error.localizedDescription
+    }
+#endif
+
     private static func merge(_ existing: [TrackCatalogOccurrence], _ incoming: [TrackCatalogOccurrence]) -> [TrackCatalogOccurrence] {
         var seen = Set(existing.map(\.id)); var result = existing
         for value in incoming where seen.insert(value.id).inserted { result.append(value) }
