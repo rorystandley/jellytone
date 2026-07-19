@@ -70,7 +70,9 @@ struct JellyfinAPI: Sendable {
         userID: String,
         libraryID: String?,
         startIndex: Int = 0,
-        limit: Int = 100
+        limit: Int = 100,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending"
     ) async throws -> AlbumPage {
         var query = [
             URLQueryItem(name: "userId", value: userID),
@@ -80,8 +82,8 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
-            URLQueryItem(name: "SortBy", value: "SortName"),
-            URLQueryItem(name: "SortOrder", value: "Ascending"),
+            URLQueryItem(name: "SortBy", value: sortBy),
+            URLQueryItem(name: "SortOrder", value: sortOrder),
         ]
         if let libraryID {
             query.append(URLQueryItem(name: "ParentId", value: libraryID))
@@ -292,7 +294,9 @@ struct JellyfinAPI: Sendable {
         userID: String,
         libraryID: String?,
         startIndex: Int = 0,
-        limit: Int = 100
+        limit: Int = 100,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending"
     ) async throws -> PlaylistPage {
         let query = [
             URLQueryItem(name: "userId", value: userID),
@@ -302,8 +306,8 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
-            URLQueryItem(name: "SortBy", value: "SortName"),
-            URLQueryItem(name: "SortOrder", value: "Ascending"),
+            URLQueryItem(name: "SortBy", value: sortBy),
+            URLQueryItem(name: "SortOrder", value: sortOrder),
         ]
         // Jellyfin playlists are user-global and are not children of music views.
         _ = libraryID

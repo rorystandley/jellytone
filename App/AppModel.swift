@@ -165,7 +165,13 @@ final class AppModel: ObservableObject {
             store: libraryStore,
             present: { albums = $0 }
         ) {
-            try await api.albums(userID: session.userID, libraryID: libraryID)
+            // Newest additions first — the Library shelf is "Recently Added".
+            try await api.albums(
+                userID: session.userID,
+                libraryID: libraryID,
+                sortBy: "DateCreated,SortName",
+                sortOrder: "Descending"
+            )
         }
         hasMoreAlbums = page.hasMore
         nextAlbumStartIndex = page.nextStartIndex
@@ -181,13 +187,16 @@ final class AppModel: ObservableObject {
             let page = try await api.albums(
                 userID: session.userID,
                 libraryID: albumLibraryID,
-                startIndex: nextAlbumStartIndex
+                startIndex: nextAlbumStartIndex,
+                sortBy: "DateCreated,SortName",
+                sortOrder: "Descending"
             )
             let existing = Set(albums.map(\.id))
             albums.append(contentsOf: page.albums.filter { !existing.contains($0.id) })
-            try? await libraryStore?.storeSearchMetadata(
-                artists: [],
-                albums: page.albums,
+            // Persist each page as it arrives so a relaunch resumes with the
+            // full scrolled-through shelf, not just the first page.
+            try? await libraryStore?.appendAlbums(
+                page.albums,
                 scope: libraryScope(for: session),
                 libraryID: albumLibraryID
             )
@@ -262,25 +271,53 @@ final class AppModel: ObservableObject {
 
         async let added = homeAlbumsResult(api: api, userID: session.userID, libraryID: libraryID)
         async let played = homeTracksResult(api: api, userID: session.userID, libraryID: libraryID)
+        async let playlists = homePlaylistsResult()
         let addedResult = await added
         let playedResult = await played
+        let playlistsResult = await playlists
         guard ownsHomeRefresh(generation, scope: requestScope) else { return }
 
         var replacement = homeSnapshot ?? .empty
         var errors: [String] = []
         switch addedResult {
-        case let .success(albums): replacement = HomeShelfSnapshot(recentlyAddedAlbums: albums, recentlyPlayedTracks: replacement.recentlyPlayedTracks)
+        case let .success(albums):
+            replacement = HomeShelfSnapshot(recentlyAddedAlbums: albums,
+                                            recentlyPlayedTracks: replacement.recentlyPlayedTracks,
+                                            madeForYouPlaylists: replacement.madeForYouPlaylists)
         case .failure: errors.append("Recently added albums couldn’t be refreshed.")
         }
         switch playedResult {
-        case let .success(tracks): replacement = HomeShelfSnapshot(recentlyAddedAlbums: replacement.recentlyAddedAlbums, recentlyPlayedTracks: tracks)
+        case let .success(tracks):
+            replacement = HomeShelfSnapshot(recentlyAddedAlbums: replacement.recentlyAddedAlbums,
+                                            recentlyPlayedTracks: tracks,
+                                            madeForYouPlaylists: replacement.madeForYouPlaylists)
         case .failure: errors.append("Recently played music couldn’t be refreshed.")
         }
+        switch playlistsResult {
+        case let .success(list):
+            replacement = HomeShelfSnapshot(recentlyAddedAlbums: replacement.recentlyAddedAlbums,
+                                            recentlyPlayedTracks: replacement.recentlyPlayedTracks,
+                                            madeForYouPlaylists: list)
+        case .failure:
+            // Made For You quietly keeps its last snapshot — the primary
+            // shelves carry Home's error surface.
+            break
+        }
         homeSnapshot = replacement
-        if case .success = addedResult { try? await libraryStore?.replaceHomeShelfSnapshot(replacement, scope: scope, libraryID: libraryID) }
-        else if case .success = playedResult { try? await libraryStore?.replaceHomeShelfSnapshot(replacement, scope: scope, libraryID: libraryID) }
+        var anySuccess = false
+        if case .success = addedResult { anySuccess = true }
+        if case .success = playedResult { anySuccess = true }
+        if case .success = playlistsResult { anySuccess = true }
+        if anySuccess { try? await libraryStore?.replaceHomeShelfSnapshot(replacement, scope: scope, libraryID: libraryID) }
         homeRefreshError = errors.isEmpty ? nil : errors.joined(separator: " ")
         isRefreshingHome = false
+    }
+
+    private static let madeForYouShelfLimit = 10
+
+    private func homePlaylistsResult() async -> Result<[Playlist], Error> {
+        do { return .success(try await recentPlaylists(limit: Self.madeForYouShelfLimit)) }
+        catch { return .failure(error) }
     }
 
     func tracks(for album: Album) async -> [Track] {
@@ -297,11 +334,40 @@ final class AppModel: ObservableObject {
         do {
             let tracks = try await api.tracks(userID: session.userID, albumID: album.id)
             tracksByAlbum[album.id] = tracks
+            try? await libraryStore?.replaceAlbumTracks(
+                tracks, albumID: album.id,
+                scope: libraryScope(for: session), libraryID: selectedLibraryID
+            )
             return tracks
         } catch {
             errorMessage = error.localizedDescription
             return []
         }
+    }
+
+    /// Persisted snapshot from the last visit, for instant paint before the
+    /// network refresh lands.
+    func cachedAlbumTracks(for album: Album) async -> [Track]? {
+        guard let session else { return nil }
+        return try? await libraryStore?.cachedAlbumTracks(
+            albumID: album.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
+        )
+    }
+
+    /// Playlists are user-global in Jellyfin, so their snapshots cache under
+    /// the global library scope.
+    func cachedPlaylistEntries(for playlist: Playlist) async -> [PlaylistEntry]? {
+        guard let session else { return nil }
+        return try? await libraryStore?.cachedPlaylistEntries(
+            playlistID: playlist.id, scope: libraryScope(for: session), libraryID: nil
+        )
+    }
+
+    func storePlaylistEntries(_ entries: [PlaylistEntry], for playlist: Playlist) async {
+        guard let session else { return }
+        try? await libraryStore?.replacePlaylistEntries(
+            entries, playlistID: playlist.id, scope: libraryScope(for: session), libraryID: nil
+        )
     }
 
     func searchMusic(query: String, startIndex: Int = 0) async throws -> MusicSearchPage {
@@ -385,6 +451,24 @@ final class AppModel: ObservableObject {
             libraryID: selectedLibraryID,
             startIndex: startIndex
         )
+    }
+
+    /// Most recently created playlists, for Home's "Made For You" shelf. The
+    /// alphabetical `playlistPage` feed keeps serving the Library screen.
+    func recentPlaylists(limit: Int) async throws -> [Playlist] {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            return Array(try await playlistPage().playlists.prefix(limit))
+        }
+#endif
+        guard let session, let api else { throw APIError.notAuthenticated }
+        return try await api.playlists(
+            userID: session.userID,
+            libraryID: selectedLibraryID,
+            limit: limit,
+            sortBy: "DateCreated",
+            sortOrder: "Descending"
+        ).playlists
     }
 
     func playlistEntries(for playlist: Playlist, startIndex: Int = 0) async throws -> PlaylistEntryPage {
@@ -693,6 +777,7 @@ final class AppModel: ObservableObject {
     func logout() async {
         await playback.stopAndWait()
         KeychainTokenStore.delete()
+        await ArtworkCache.shared.clear()
         defaults.removeObject(forKey: Self.profileKey)
         session = nil
         libraries = []

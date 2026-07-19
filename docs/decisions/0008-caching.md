@@ -39,3 +39,16 @@ corrupt assets, concurrent reads during eviction, logout, and missing artwork.
 
 Cache files can be discarded and rebuilt. Schema changes migrate references
 transactionally; offline assets are never deleted by cache recovery.
+
+## Implementation status (2026-07-19)
+
+Shipped first slice: `ArtworkCache` (NSCache + files in the system Caches
+directory, keys scoped `serverID_itemID`), read-through from
+`AuthenticatedArtworkView`, size reporting and manual purge in Settings, and a
+full clear on logout. The OS may evict the directory under storage pressure.
+Not yet implemented from the decision above: budgeted LRU eviction, digests and
+byte-count verification, SQLite asset references, per-account (rather than
+per-server) namespaces, offline pinning, and lyrics assets. Detail metadata
+snapshots (album tracks, playlist entries — `detail_track_snapshots`, migration
+007) and ordered album pages (`sort_index`, migration 006) landed in SQLite per
+the decision.

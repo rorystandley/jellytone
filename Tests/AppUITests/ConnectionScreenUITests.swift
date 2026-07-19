@@ -22,9 +22,14 @@ final class ConnectionScreenUITests: XCTestCase {
         tabBar.buttons["Search"].tap()
         XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Search your music"].exists)
-        XCTAssertTrue(tabBar.buttons["Home"].exists)
-        XCTAssertTrue(tabBar.buttons["Library"].exists)
-        XCTAssertTrue(tabBar.buttons["Search"].isSelected)
+        // The search-role tab collapses the remaining tabs into a single
+        // button while Search is active; tapping it must restore the full
+        // tab bar so every primary tab stays reachable.
+        let collapsedTabs = tabBar.buttons["Home"]
+        XCTAssertTrue(collapsedTabs.exists)
+        collapsedTabs.tap()
+        XCTAssertTrue(tabBar.buttons["Library"].waitForExistence(timeout: 2))
+        XCTAssertTrue(tabBar.buttons["Search"].exists)
     }
 
     func testQueueProtectsCurrentTrackAndClearUpNextKeepsItVisible() {

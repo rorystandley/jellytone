@@ -52,11 +52,14 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
                     SELECT item_id, payload
                     FROM cached_albums
                     WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    ORDER BY sort_index, item_id
                     """,
                 arguments: [scope.serverID, scope.accountID, libraryScope]
             )
 
-            return rows.compactMap(Self.album(from:)).sorted(by: Self.albumPrecedes)
+            // Server-authoritative order: rows come back in the sequence the
+            // pages were received (newest-first for the album shelf).
+            return rows.compactMap(Self.album(from:))
         }
     }
 
@@ -73,9 +76,93 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
                     """,
                 arguments: [scope.serverID, scope.accountID, libraryScope]
             )
-            for album in validAlbums {
-                try Self.upsert(album, scope: scope, libraryScope: libraryScope, in: database)
+            for (position, album) in validAlbums.enumerated() {
+                try Self.upsert(album, sortIndex: position, scope: scope, libraryScope: libraryScope, in: database)
             }
+        }
+    }
+
+    /// Appends a further page received while paginating, after the tail the
+    /// cache already holds. Albums already cached keep their position (only
+    /// their payload refreshes) so re-received items never jump the order.
+    func appendAlbums(_ albums: [Album], scope: LibraryScope, libraryID: String?) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        let validAlbums = albums.filter(Self.isValid)
+        guard !validAlbums.isEmpty else { return }
+
+        try await databaseQueue.write { database in
+            try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            var nextIndex = try Int.fetchOne(
+                database,
+                sql: """
+                    SELECT COALESCE(MAX(sort_index) + 1, 0)
+                    FROM cached_albums
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            ) ?? 0
+            for album in validAlbums {
+                try Self.upsert(album, sortIndex: nextIndex, scope: scope, libraryScope: libraryScope, in: database)
+                nextIndex += 1
+            }
+        }
+    }
+
+    func cachedAlbumTracks(albumID: String, scope: LibraryScope, libraryID: String?) async throws -> [Track]? {
+        try await detailSnapshot(containerID: "album:\(albumID)", scope: scope, libraryID: libraryID)
+    }
+
+    func replaceAlbumTracks(_ tracks: [Track], albumID: String, scope: LibraryScope, libraryID: String?) async throws {
+        try await replaceDetailSnapshot(tracks, containerID: "album:\(albumID)", scope: scope, libraryID: libraryID)
+    }
+
+    func cachedPlaylistEntries(playlistID: String, scope: LibraryScope, libraryID: String?) async throws -> [PlaylistEntry]? {
+        try await detailSnapshot(containerID: "playlist:\(playlistID)", scope: scope, libraryID: libraryID)
+    }
+
+    func replacePlaylistEntries(_ entries: [PlaylistEntry], playlistID: String, scope: LibraryScope, libraryID: String?) async throws {
+        try await replaceDetailSnapshot(entries, containerID: "playlist:\(playlistID)", scope: scope, libraryID: libraryID)
+    }
+
+    private func detailSnapshot<Value: Decodable & Sendable>(
+        containerID: String,
+        scope: LibraryScope,
+        libraryID: String?
+    ) async throws -> Value? {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        return try await databaseQueue.read { database in
+            guard let payload: Data = try Data.fetchOne(
+                database,
+                sql: """
+                    SELECT payload
+                    FROM detail_track_snapshots
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ? AND container_id = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope, containerID]
+            ) else { return nil }
+            return try? JSONDecoder().decode(Value.self, from: payload)
+        }
+    }
+
+    private func replaceDetailSnapshot<Value: Encodable & Sendable>(
+        _ value: Value,
+        containerID: String,
+        scope: LibraryScope,
+        libraryID: String?
+    ) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        let payload = try JSONEncoder().encode(value)
+        try await databaseQueue.write { database in
+            try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            try database.execute(
+                sql: """
+                    INSERT INTO detail_track_snapshots (server_id, account_id, library_scope, container_id, payload)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT (server_id, account_id, library_scope, container_id)
+                    DO UPDATE SET payload = excluded.payload
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope, containerID, payload]
+            )
         }
     }
 
@@ -138,8 +225,21 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
             for artist in validArtists {
                 try Self.upsert(artist, scope: scope, libraryScope: libraryScope, in: database)
             }
+            // Search metadata must not disturb the album shelf order: albums
+            // already cached keep their sort_index on conflict; genuinely new
+            // ones land after the current tail.
+            var nextIndex = try Int.fetchOne(
+                database,
+                sql: """
+                    SELECT COALESCE(MAX(sort_index) + 1, 0)
+                    FROM cached_albums
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            ) ?? 0
             for album in validAlbums {
-                try Self.upsert(album, scope: scope, libraryScope: libraryScope, in: database)
+                try Self.upsert(album, sortIndex: nextIndex, scope: scope, libraryScope: libraryScope, in: database)
+                nextIndex += 1
             }
         }
     }
@@ -317,6 +417,28 @@ private extension SQLiteLibraryStore {
         migrator.registerMigration("005_create_playlist_rename_outbox") { database in
             try database.execute(sql: "CREATE TABLE playlist_rename_mutations (id TEXT PRIMARY KEY, server_id TEXT NOT NULL, account_id TEXT NOT NULL, playlist_id TEXT NOT NULL, base_revision TEXT NOT NULL, base_name TEXT NOT NULL, desired_name TEXT NOT NULL, sequence INTEGER NOT NULL, attempts INTEGER NOT NULL, next_retry_at INTEGER NOT NULL, state TEXT NOT NULL, UNIQUE(server_id, account_id, playlist_id))")
         }
+        migrator.registerMigration("006_add_album_sort_index") { database in
+            // Preserves the server-received page order so the cache can present
+            // the newest-first album shelf without reinterpreting it locally.
+            try database.execute(sql: "ALTER TABLE cached_albums ADD COLUMN sort_index INTEGER NOT NULL DEFAULT 0")
+        }
+        migrator.registerMigration("007_create_detail_track_snapshots") { database in
+            // Whole-container snapshots (album track lists, playlist entries)
+            // so detail screens paint instantly across launches.
+            try database.execute(sql: """
+                CREATE TABLE detail_track_snapshots (
+                    server_id TEXT NOT NULL,
+                    account_id TEXT NOT NULL,
+                    library_scope TEXT NOT NULL,
+                    container_id TEXT NOT NULL,
+                    payload BLOB NOT NULL,
+                    PRIMARY KEY (server_id, account_id, library_scope, container_id),
+                    FOREIGN KEY (server_id, account_id, library_scope)
+                        REFERENCES library_scopes (server_id, account_id, library_scope)
+                        ON DELETE CASCADE
+                ) WITHOUT ROWID
+                """)
+        }
         return migrator
     }
 
@@ -348,16 +470,16 @@ private extension SQLiteLibraryStore {
         )
     }
 
-    static func upsert(_ album: Album, scope: LibraryScope, libraryScope: String, in database: Database) throws {
+    static func upsert(_ album: Album, sortIndex: Int, scope: LibraryScope, libraryScope: String, in database: Database) throws {
         let payload = try JSONEncoder().encode(album)
         try database.execute(
             sql: """
-                INSERT INTO cached_albums (server_id, account_id, library_scope, item_id, payload)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO cached_albums (server_id, account_id, library_scope, item_id, payload, sort_index)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT (server_id, account_id, library_scope, item_id)
                 DO UPDATE SET payload = excluded.payload
                 """,
-            arguments: [scope.serverID, scope.accountID, libraryScope, album.id, payload]
+            arguments: [scope.serverID, scope.accountID, libraryScope, album.id, payload, sortIndex]
         )
     }
 

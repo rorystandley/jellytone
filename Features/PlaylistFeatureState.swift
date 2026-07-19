@@ -144,13 +144,16 @@ final class PlaylistDetailState: ObservableObject {
     func load(
         playlist: Playlist,
         scope requestedScope: PlaylistFeatureScope,
+        cached: [PlaylistEntry]? = nil,
         loadPage: (Int) async throws -> PlaylistEntryPage
     ) async {
         generation += 1
         let requestGeneration = generation
         scope = requestedScope
         playlistID = playlist.id
-        entries = []
+        // Present the persisted snapshot immediately; the network result
+        // replaces it below so the refresh stays silent.
+        entries = cached ?? []
         hasMore = false
         nextStartIndex = 0
         hasLoaded = false

@@ -1,101 +1,185 @@
 import SwiftUI
 import UIKit
 
+/// Apple Music-style Library: large title, plain category rows with hairline
+/// separators, then a newest-first "Recently Added" album grid that paginates
+/// (and caches each page) as the user scrolls. Themed per
+/// docs/design/design-system.md.
 struct LibraryView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         NavigationStack {
-            AudioBrowseContainer(spacing: AudioDesign.Space.xl) {
-                AudioSectionHeading(title: "Browse", detail: "Your music, organised for quick access")
-                LazyVGrid(columns: destinationColumns, spacing: AudioDesign.Space.sm) {
-                    NavigationLink { PlaylistLibraryView() } label: {
-                        LibraryDestinationCard(title: "Playlists", detail: "Your mixes and saved sequences", systemImage: "music.note.list")
-                    }
-                    .accessibilityIdentifier("library-playlists-link")
-                    NavigationLink { TrackCatalogView() } label: {
-                        LibraryDestinationCard(title: "Tracks", detail: "Every playable song", systemImage: "music.note")
-                    }
-                    .accessibilityIdentifier("library-tracks-link")
-                    NavigationLink { GenreLibraryView() } label: {
-                        LibraryDestinationCard(title: "Genres", detail: "Explore by sound", systemImage: "guitars")
-                    }
-                    .accessibilityIdentifier("library-genres-link")
-                    NavigationLink { favouritesDestination } label: {
-                        LibraryDestinationCard(title: "Favourites", detail: "Artists, albums, and tracks", systemImage: "heart.fill")
-                    }
-                    .accessibilityIdentifier("library-favourites-link")
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
+                    header
+                    categoryRows
+                    recentlyAddedSection
                 }
-                .buttonStyle(.plain)
-
-                AudioSectionHeading(title: "Albums", detail: "Covers from your selected music library")
-                albumContent
+                .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                .padding(.top, JellytoneTheme.Space.md)
+                .padding(.bottom, JellytoneTheme.Space.xxxl)
             }
-            .navigationTitle("Library")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if model.libraries.count > 1 {
-                        Picker("Library", selection: Binding(
-                            get: { model.selectedLibraryID ?? "" },
-                            set: { id in Task { await model.selectLibrary(id) } }
-                        )) {
-                            ForEach(model.libraries) { Text($0.name).tag($0.id) }
-                        }
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign Out", systemImage: "rectangle.portrait.and.arrow.right") {
-                        Task { await model.logout() }
-                    }
-                }
-            }
+            .background(Color.jtBackground.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Album.self) { AlbumView(album: $0) }
             .refreshable { try? await model.refreshAlbums(libraryID: model.selectedLibraryID) }
         }
     }
 
-    private var destinationColumns: [GridItem] {
-        if horizontalSizeClass == .regular {
-            [GridItem(.adaptive(minimum: 230, maximum: 360), spacing: AudioDesign.Space.sm)]
-        } else {
-            [GridItem(.flexible(), spacing: AudioDesign.Space.sm)]
+    // MARK: Header
+
+    private var header: some View {
+        HStack(spacing: JellytoneTheme.Space.md) {
+            Text("Library")
+                .font(.jtLargeTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: JellytoneTheme.Space.sm)
+            Menu {
+                if model.libraries.count > 1 {
+                    Picker("Library", selection: Binding(
+                        get: { model.selectedLibraryID ?? "" },
+                        set: { id in Task { await model.selectLibrary(id) } }
+                    )) {
+                        ForEach(model.libraries) { Text($0.name).tag($0.id) }
+                    }
+                }
+                Button("Sign Out", systemImage: "rectangle.portrait.and.arrow.right") {
+                    Task { await model.logout() }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.jtRowTitle.weight(.bold))
+                    .foregroundStyle(Color.jtTextPrimary)
+                    .frame(width: LibraryMetrics.optionsButtonDiameter,
+                           height: LibraryMetrics.optionsButtonDiameter)
+                    .background(Circle().fill(Color.jtSurface))
+            }
+            .accessibilityLabel("Library options")
+        }
+    }
+
+    // MARK: Category rows
+
+    private var categoryRows: some View {
+        VStack(spacing: 0) {
+            categoryRow("Playlists", systemImage: "music.note.list", identifier: "library-playlists-link") {
+                PlaylistLibraryView()
+            }
+            rowDivider
+            categoryRow("Songs", systemImage: "music.note", identifier: "library-tracks-link") {
+                TrackCatalogView()
+            }
+            rowDivider
+            categoryRow("Genres", systemImage: "guitars", identifier: "library-genres-link") {
+                GenreLibraryView()
+            }
+            rowDivider
+            categoryRow("Favourites", systemImage: "heart.fill", identifier: "library-favourites-link") {
+                favouritesDestination
+            }
+        }
+    }
+
+    private func categoryRow<Destination: View>(
+        _ title: String,
+        systemImage: String,
+        identifier: String,
+        @ViewBuilder destination: @escaping () -> Destination
+    ) -> some View {
+        NavigationLink { destination() } label: {
+            HStack(spacing: JellytoneTheme.Space.mdPlus) {
+                Image(systemName: systemImage)
+                    .font(.jtSubsectionHeader.weight(.medium))
+                    .foregroundStyle(Color.jtAccent)
+                    .frame(width: LibraryMetrics.categoryIconWidth)
+                Text(title)
+                    .font(.jtSubsectionHeader.weight(.medium))
+                    .foregroundStyle(Color.jtTextPrimary)
+                Spacer()
+                Image(systemName: "chevron.forward")
+                    .font(.jtCaption.weight(.bold))
+                    .foregroundStyle(Color.jtTextTertiary)
+            }
+            .padding(.vertical, JellytoneTheme.Space.mdPlus)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel("Browse \(title.lowercased())")
+    }
+
+    private var rowDivider: some View {
+        Rectangle().fill(Color.jtBorder).frame(height: 1)
+    }
+
+    // MARK: Recently Added
+
+    private var recentlyAddedSection: some View {
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.lg) {
+            Text("Recently Added")
+                .font(.jtSectionHeader)
+                .foregroundStyle(Color.jtTextPrimary)
+                .accessibilityAddTraits(.isHeader)
+            albumContent
         }
     }
 
     @ViewBuilder private var albumContent: some View {
         if model.isLoading && model.albums.isEmpty {
-            AudioStateView(kind: .loading, title: "Loading albums", detail: "Fetching this music library…")
-                .frame(maxWidth: .infinity)
+            stateCard(title: "Loading albums", detail: "Fetching this music library…", isLoading: true)
         } else if model.albums.isEmpty {
-            AudioStateView(kind: .empty, title: "No albums found",
-                           detail: "Pull to refresh or check this account’s Jellyfin library access.")
-                .frame(maxWidth: .infinity)
+            stateCard(title: "No albums found",
+                      detail: "Pull to refresh or check this account’s Jellyfin library access.")
         } else {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: horizontalSizeClass == .regular ? 180 : 145,
-                                                   maximum: 240), spacing: AudioDesign.Space.md)], spacing: AudioDesign.Space.lg) {
+            LazyVGrid(columns: albumColumns, spacing: JellytoneTheme.Space.lg) {
                 ForEach(model.albums) { album in
-                    NavigationLink(value: album) {
-                        AudioMusicCard(title: album.name, subtitle: album.artist,
-                                       detail: album.productionYear.map(String.init)) {
-                            if album.imageTag != nil {
-                                AuthenticatedArtworkView(itemID: album.id, accessibilityLabel: "Artwork for \(album.name)")
-                            } else {
-                                AudioMissingArtwork(label: album.name)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("library-album-\(album.id)")
-                    .accessibilityLabel("Album, \(album.name), by \(album.artist)")
-                    .accessibilityHint("Opens album")
-                    .task { await model.loadMoreAlbumsIfNeeded(after: album) }
+                    NavigationLink(value: album) { LibraryAlbumCard(album: album) }
+                        .buttonStyle(.jtPressScale())
+                        .accessibilityIdentifier("library-album-\(album.id)")
+                        .accessibilityLabel("Album, \(album.name), by \(album.artist)")
+                        .accessibilityHint("Opens album")
+                        .task { await model.loadMoreAlbumsIfNeeded(after: album) }
                 }
             }
             if model.isLoadingMoreAlbums {
-                ProgressView("Loading more albums…").frame(maxWidth: .infinity).padding(.bottom, AudioDesign.Space.lg)
+                HStack {
+                    Spacer()
+                    ProgressView("Loading more albums…")
+                        .font(.jtBody)
+                        .foregroundStyle(Color.jtTextSecondary)
+                    Spacer()
+                }
             }
         }
+    }
+
+    private var albumColumns: [GridItem] {
+        if horizontalSizeClass == .regular {
+            [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: JellytoneTheme.Space.lg)]
+        } else {
+            [GridItem(.flexible(), spacing: JellytoneTheme.Space.lg), GridItem(.flexible())]
+        }
+    }
+
+    private func stateCard(title: String, detail: String, isLoading: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
+            if isLoading {
+                ProgressView()
+                    .padding(.bottom, JellytoneTheme.Space.xxs)
+            }
+            Text(title)
+                .font(.jtRowTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+            Text(detail)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+        }
+        .padding(JellytoneTheme.Space.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.jtSurface, in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous))
     }
 
     private var favouritesDestination: some View {
@@ -110,31 +194,69 @@ struct LibraryView: View {
     }
 }
 
-private struct LibraryDestinationCard: View {
-    let title: String
-    let detail: String
-    let systemImage: String
+private enum LibraryMetrics {
+    static let optionsButtonDiameter: CGFloat = 34
+    static let categoryIconWidth: CGFloat = 30
+}
+
+private struct LibraryAlbumCard: View {
+    let album: Album
 
     var body: some View {
-        HStack(spacing: AudioDesign.Space.md) {
-            Image(systemName: systemImage)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(AudioDesign.accent)
-                .frame(width: 52, height: 52)
-                .background(AudioDesign.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: AudioDesign.Radius.compact, style: .continuous))
-            VStack(alignment: .leading, spacing: AudioDesign.Space.xxs) {
-                Text(title).font(.headline).foregroundStyle(.primary)
-                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-            }
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.forward").font(.footnote.bold()).foregroundStyle(.tertiary)
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.sm) {
+            JellytoneItemArtwork(itemID: album.id, imageTag: album.imageTag, name: album.name)
+                .aspectRatio(1, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.gridArtwork, style: .continuous))
+            Text(album.name)
+                .font(.jtRowSubtitle.weight(.bold))
+                .foregroundStyle(Color.jtTextPrimary)
+                .lineLimit(1)
+            Text(album.artist)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+                .lineLimit(1)
         }
-        .padding(AudioDesign.Space.sm)
-        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-        .audioElevatedSurface(cornerRadius: AudioDesign.Radius.compact)
-        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Browse \(title.lowercased()), \(detail)")
+    }
+}
+
+/// Full-screen blurred-artwork backdrop for detail screens (album/playlist):
+/// the item's artwork blown up, blurred, and washed with the background token
+/// so foreground text tokens stay legible in light and dark mode.
+struct JellytoneDetailBackdrop<Artwork: View>: View {
+    @ViewBuilder let artwork: () -> Artwork
+
+    private static var blurRadius: CGFloat { 60 }
+    private static var overscan: CGFloat { 1.4 }
+    private static var washOpacity: Double { 0.6 }
+
+    var body: some View {
+        ZStack {
+            Color.jtBackground
+            artwork()
+                .scaleEffect(Self.overscan)
+                .blur(radius: Self.blurRadius)
+            Color.jtBackground.opacity(Self.washOpacity)
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+}
+
+/// Item artwork with the theme's generated-gradient placeholder for missing
+/// art (design-system.md §1 — never a grey box).
+struct JellytoneItemArtwork: View {
+    let itemID: String
+    let imageTag: String?
+    let name: String
+
+    var body: some View {
+        if imageTag != nil {
+            AuthenticatedArtworkView(itemID: itemID, accessibilityLabel: "Artwork for \(name)")
+        } else {
+            JellytoneTheme.placeholderGradient(hue: JellytoneTheme.placeholderHue(forID: itemID))
+                .accessibilityLabel("No artwork for \(name)")
+        }
     }
 }
 
@@ -161,12 +283,19 @@ struct AuthenticatedArtworkView: View {
                 return
             }
 #endif
-            guard let api = model.api, let token = model.session?.accessToken,
-                  var request = try? api.artworkRequest(itemID: itemID) else { return }
-            request.setValue(token, forHTTPHeaderField: "X-Emby-Token")
+            guard let api = model.api, let session = model.session else { return }
+            let cacheKey = ArtworkCache.key(serverID: session.serverID, itemID: itemID)
+            if let cached = await ArtworkCache.shared.image(forKey: cacheKey) {
+                image = cached
+                return
+            }
+            guard var request = try? api.artworkRequest(itemID: itemID) else { return }
+            request.setValue(session.accessToken, forHTTPHeaderField: "X-Emby-Token")
             if let (data, response) = try? await URLSession.shared.data(for: request),
-               (response as? HTTPURLResponse).map({ 200..<300 ~= $0.statusCode }) == true {
-                image = UIImage(data: data)
+               (response as? HTTPURLResponse).map({ 200..<300 ~= $0.statusCode }) == true,
+               let fetched = UIImage(data: data) {
+                image = fetched
+                await ArtworkCache.shared.store(data, forKey: cacheKey)
             }
         }
         .accessibilityLabel(accessibilityLabel)

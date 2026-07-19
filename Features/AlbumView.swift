@@ -1,99 +1,133 @@
 import SwiftUI
 
+/// Amazon Music-style album detail: blurred artwork backdrop, centred artwork
+/// card, left-aligned identity block, trailing shuffle + solid accent play
+/// circle, and plain track rows on the backdrop wash. Themed per
+/// docs/design/design-system.md.
 struct AlbumView: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let album: Album
     @State private var tracks: [Track] = []
     @State private var isLoading = true
 
     var body: some View {
-        AudioBrowseContainer(spacing: AudioDesign.Space.xl) {
-            albumHeader
-            AudioSectionHeading(title: "Tracks", detail: trackSummary)
-            if isLoading {
-                AudioStateView(kind: .loading, title: "Loading tracks", detail: "Preparing the album sequence…")
-                    .frame(maxWidth: .infinity)
-            } else if tracks.isEmpty {
-                AudioStateView(kind: .empty, title: "No playable tracks",
-                               detail: "Jellyfin did not return playable audio for this album.")
-                    .frame(maxWidth: .infinity)
-            } else {
-                ForEach(discNumbers, id: \.self) { disc in
-                    if discNumbers.count > 1 {
-                        Text("Disc \(disc)").font(.headline).foregroundStyle(.secondary).accessibilityAddTraits(.isHeader)
-                    }
-                    LazyVStack(spacing: 0) {
-                        ForEach(tracksForDisc(disc)) { track in
-                            Button { model.play(track, in: tracks) } label: {
-                                AudioTrackRow(position: track.index, title: track.name, artist: track.artist,
-                                              duration: track.durationTicks == nil ? nil : track.durationLabel)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("album-track-\(track.id)")
-                            .accessibilityLabel("Track \(track.index.map(String.init) ?? "unknown"), \(track.name), by \(track.artist)")
-                            .accessibilityHint("Starts playback from this album track")
-                            .contextMenu {
-                                Button("Play Next", systemImage: "text.insert") { model.playNext(track) }
-                                    .disabled(model.playback.currentTrack == nil)
-                                Button("Add to Queue", systemImage: "text.badge.plus") { model.addToQueue(track) }
-                                    .disabled(model.playback.currentTrack == nil)
-                            }
-                            Divider()
-                        }
-                    }
-                    .padding(.horizontal, AudioDesign.Space.sm)
-                    .audioElevatedSurface(cornerRadius: AudioDesign.Radius.compact)
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
+                artworkCard
+                identity
+                trackList
             }
+            .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+            .padding(.top, JellytoneTheme.Space.lg)
+            .padding(.bottom, JellytoneTheme.Space.xxxl)
         }
+        .background(
+            JellytoneDetailBackdrop {
+                JellytoneItemArtwork(itemID: album.id, imageTag: album.imageTag, name: album.name)
+            }
+        )
+        .toolbarBackground(.hidden, for: .navigationBar)
         .navigationTitle(album.name)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            tracks = await model.tracks(for: album)
+            // Paint last visit's snapshot instantly, then refresh silently.
+            if tracks.isEmpty, let cached = await model.cachedAlbumTracks(for: album), !cached.isEmpty {
+                tracks = cached
+                isLoading = false
+            }
+            let fresh = await model.tracks(for: album)
+            if !fresh.isEmpty || tracks.isEmpty { tracks = fresh }
             isLoading = false
         }
     }
 
-    private var albumHeader: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: AudioDesign.Space.lg) {
-                artwork.frame(width: horizontalSizeClass == .regular ? 260 : 168,
-                              height: horizontalSizeClass == .regular ? 260 : 168)
-                identity.frame(maxWidth: 520, alignment: .leading)
-                Spacer(minLength: 0)
-            }
-            VStack(spacing: AudioDesign.Space.md) {
-                artwork.frame(width: 220, height: 220)
-                identity.multilineTextAlignment(.center)
-            }
-        }
-    }
-
-    private var artwork: some View {
-        Group {
-            if album.imageTag != nil {
-                AuthenticatedArtworkView(itemID: album.id, accessibilityLabel: "Artwork for \(album.name)")
-            } else {
-                AudioMissingArtwork(label: album.name)
-            }
-        }
-        .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
+    private var artworkCard: some View {
+        JellytoneItemArtwork(itemID: album.id, imageTag: album.imageTag, name: album.name)
+            .frame(width: DetailMetrics.artworkSide, height: DetailMetrics.artworkSide)
+            .clipShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.largeArtwork, style: .continuous))
+            .shadow(color: .black.opacity(0.5), radius: 30, y: 15)
+            .frame(maxWidth: .infinity)
     }
 
     private var identity: some View {
-        VStack(alignment: horizontalSizeClass == .regular ? .leading : .center, spacing: AudioDesign.Space.sm) {
-            Text("Album").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            Text(album.name).font(.largeTitle.bold()).fixedSize(horizontal: false, vertical: true)
-            Text(album.artist).font(.title3.weight(.medium)).foregroundStyle(.secondary)
-            if let year = album.productionYear { Text(String(year)).font(.subheadline).foregroundStyle(.tertiary) }
-            AudioPlayActions(isDisabled: tracks.isEmpty,
-                             play: { if let first = tracks.first { model.play(first, in: tracks) } },
-                             shuffle: { model.shuffle(tracks) },
-                             playIdentifier: "album-play-all", shuffleIdentifier: "album-shuffle")
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.xs) {
+            Text(album.name)
+                .font(.jtDetailTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text(album.artist)
+                .font(.jtBody.weight(.medium))
+                .foregroundStyle(Color.jtTextSecondary)
+            Text(metaLine)
+                .font(.jtCaption)
+                .foregroundStyle(Color.jtTextTertiary)
+            HStack(spacing: JellytoneTheme.Space.xl) {
+                Spacer()
+                Button { model.shuffle(tracks) } label: {
+                    Image(systemName: "shuffle")
+                        .font(.jtSubsectionHeader)
+                        .foregroundStyle(Color.jtTextPrimary)
+                        .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                .accessibilityIdentifier("album-shuffle")
+                .accessibilityLabel("Shuffle")
+                Button {
+                    if let first = tracks.first { model.play(first, in: tracks) }
+                } label: {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: DetailMetrics.playDiameter / 3, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: DetailMetrics.playDiameter, height: DetailMetrics.playDiameter)
+                        .background(Circle().fill(Color.jtAccent))
+                }
+                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                .accessibilityIdentifier("album-play-all")
+                .accessibilityLabel("Play All")
+            }
+            .disabled(tracks.isEmpty)
+            .opacity(tracks.isEmpty ? 0.4 : 1)
         }
-        .frame(maxWidth: .infinity, alignment: horizontalSizeClass == .regular ? .leading : .center)
-        .accessibilityElement(children: .contain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private var trackList: some View {
+        if isLoading {
+            JellytoneSkeletonRows(label: "Loading tracks")
+        } else if tracks.isEmpty {
+            detailStateCard(title: "No playable tracks",
+                            detail: "Jellyfin did not return playable audio for this album.")
+        } else {
+            ForEach(discNumbers, id: \.self) { disc in
+                if discNumbers.count > 1 {
+                    Text("Disc \(disc)")
+                        .font(.jtSubsectionHeader)
+                        .foregroundStyle(Color.jtTextPrimary)
+                        .accessibilityAddTraits(.isHeader)
+                }
+                let discTracks = tracksForDisc(disc)
+                LazyVStack(spacing: 0) {
+                    ForEach(discTracks) { track in
+                        Button { model.play(track, in: tracks) } label: {
+                            AlbumTrackRow(track: track, isLast: track.id == discTracks.last?.id)
+                        }
+                        .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("album-track-\(track.id)")
+                        .accessibilityLabel("Track \(track.index.map(String.init) ?? "unknown"), \(track.name), by \(track.artist)")
+                        .accessibilityHint("Starts playback from this album track")
+                        .contextMenu {
+                            Button("Play Next", systemImage: "text.insert") { model.playNext(track) }
+                                .disabled(model.playback.currentTrack == nil)
+                            Button("Add to Queue", systemImage: "text.badge.plus") { model.addToQueue(track) }
+                                .disabled(model.playback.currentTrack == nil)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var discNumbers: [Int] {
@@ -103,12 +137,95 @@ struct AlbumView: View {
 
     private func tracksForDisc(_ disc: Int) -> [Track] { tracks.filter { ($0.disc ?? 1) == disc } }
 
-    private var trackSummary: String {
-        if isLoading { return "Loading album sequence" }
-        let discs = discNumbers.count
-        let trackLabel = tracks.count == 1 ? "1 track" : "\(tracks.count) tracks"
-        return discs > 1 ? "\(trackLabel) across \(discs) discs" : trackLabel
+    private var metaLine: String {
+        var parts: [String] = []
+        if let year = album.productionYear { parts.append(String(year)) }
+        if isLoading {
+            parts.append("Loading album sequence")
+        } else {
+            let discs = discNumbers.count
+            let trackLabel = tracks.count == 1 ? "1 track" : "\(tracks.count) tracks"
+            parts.append(discs > 1 ? "\(trackLabel) across \(discs) discs" : trackLabel)
+            let totalSeconds = Int(tracks.reduce(0) { $0 + $1.duration }.rounded())
+            if totalSeconds > 0 {
+                parts.append(DetailMetrics.durationLabel(totalSeconds: totalSeconds))
+            }
+        }
+        return parts.joined(separator: " · ")
     }
+}
+
+enum DetailMetrics {
+    static let artworkSide: CGFloat = 240
+    static let playDiameter: CGFloat = 56
+    static let secondaryActionSide: CGFloat = 44
+    static let rowArtworkSide: CGFloat = 42
+    static let trackNumberWidth: CGFloat = 22
+
+    static func durationLabel(totalSeconds: Int) -> String {
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        if hours > 0 {
+            return minutes > 0 ? "\(hours) hr \(minutes) min" : "\(hours) hr"
+        }
+        return "\(minutes) min"
+    }
+}
+
+private struct AlbumTrackRow: View {
+    let track: Track
+    let isLast: Bool
+
+    var body: some View {
+        HStack(spacing: JellytoneTheme.Space.md) {
+            Text(track.index.map(String.init) ?? "–")
+                .font(.jtCaption.monospacedDigit())
+                .foregroundStyle(Color.jtTextTertiary)
+                .frame(width: DetailMetrics.trackNumberWidth)
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
+                Text(track.name)
+                    .font(.jtRowTitle)
+                    .foregroundStyle(Color.jtTextPrimary)
+                    .lineLimit(1)
+                Text(track.artist)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: JellytoneTheme.Space.sm)
+            if track.durationTicks != nil {
+                Text(track.durationLabel)
+                    .font(.jtCaption.monospacedDigit())
+                    .foregroundStyle(Color.jtTextTertiary)
+            }
+        }
+        .padding(.vertical, JellytoneTheme.Space.smPlus)
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Rectangle().fill(Color.jtBorder).frame(height: 1)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+/// Themed state card shared by the detail screens.
+func detailStateCard(title: String, detail: String, isLoading: Bool = false) -> some View {
+    VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
+        if isLoading {
+            ProgressView()
+                .padding(.bottom, JellytoneTheme.Space.xxs)
+        }
+        Text(title)
+            .font(.jtRowTitle)
+            .foregroundStyle(Color.jtTextPrimary)
+        Text(detail)
+            .font(.jtRowSubtitle)
+            .foregroundStyle(Color.jtTextSecondary)
+    }
+    .padding(JellytoneTheme.Space.lg)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.jtSurface, in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous))
 }
 
 struct MiniPlayerView: View {

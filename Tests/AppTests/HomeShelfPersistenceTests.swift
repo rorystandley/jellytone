@@ -17,6 +17,19 @@ final class HomeShelfPersistenceTests: XCTestCase {
         XCTAssertEqual(cached, snapshot)
     }
 
+    func testSnapshotsPersistedBeforeMadeForYouShelfStillDecode() throws {
+        // Payload shape from before the madeForYouPlaylists shelf existed —
+        // older caches must stay valid, decoding to an empty shelf.
+        let legacyPayload = Data("""
+            {"version":1,
+             "recentlyAddedAlbums":[{"id":"album-a","name":"Synthetic Album","artist":"Synthetic Artist"}],
+             "recentlyPlayedTracks":[]}
+            """.utf8)
+        let decoded = try JSONDecoder().decode(HomeShelfSnapshot.self, from: legacyPayload)
+        XCTAssertEqual(decoded.recentlyAddedAlbums.first?.id, "album-a")
+        XCTAssertEqual(decoded.madeForYouPlaylists, [])
+    }
+
     func testReplacementIsAtomicAndScopedByServerAccountAndLibrary() async throws {
         let databaseURL = temporaryDatabaseURL()
         let store = try SQLiteLibraryStore(databaseURL: databaseURL)

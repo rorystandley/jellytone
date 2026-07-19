@@ -2,28 +2,29 @@ import SwiftUI
 
 struct PlaylistDetailView: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var state = PlaylistDetailState()
 
     let playlist: Playlist
 
     var body: some View {
         Group {
-            if state.isLoading && state.entries.isEmpty {
-                AudioStateView(kind: .loading, title: "Loading playlist", detail: "Preparing its saved track order…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
-            } else if let message = state.errorMessage, state.entries.isEmpty {
+            if let message = state.errorMessage, state.entries.isEmpty {
                 unavailable(message)
-            } else if state.hasLoaded && state.entries.isEmpty {
+            } else if state.hasLoaded, !state.isLoading, state.entries.isEmpty {
                 emptyState
             } else {
+                // Covers loaded content AND the cold load — the header always
+                // paints immediately; only the rows show skeletons.
                 detailList
             }
         }
         .accessibilityIdentifier("playlist-detail-screen")
         .navigationTitle(playlist.name)
         .navigationBarTitleDisplayMode(.inline)
-        .audioCanvas()
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .background(
+            JellytoneDetailBackdrop { PlaylistArtwork(playlist: playlist) }
+        )
         .task(id: requestIdentity) { await load() }
     }
 
@@ -40,96 +41,107 @@ struct PlaylistDetailView: View {
     }
 
     private var detailList: some View {
-        List {
-            Section { header.padding(.vertical, 8) }
-                .listRowSeparator(.hidden)
-
-            Section {
-                ForEach(Array(state.entries.enumerated()), id: \.element.id) { offset, entry in
-                    Button { model.play(entry, in: state.entries) } label: {
-                        PlaylistEntryRow(position: offset + 1, entry: entry)
-                    }
-                    .accessibilityIdentifier("playlist-track-\(entry.id)")
-                    .buttonStyle(.plain)
-                    .frame(minHeight: 44)
-                    .accessibilityLabel(trackAccessibilityLabel(entry, position: offset + 1))
-                    .accessibilityHint("Starts playback from this playlist occurrence")
-                    .task {
-                        if entry.id == state.entries.last?.id { await loadMore() }
+        ScrollView {
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
+                artworkCard
+                identity
+                if state.isLoading && state.entries.isEmpty {
+                    JellytoneSkeletonRows(label: "Loading playlist")
+                }
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(state.entries.enumerated()), id: \.element.id) { offset, entry in
+                        Button { model.play(entry, in: state.entries) } label: {
+                            PlaylistEntryRow(entry: entry, isLast: entry.id == state.entries.last?.id)
+                        }
+                        .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("playlist-track-\(entry.id)")
+                        .accessibilityLabel(trackAccessibilityLabel(entry, position: offset + 1))
+                        .accessibilityHint("Starts playback from this playlist occurrence")
+                        .task {
+                            if entry.id == state.entries.last?.id { await loadMore() }
+                        }
                     }
                 }
-            } header: {
-                Text("Tracks")
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
+                if state.isLoadingMore || state.paginationError != nil || state.errorMessage != nil {
+                    paginationStatus
+                }
             }
-
-            if state.isLoadingMore || state.paginationError != nil || state.errorMessage != nil {
-                Section { paginationStatus }
-            }
+            .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+            .padding(.top, JellytoneTheme.Space.lg)
+            .padding(.bottom, JellytoneTheme.Space.xxxl)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(Color.clear)
+        // Background refreshes stay silent (Apple Music-style); the system
+        // pull spinner is the only indicator.
         .refreshable { await refresh() }
-        .overlay(alignment: .top) {
-            if state.isLoading && !state.entries.isEmpty {
-                ProgressView("Refreshing playlist…")
-                    .padding(10)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(.top, 8)
-            }
-        }
     }
 
-    private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 20) {
-                artwork.frame(width: horizontalSizeClass == .regular ? 180 : 132,
-                              height: horizontalSizeClass == .regular ? 180 : 132)
-                identityAndActions
-                Spacer(minLength: 0)
-            }
-            VStack(spacing: 16) {
-                artwork.frame(width: 180, height: 180)
-                identityAndActions
-            }
-        }
-    }
-
-    private var artwork: some View {
+    private var artworkCard: some View {
         PlaylistArtwork(playlist: playlist)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .frame(width: DetailMetrics.artworkSide, height: DetailMetrics.artworkSide)
+            .clipShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.largeArtwork, style: .continuous))
+            .shadow(color: .black.opacity(0.5), radius: 30, y: 15)
+            .frame(maxWidth: .infinity)
     }
 
-    private var identityAndActions: some View {
-        VStack(alignment: horizontalSizeClass == .regular ? .leading : .center, spacing: 10) {
-            VStack(alignment: horizontalSizeClass == .regular ? .leading : .center, spacing: 4) {
-                Text("Playlist")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(playlist.name)
-                    .font(.title2.bold())
-                    .multilineTextAlignment(horizontalSizeClass == .regular ? .leading : .center)
-                Text(state.entries.count == 1 ? "1 playable track" : "\(state.entries.count) playable tracks")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+    private var identity: some View {
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.xs) {
+            Text(playlist.name)
+                .font(.jtDetailTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text(metaLine)
+                .font(.jtCaption)
+                .foregroundStyle(Color.jtTextTertiary)
+            HStack(spacing: JellytoneTheme.Space.xl) {
+                Spacer()
+                Button { model.shuffle(state.entries) } label: {
+                    Image(systemName: "shuffle")
+                        .font(.jtSubsectionHeader)
+                        .foregroundStyle(Color.jtTextPrimary)
+                        .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                .accessibilityIdentifier("playlist-shuffle")
+                .accessibilityLabel("Shuffle")
+                Button { model.playAll(state.entries) } label: {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: DetailMetrics.playDiameter / 3, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: DetailMetrics.playDiameter, height: DetailMetrics.playDiameter)
+                        .background(Circle().fill(Color.jtAccent))
+                }
+                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                .accessibilityIdentifier("playlist-play-all")
+                .accessibilityLabel("Play All")
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-
-            AudioPlayActions(isDisabled: state.entries.isEmpty,
-                             play: { model.playAll(state.entries) },
-                             shuffle: { model.shuffle(state.entries) },
-                             playIdentifier: "playlist-play-all", shuffleIdentifier: "playlist-shuffle")
+            .disabled(state.entries.isEmpty)
+            .opacity(state.entries.isEmpty ? 0.4 : 1)
         }
-        .frame(maxWidth: .infinity, alignment: horizontalSizeClass == .regular ? .leading : .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var metaLine: String {
+        if state.isLoading && state.entries.isEmpty { return "Loading…" }
+        let count = state.entries.count
+        var parts = [count == 1 ? "1 playable track" : "\(count) playable tracks"]
+        let totalSeconds = Int(state.entries.reduce(0) { $0 + $1.track.duration }.rounded())
+        if totalSeconds > 0 {
+            parts.append(DetailMetrics.durationLabel(totalSeconds: totalSeconds))
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var emptyState: some View {
-        AudioStateView(kind: .empty, title: emptyTitle, detail: emptyDescription,
-                       actionTitle: "Refresh") { Task { await refresh() } }
-            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.md) {
+            detailStateCard(title: emptyTitle, detail: emptyDescription)
+            Button("Refresh") { Task { await refresh() } }
+                .buttonStyle(.jtCapsule(.secondaryFlat))
+        }
+        .padding(JellytoneTheme.Space.screenMargin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var emptyTitle: String {
@@ -149,16 +161,19 @@ struct PlaylistDetailView: View {
             Spacer()
             if state.isLoadingMore {
                 ProgressView("Loading more tracks…")
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
             } else if let message = state.paginationError ?? state.errorMessage {
-                VStack(spacing: 8) {
-                    Text(message).font(.footnote).foregroundStyle(.secondary)
+                VStack(spacing: JellytoneTheme.Space.sm) {
+                    Text(message)
+                        .font(.jtRowSubtitle)
+                        .foregroundStyle(Color.jtTextSecondary)
                     Button(state.paginationError == nil ? "Retry Refresh" : "Retry More Tracks") {
                         Task {
                             if state.paginationError == nil { await refresh() } else { await loadMore() }
                         }
                     }
-                    .buttonStyle(.bordered)
-                    .frame(minHeight: 44)
+                    .buttonStyle(.jtCapsule(.secondaryFlat))
                 }
             }
             Spacer()
@@ -166,9 +181,13 @@ struct PlaylistDetailView: View {
     }
 
     private func unavailable(_ message: String) -> some View {
-        AudioStateView(kind: .error, title: "Playlist unavailable", detail: message,
-                       actionTitle: "Try Again") { Task { await load() } }
-            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.md) {
+            detailStateCard(title: "Playlist unavailable", detail: message)
+            Button("Try Again") { Task { await load() } }
+                .buttonStyle(.jtCapsule(.primaryFlat))
+        }
+        .padding(JellytoneTheme.Space.screenMargin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func trackAccessibilityLabel(_ entry: PlaylistEntry, position: Int) -> String {
@@ -179,9 +198,15 @@ struct PlaylistDetailView: View {
 
     private func load() async {
         let requestScope = scope
-        await state.load(playlist: playlist, scope: requestScope) { startIndex in
+        let cached = await model.cachedPlaylistEntries(for: playlist)
+        await state.load(
+            playlist: playlist,
+            scope: requestScope,
+            cached: (cached?.isEmpty == false) ? cached : nil
+        ) { startIndex in
             try await model.playlistEntries(for: playlist, startIndex: startIndex)
         }
+        await persistSnapshot()
     }
 
     private func refresh() async {
@@ -189,6 +214,7 @@ struct PlaylistDetailView: View {
         await state.refresh(playlist: playlist, scope: requestScope) { startIndex in
             try await model.playlistEntries(for: playlist, startIndex: startIndex)
         }
+        await persistSnapshot()
     }
 
     private func loadMore() async {
@@ -196,16 +222,49 @@ struct PlaylistDetailView: View {
         await state.loadMore(playlist: playlist, scope: requestScope) { startIndex in
             try await model.playlistEntries(for: playlist, startIndex: startIndex)
         }
+        await persistSnapshot()
+    }
+
+    /// Persists the accumulated snapshot (including partial pagination) so the
+    /// next visit paints instantly; failed loads never overwrite the cache.
+    private func persistSnapshot() async {
+        guard state.hasLoaded, state.errorMessage == nil else { return }
+        await model.storePlaylistEntries(state.entries, for: playlist)
     }
 }
 
 private struct PlaylistEntryRow: View {
-    let position: Int
     let entry: PlaylistEntry
+    let isLast: Bool
 
     var body: some View {
-        AudioTrackRow(position: position, title: entry.track.name, artist: entry.track.artist,
-                      album: entry.track.album,
-                      duration: entry.track.durationTicks == nil ? nil : entry.track.durationLabel)
+        HStack(spacing: JellytoneTheme.Space.md) {
+            JellytoneItemArtwork(itemID: entry.track.id, imageTag: entry.track.imageTag, name: entry.track.name)
+                .frame(width: DetailMetrics.rowArtworkSide, height: DetailMetrics.rowArtworkSide)
+                .clipShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.smallArtwork, style: .continuous))
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
+                Text(entry.track.name)
+                    .font(.jtRowTitle)
+                    .foregroundStyle(Color.jtTextPrimary)
+                    .lineLimit(1)
+                Text(entry.track.artist)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: JellytoneTheme.Space.sm)
+            if entry.track.durationTicks != nil {
+                Text(entry.track.durationLabel)
+                    .font(.jtCaption.monospacedDigit())
+                    .foregroundStyle(Color.jtTextTertiary)
+            }
+        }
+        .padding(.vertical, JellytoneTheme.Space.smPlus)
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Rectangle().fill(Color.jtBorder).frame(height: 1)
+            }
+        }
+        .contentShape(Rectangle())
     }
 }

@@ -140,13 +140,6 @@ struct PlaylistArtwork: View {
     let playlist: Playlist
 
     var body: some View {
-        if playlist.imageTag != nil {
-            AuthenticatedArtworkView(
-                itemID: playlist.id,
-                accessibilityLabel: "Artwork for \(playlist.name)"
-            )
-        } else {
-            AudioMissingArtwork(label: playlist.name, systemImage: "music.note.list")
-        }
+        JellytoneItemArtwork(itemID: playlist.id, imageTag: playlist.imageTag, name: playlist.name)
     }
 }

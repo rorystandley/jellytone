@@ -48,7 +48,7 @@ final class LibraryStoreTests: XCTestCase {
         let appliedMigrations = try await inspectionQueue.read { database in
             try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM grdb_migrations")
         }
-        XCTAssertEqual(appliedMigrations, 5)
+        XCTAssertEqual(appliedMigrations, 7)
         let foreignKeyViolationCount = try await inspectionQueue.read { database in
             try Row.fetchAll(database, sql: "PRAGMA foreign_key_check").count
         }
@@ -94,7 +94,7 @@ final class LibraryStoreTests: XCTestCase {
         }
         XCTAssertEqual(
             appliedMigrations,
-                ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots", "003_create_track_catalog", "004_create_track_favourite_outbox", "005_create_playlist_rename_outbox"]
+                ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots", "003_create_track_catalog", "004_create_track_favourite_outbox", "005_create_playlist_rename_outbox", "006_add_album_sort_index", "007_create_detail_track_snapshots"]
         )
     }
 
@@ -440,8 +440,10 @@ final class LibraryStoreTests: XCTestCase {
             libraryID: "library-a"
         )
 
+        // Cached albums keep the server-received order (newest-first shelf);
+        // only search results normalise into deterministic alphabetical order.
         let cachedAlbumIDs = try await store.cachedAlbums(scope: scope, libraryID: "library-a").map(\.id)
-        XCTAssertEqual(cachedAlbumIDs, ["a", "b", "z", "other"])
+        XCTAssertEqual(cachedAlbumIDs, ["z", "b", "a", "other"])
         let search = try await store.searchMusic(query: "  ECHO  ", scope: scope, libraryID: "library-a")
         XCTAssertEqual(search.artists.map(\.id), ["a", "b", "z"])
         XCTAssertEqual(search.albums.map(\.id), ["a", "b", "z"])
@@ -583,6 +585,75 @@ final class LibraryStoreTests: XCTestCase {
         }
         XCTAssertEqual(rowCounts.0, 1)
         XCTAssertEqual(rowCounts.1, 2)
+    }
+
+    func testDetailTrackSnapshotsRoundTripPerContainerAndScope() async throws {
+        let store = try SQLiteLibraryStore(databaseURL: temporaryDatabaseURL())
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+        let otherScope = LibraryScope(serverID: "server-a", accountID: "account-b")
+        let track = Track(id: "track-a", name: "Synthetic Track", artist: "Synthetic Artist",
+                          album: "Synthetic Album", index: 1, disc: 1, durationTicks: 1_200_000_000)
+        let entry = PlaylistEntry(id: "occurrence-1", track: track)
+
+        // Empty cache reads as unavailable, never as an empty list.
+        let missingTracks = try await store.cachedAlbumTracks(albumID: "album-a", scope: scope, libraryID: "library-a")
+        XCTAssertNil(missingTracks)
+
+        try await store.replaceAlbumTracks([track], albumID: "album-a", scope: scope, libraryID: "library-a")
+        try await store.replacePlaylistEntries([entry], playlistID: "playlist-a", scope: scope, libraryID: nil)
+
+        let cachedTracks = try await store.cachedAlbumTracks(albumID: "album-a", scope: scope, libraryID: "library-a")
+        XCTAssertEqual(cachedTracks, [track])
+        let cachedEntries = try await store.cachedPlaylistEntries(playlistID: "playlist-a", scope: scope, libraryID: nil)
+        XCTAssertEqual(cachedEntries, [entry])
+
+        // Containers and account scopes stay isolated.
+        let otherAlbum = try await store.cachedAlbumTracks(albumID: "album-b", scope: scope, libraryID: "library-a")
+        XCTAssertNil(otherAlbum)
+        let otherAccount = try await store.cachedAlbumTracks(albumID: "album-a", scope: otherScope, libraryID: "library-a")
+        XCTAssertNil(otherAccount)
+
+        // A refresh replaces the snapshot wholesale.
+        try await store.replaceAlbumTracks([], albumID: "album-a", scope: scope, libraryID: "library-a")
+        let replaced = try await store.cachedAlbumTracks(albumID: "album-a", scope: scope, libraryID: "library-a")
+        XCTAssertEqual(replaced, [])
+    }
+
+    func testCachedAlbumsPreserveReceivedOrderAndAppendExtendsTheTail() async throws {
+        let databaseURL = temporaryDatabaseURL()
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+        let store = try SQLiteLibraryStore(databaseURL: databaseURL)
+        func album(_ id: String, _ name: String) -> Album {
+            Album(id: id, name: name, artist: "Synthetic Artist", productionYear: 2026, imageTag: nil)
+        }
+
+        // Server order (newest first) is intentionally not alphabetical.
+        let firstPage = [album("album-new", "Zebra Crossing"), album("album-mid", "Autumn")]
+        try await store.replaceAlbums(firstPage, scope: scope, libraryID: "library-a")
+        var cached = try await store.cachedAlbums(scope: scope, libraryID: "library-a")
+        XCTAssertEqual(cached.map(\.id), ["album-new", "album-mid"])
+
+        // A paginated second page lands after the cached tail; a re-received
+        // album keeps its original position with a refreshed payload.
+        let secondPage = [
+            album("album-old", "Middle Letters"),
+            Album(id: "album-mid", name: "Autumn (Remastered)", artist: "Synthetic Artist",
+                  productionYear: 2026, imageTag: "fresh-tag"),
+        ]
+        try await store.appendAlbums(secondPage, scope: scope, libraryID: "library-a")
+        cached = try await store.cachedAlbums(scope: scope, libraryID: "library-a")
+        XCTAssertEqual(cached.map(\.id), ["album-new", "album-mid", "album-old"])
+        XCTAssertEqual(cached[1].name, "Autumn (Remastered)")
+
+        // Search metadata writes must not disturb the shelf order.
+        try await store.storeSearchMetadata(
+            artists: [],
+            albums: [album("album-search", "AAA Search Result")],
+            scope: scope,
+            libraryID: "library-a"
+        )
+        cached = try await store.cachedAlbums(scope: scope, libraryID: "library-a")
+        XCTAssertEqual(cached.map(\.id), ["album-new", "album-mid", "album-old", "album-search"])
     }
 
     private func temporaryDatabaseURL() -> URL {

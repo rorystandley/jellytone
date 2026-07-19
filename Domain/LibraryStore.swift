@@ -38,6 +38,16 @@ enum PlaylistRenameValidation {
 protocol LibraryStoring: Sendable {
     func cachedAlbums(scope: LibraryScope, libraryID: String?) async throws -> [Album]
     func replaceAlbums(_ albums: [Album], scope: LibraryScope, libraryID: String?) async throws
+    /// Appends a further album page received while paginating, preserving the
+    /// server-received order after the cached tail. Already-cached albums keep
+    /// their position; only their payload refreshes.
+    func appendAlbums(_ albums: [Album], scope: LibraryScope, libraryID: String?) async throws
+    /// Whole-container detail snapshots so album/playlist screens paint
+    /// instantly across launches; the network refresh replaces them silently.
+    func cachedAlbumTracks(albumID: String, scope: LibraryScope, libraryID: String?) async throws -> [Track]?
+    func replaceAlbumTracks(_ tracks: [Track], albumID: String, scope: LibraryScope, libraryID: String?) async throws
+    func cachedPlaylistEntries(playlistID: String, scope: LibraryScope, libraryID: String?) async throws -> [PlaylistEntry]?
+    func replacePlaylistEntries(_ entries: [PlaylistEntry], playlistID: String, scope: LibraryScope, libraryID: String?) async throws
     /// Returns the complete, versioned Home snapshot for this server/account/library
     /// scope. A missing or malformed record is treated as an unavailable cache.
     func cachedHomeShelfSnapshot(
@@ -71,6 +81,11 @@ protocol LibraryStoring: Sendable {
 }
 
 extension LibraryStoring {
+    func appendAlbums(_ albums: [Album], scope: LibraryScope, libraryID: String?) async throws {}
+    func cachedAlbumTracks(albumID: String, scope: LibraryScope, libraryID: String?) async throws -> [Track]? { nil }
+    func replaceAlbumTracks(_ tracks: [Track], albumID: String, scope: LibraryScope, libraryID: String?) async throws {}
+    func cachedPlaylistEntries(playlistID: String, scope: LibraryScope, libraryID: String?) async throws -> [PlaylistEntry]? { nil }
+    func replacePlaylistEntries(_ entries: [PlaylistEntry], playlistID: String, scope: LibraryScope, libraryID: String?) async throws {}
     func cachedTrackCatalogPage(scope: LibraryScope, libraryID: String?, limit: Int) async throws -> TrackCatalogPage? { nil }
     func replaceTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws {}
     func appendTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws {}

@@ -52,7 +52,7 @@ final class HomeUITests: XCTestCase {
 
     func testHomeLoadingEmptyFailureAndRetryAreHonestAndPrivate() {
         var app = launchHome(extraArguments: ["--ui-testing-home-loading"])
-        XCTAssertTrue(app.staticTexts["Loading recently added albums…"].waitForExistence(timeout: 3))
+        XCTAssertTrue(element(in: app, identifier: "home-loading-skeleton").waitForExistence(timeout: 3))
         assertNoPrivateConnectionData(in: app)
         app.terminate()
 
@@ -73,9 +73,25 @@ final class HomeUITests: XCTestCase {
         let app = launchHome(extraArguments: ["--ui-testing-home-cached-partial-error"])
         let album = element(in: app, identifier: "home-recently-added-album-home-album-cached")
         XCTAssertTrue(album.waitForExistence(timeout: 3))
-        XCTAssertTrue(element(in: app, identifier: "home-refreshing").exists)
+        // Background refresh is deliberately silent — no status chip may
+        // appear over the cached shelves while it runs.
+        XCTAssertFalse(element(in: app, identifier: "home-refreshing").exists)
         XCTAssertTrue(app.staticTexts["Recently Played"].exists)
         XCTAssertTrue(element(in: app, identifier: "home-partial-failure").exists)
+        assertNoPrivateConnectionData(in: app)
+    }
+
+    func testAvatarOpensSettingsWithSignOutAndCachePurge() {
+        let app = launchHome()
+        let avatar = element(in: app, identifier: "home-settings")
+        XCTAssertTrue(avatar.waitForExistence(timeout: 4))
+        avatar.tap()
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["settings-sign-out"].exists)
+        let clear = app.buttons["settings-clear-image-cache"]
+        XCTAssertTrue(clear.exists)
+        clear.tap()
+        XCTAssertTrue(app.staticTexts["Zero KB"].waitForExistence(timeout: 3))
         assertNoPrivateConnectionData(in: app)
     }
 

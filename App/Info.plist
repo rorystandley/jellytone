@@ -27,7 +27,12 @@
     <key>NSLocalNetworkUsageDescription</key>
     <string>Connect to your Jellyfin server on the local network.</string>
     <key>UIBackgroundModes</key><array><string>audio</string></array>
-    <key>UILaunchScreen</key><dict/>
+    <key>UILaunchScreen</key>
+    <dict>
+        <key>UIColorName</key><string>JTLaunchBackground</string>
+        <key>UIImageName</key><string>JellytoneSplash</string>
+        <key>UIImageRespectsSafeAreaInsets</key><false/>
+    </dict>
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
