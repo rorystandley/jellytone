@@ -106,13 +106,38 @@ struct PlaylistEntry: Identifiable, Codable, Hashable, Sendable {
     let track: Track
 }
 
-/// One lyric line. `startSeconds` is present only for time-synced lyrics.
+/// One time-stamped word within a lyric line — the data needed for true
+/// karaoke highlighting. Present only when the server supplies per-word timing.
+struct LyricWord: Codable, Hashable, Sendable {
+    let text: String
+    let startSeconds: Double
+    let endSeconds: Double?
+}
+
+/// One lyric line. `startSeconds` is present only for time-synced lyrics;
+/// `words` is non-empty only when the server supplies per-word timing.
 struct LyricLine: Identifiable, Codable, Hashable, Sendable {
     let index: Int
     let text: String
     let startSeconds: Double?
+    let words: [LyricWord]
 
     var id: Int { index }
+
+    init(index: Int, text: String, startSeconds: Double?, words: [LyricWord] = []) {
+        self.index = index
+        self.text = text
+        self.startSeconds = startSeconds
+        self.words = words
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        index = try c.decode(Int.self, forKey: .index)
+        text = try c.decode(String.self, forKey: .text)
+        startSeconds = try c.decodeIfPresent(Double.self, forKey: .startSeconds)
+        words = try c.decodeIfPresent([LyricWord].self, forKey: .words) ?? []
+    }
 }
 
 struct TrackLyrics: Codable, Hashable, Sendable {
@@ -120,6 +145,12 @@ struct TrackLyrics: Codable, Hashable, Sendable {
 
     /// Synced when any line carries a timestamp — enables active-line highlight.
     var isSynced: Bool { lines.contains { $0.startSeconds != nil } }
+
+    /// True when at least one line has per-word timing — the requirement for
+    /// karaoke-style word highlighting. Currently unused by the UI (the servers
+    /// tested supply only per-line timing); kept so word-timed lyrics render
+    /// correctly if a library ever provides them.
+    var hasWordTiming: Bool { lines.contains { !$0.words.isEmpty } }
 
     /// Index of the line active at `elapsed`, for synced lyrics only.
     func activeIndex(at elapsed: TimeInterval) -> Int? {

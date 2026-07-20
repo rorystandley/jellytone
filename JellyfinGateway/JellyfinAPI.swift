@@ -573,7 +573,16 @@ struct JellyfinAPI: Sendable {
                 let text = raw.Text ?? ""
                 // Jellyfin encodes line start as ticks (1 tick = 100ns).
                 let start = raw.Start.map { Double($0) / 10_000_000 }
-                return LyricLine(index: index, text: text, startSeconds: start)
+                // Per-word timing (Jellyfin 10.10+ `Cues`), if present.
+                let words = (raw.Cues ?? []).compactMap { cue -> LyricWord? in
+                    guard let cueStart = cue.Start else { return nil }
+                    return LyricWord(
+                        text: cue.Text ?? "",
+                        startSeconds: Double(cueStart) / 10_000_000,
+                        endSeconds: cue.End.map { Double($0) / 10_000_000 }
+                    )
+                }
+                return LyricLine(index: index, text: text, startSeconds: start, words: words)
             }
             return lines.isEmpty ? nil : TrackLyrics(lines: lines)
         } catch APIError.httpStatus(404) {
@@ -1183,9 +1192,15 @@ private struct PlaybackInfoResponse: Decodable {
 }
 
 private struct LyricResponse: Decodable {
+    struct Cue: Decodable {
+        let Text: String?
+        let Start: Int64?
+        let End: Int64?
+    }
     struct Line: Decodable {
         let Text: String?
         let Start: Int64?
+        let Cues: [Cue]?
     }
     let Lyrics: [Line]
 }

@@ -31,6 +31,25 @@ final class LyricsGatewayTests: XCTestCase {
         XCTAssertEqual(lyrics.activeIndex(at: 100), 2)
     }
 
+    func testPerWordCuesAreMappedAndFlagWordTiming() async throws {
+        LyricsURLProtocol.handler = { request in
+            Self.response(request, json: #"""
+            {"Lyrics":[
+              {"Text":"Hello world","Start":0,"Cues":[
+                {"Text":"Hello","Start":0,"End":5000000},
+                {"Text":"world","Start":5000000,"End":10000000}
+              ]}
+            ]}
+            """#)
+        }
+        let api = try makeAPI()
+
+        let lyrics = try await XCTUnwrapAsync(await api.lyrics(itemID: "track-a"))
+        XCTAssertTrue(lyrics.hasWordTiming)
+        XCTAssertEqual(lyrics.lines.first?.words.map(\.text), ["Hello", "world"])
+        XCTAssertEqual(lyrics.lines.first?.words[1].startSeconds, 0.5)   // 5,000,000 ticks
+    }
+
     func testUnsyncedLyricsHaveNoTimingAndNoActiveLine() async throws {
         LyricsURLProtocol.handler = { request in
             Self.response(request, json: #"{"Lyrics":[{"Text":"Just words"},{"Text":"No timing"}]}"#)
@@ -39,6 +58,7 @@ final class LyricsGatewayTests: XCTestCase {
 
         let lyrics = try await XCTUnwrapAsync(await api.lyrics(itemID: "track-a"))
         XCTAssertFalse(lyrics.isSynced)
+        XCTAssertFalse(lyrics.hasWordTiming)
         XCTAssertNil(lyrics.lines.first?.startSeconds)
         XCTAssertNil(lyrics.activeIndex(at: 30))
     }
