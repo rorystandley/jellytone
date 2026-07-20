@@ -72,6 +72,14 @@ A gate refuses to overlap an existing xcodebuild process on its selected simulat
 rather than masking an infrastructure failure with a retry. UI launch fixtures
 continue to clear only their synthetic profile and Keychain state.
 
+CI readiness checks retry only transient startup states: simulator boot recovery is
+bounded to three clean boot attempts, and disposable Jellyfin provisioning waits
+for the specific startup endpoint needed before mutating setup state. Playback
+loopback probes similarly require a successful HTTP fixture response before the
+native probe starts. These retries do not mask failed tests or broaden pass
+criteria; they only distinguish a service that is still starting from one that
+has failed to start.
+
 ## Rollback and migration
 
 CI changes remain reviewable and pinned. A runner/tool update first runs in a

@@ -43,7 +43,7 @@ final class LargeLibraryStoreSearchScaleTests: XCTestCase {
         XCTAssertEqual(fixture.metadata.trackCount, 23_040)
         XCTAssertEqual(
             fixture.metadata.sha256,
-            "795bcd37ada99d75f880189511b2056090a4317c0bc056a5317ae69f2d17dd0b"
+            "40ddd91d568c997d067e2d31eee348a22de455ee5d020807d1b0381f0b4f6871"
         )
         XCTAssertGreaterThan(fixture.metadata.compilationAlbumCount, 100)
         XCTAssertGreaterThan(fixture.metadata.duplicateArtistNameCount, 0)

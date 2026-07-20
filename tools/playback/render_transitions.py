@@ -10,6 +10,7 @@ import sys
 import time
 import tempfile
 import urllib.request
+import urllib.error
 import wave
 
 from evidence_envelope import playback_envelope
@@ -51,6 +52,19 @@ def native_probe(binary: pathlib.Path, source: str, inputs: tuple[str, str]) -> 
     return json.loads(output)
 
 
+def wait_for_loopback_fixture(url: str) -> None:
+    last_error: Exception | None = None
+    for _ in range(30):
+        try:
+            with urllib.request.urlopen(url, timeout=2) as response:
+                if response.status == 200:
+                    return
+        except (urllib.error.URLError, TimeoutError) as error:
+            last_error = error
+        time.sleep(0.2)
+    raise RuntimeError(f"loopback fixture server did not become ready: {last_error}")
+
+
 def main() -> None:
     subprocess.run([sys.executable, str(ROOT / "tools/playback/generate_fixtures.py")], check=True)
     hard_filter = "[0:a][1:a]concat=n=2:v=0:a=1[out]"
@@ -68,9 +82,9 @@ def main() -> None:
         server = subprocess.Popen([sys.executable, str(ROOT / "tools/playback/serve_fixtures.py"),
                                    "--directory", str(FIX), "--port", "18766"])
         try:
-            time.sleep(0.3)
             remote_urls = ("http://127.0.0.1:18766/tone-a.wav",
                            "http://127.0.0.1:18766/tone-b.wav")
+            wait_for_loopback_fixture(remote_urls[0])
             native_remote = native_probe(native_binary, "remote-loopback-preloaded", remote_urls)
             downloaded = []
             preload = []

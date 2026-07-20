@@ -91,16 +91,23 @@ xcrun simctl boot "$simulator" >/dev/null 2>&1 || true
 if ! python3 - "$simulator" <<'PY'
 import subprocess
 import sys
+import time
 
-try:
-    subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1], "-b"], check=True, timeout=120)
-except subprocess.TimeoutExpired:
-    raise SystemExit("simulator did not become ready within 120 seconds")
-except subprocess.CalledProcessError as error:
-    raise SystemExit(f"simulator readiness check failed with exit status {error.returncode}")
+for attempt in range(1, 4):
+    try:
+        subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1], "-b"], check=True, timeout=120)
+        break
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+        if attempt == 3:
+            raise SystemExit(f"simulator did not become ready after {attempt} attempts: {error}")
+        subprocess.run(["xcrun", "simctl", "shutdown", sys.argv[1]], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(5)
+        subprocess.run(["xcrun", "simctl", "boot", sys.argv[1]], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 PY
 then
-  fail "simulator $device ($simulator) was not ready; inspect CoreSimulator and retry"
+  fail "simulator $device ($simulator) was not ready after bounded recovery attempts"
 fi
 
 set +e

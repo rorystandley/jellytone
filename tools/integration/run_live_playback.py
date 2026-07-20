@@ -87,6 +87,7 @@ def build_harness(output: Path) -> None:
     run([
         "swiftc", "-parse-as-library", "-o", str(output),
         str(ROOT / "Domain" / "Models.swift"),
+        str(ROOT / "Domain" / "Downloads.swift"),
         str(ROOT / "Domain" / "TrackFavouriteReconciliation.swift"),
         str(ROOT / "Domain" / "LibraryStore.swift"),
         str(ROOT / "Domain" / "HomeShelfSnapshot.swift"),

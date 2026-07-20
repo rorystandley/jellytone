@@ -33,6 +33,22 @@ wait_for_server() {
   printf '%s' "$response"
 }
 
+wait_for_setup_user() {
+  name=$1
+  url=$2
+  attempts=0
+  until response=$(curl --fail --silent --show-error --max-time 5 "$url/Startup/User" 2>/dev/null); do
+    attempts=$((attempts + 1))
+    if [ "$attempts" -ge 90 ]; then
+      echo "$name setup endpoint did not become ready at $url" >&2
+      compose logs --tail 80 "$name" >&2 || true
+      return 1
+    fi
+    sleep 2
+  done
+  printf '%s' "$response"
+}
+
 setup_server() {
   name=$1
   url=$2
@@ -47,7 +63,11 @@ setup_server() {
     -d '{"UICulture":"en-US","MetadataCountryCode":"GB","PreferredMetadataLanguage":"en"}' \
     "$url/Startup/Configuration" >/dev/null
   password=$(uuidgen | tr '[:upper:]' '[:lower:]')
-  username=$(curl --fail --silent --show-error "$url/Startup/User" | jq -er '.Name')
+  # Public Info can become available before the startup endpoints accept
+  # requests. Wait for the endpoint required by the next mutation instead of
+  # treating an early 503 as a permanent provisioning failure.
+  startup_user=$(wait_for_setup_user "$name" "$url")
+  username=$(printf '%s' "$startup_user" | jq -er '.Name')
   credential_file="$STATE/$name/fixture-password"
   (umask 077 && printf '%s' "$password" > "$credential_file")
 

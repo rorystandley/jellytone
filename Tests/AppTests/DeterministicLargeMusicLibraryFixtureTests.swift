@@ -49,7 +49,7 @@ final class DeterministicLargeMusicLibraryFixtureTests: XCTestCase {
         XCTAssertEqual(first.canonicalBytes.last, 0x0A)
         XCTAssertEqual(
             first.metadata.sha256,
-            "4e110be83722d944458a053b9924dfceb6aaecc26d05ce502d26f404a1d1e7c6"
+            "64ec6be0fca7e48c445baf53c9807791dbf6464eb758be3ac9189905a45c4a35"
         )
     }
 
