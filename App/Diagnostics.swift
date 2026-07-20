@@ -64,6 +64,7 @@ enum Diagnostics {
         "playback_interruption_ended",
         "playback_interruption_invalid",
         "playback_interruption_unknown",
+        "playback_local_source_selected",
         "playback_media_services_reset",
         "playback_plan_selected",
         "playback_prepare_failed",

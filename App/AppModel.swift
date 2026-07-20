@@ -18,6 +18,7 @@ final class AppModel: ObservableObject {
 
     let playback: PlaybackController
     let downloads: DownloadManager
+    let recentAudio = RecentAudioCache()
 
     private let defaults: UserDefaults
     private let libraryStore: (any LibraryStoring)?
@@ -43,6 +44,16 @@ final class AppModel: ObservableObject {
         }
         playback.localAudioURL = { [weak self] track in
             self?.downloads.localURL(for: track.id)
+        }
+        playback.replayCachedAudioURL = { [weak self] track in
+            // Never used for downloaded tracks (those resolve as offline first).
+            guard let self, !self.downloads.isDownloaded(track.id) else { return nil }
+            return self.recentAudio.localURL(for: track.id)
+        }
+        playback.cacheAudioForReplay = { [weak self] track in
+            guard let self, !self.downloads.isDownloaded(track.id),
+                  let request = try? self.api?.audioDownloadRequest(itemID: track.id) else { return }
+            Task { await self.recentAudio.remember(trackID: track.id, request: request) }
         }
         downloads.artworkPrefetch = { [weak self] track in
             guard let self, let api = self.api, let session = self.session,
@@ -825,6 +836,7 @@ final class AppModel: ObservableObject {
         KeychainTokenStore.delete()
         await ArtworkCache.shared.clear()
         await downloads.removeAll()
+        recentAudio.clear()
         defaults.removeObject(forKey: Self.profileKey)
         session = nil
         libraries = []

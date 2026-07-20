@@ -54,3 +54,11 @@ per-word timing) and cached in-memory for the session, but not yet persisted to
 disk as content-addressed assets. Detail metadata snapshots (album tracks,
 playlist entries — `detail_track_snapshots`, migration 007) and ordered album
 pages (`sort_index`, migration 006) landed in SQLite per the decision.
+
+`RecentAudioCache` adds an ephemeral replay cache: when a track streams via
+direct play, its original file is fetched into the system Caches directory and
+served on subsequent plays (LRU by ~500 MB byte budget, OS-evictable, cleared
+on sign-out). It is deliberately weaker than downloads — unverified, no
+manifest, never presented as offline-capable; a miss just streams. Playback
+reporting (recently-played, resume) is unchanged because only the audio source
+is swapped, not the plan. Distinct from the download manifest of ADR 0009.
