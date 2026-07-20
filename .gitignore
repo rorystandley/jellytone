@@ -1,5 +1,20 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode build products and user state
 /.build/
 /DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.xcresult
+
+# Generated Xcode project. Keep SwiftPM resolution metadata only.
 /Jellytone.xcodeproj/
 !/Jellytone.xcodeproj/
 /Jellytone.xcodeproj/*
@@ -10,5 +25,22 @@
 !/Jellytone.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
 /Jellytone.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
 !/Jellytone.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
-*.xcuserstate
-xcuserdata/
+
+# SwiftPM and dependency manager scratch data
+.swiftpm/
+Packages/
+Carthage/Build/
+Pods/
+
+# Logs, coverage, and local test output
+*.log
+*.profraw
+*.profdata
+coverage/
+TestResults/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.xcconfig.local
