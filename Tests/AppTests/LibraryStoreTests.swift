@@ -48,7 +48,7 @@ final class LibraryStoreTests: XCTestCase {
         let appliedMigrations = try await inspectionQueue.read { database in
             try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM grdb_migrations")
         }
-        XCTAssertEqual(appliedMigrations, 7)
+        XCTAssertEqual(appliedMigrations, 8)
         let foreignKeyViolationCount = try await inspectionQueue.read { database in
             try Row.fetchAll(database, sql: "PRAGMA foreign_key_check").count
         }
@@ -94,7 +94,7 @@ final class LibraryStoreTests: XCTestCase {
         }
         XCTAssertEqual(
             appliedMigrations,
-                ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots", "003_create_track_catalog", "004_create_track_favourite_outbox", "005_create_playlist_rename_outbox", "006_add_album_sort_index", "007_create_detail_track_snapshots"]
+                ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots", "003_create_track_catalog", "004_create_track_favourite_outbox", "005_create_playlist_rename_outbox", "006_add_album_sort_index", "007_create_detail_track_snapshots", "008_create_downloaded_tracks"]
         )
     }
 

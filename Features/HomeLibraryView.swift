@@ -154,8 +154,11 @@ struct HomeLibraryView<AlbumDestination: View>: View {
                         ForEach(tracks) { track in
                             Button { model.play(track, in: tracks) } label: {
                                 HomeShelfTile(
-                                    itemID: track.id,
-                                    imageTag: track.imageTag,
+                                    // Fall back to album artwork — most tracks
+                                    // carry no image of their own. The tag is
+                                    // only nil-checked downstream.
+                                    itemID: track.artworkItemID ?? track.id,
+                                    imageTag: track.artworkItemID == nil ? nil : (track.imageTag ?? "album"),
                                     title: track.name,
                                     subtitle: track.artist
                                 )

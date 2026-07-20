@@ -62,18 +62,29 @@ struct AlbumView: View {
             Text(metaLine)
                 .font(.jtCaption)
                 .foregroundStyle(Color.jtTextTertiary)
+            // Secondary bare-glyph actions grouped tightly; the filled play
+            // circle sits apart. The tighter inner gap compensates for the
+            // glyphs' frame padding so every optical gap reads even.
             HStack(spacing: JellytoneTheme.Space.xl) {
                 Spacer()
-                Button { model.shuffle(tracks) } label: {
-                    Image(systemName: "shuffle")
-                        .font(.jtSubsectionHeader)
-                        .foregroundStyle(Color.jtTextPrimary)
-                        .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
-                        .contentShape(Rectangle())
+                HStack(spacing: JellytoneTheme.Space.md) {
+                    DownloadStatusButton(
+                        downloads: model.downloads,
+                        tracks: tracks,
+                        container: albumContainer,
+                        identifierPrefix: "album"
+                    )
+                    Button { model.shuffle(tracks) } label: {
+                        Image(systemName: "shuffle")
+                            .font(.jtSubsectionHeader)
+                            .foregroundStyle(Color.jtTextPrimary)
+                            .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                    .accessibilityIdentifier("album-shuffle")
+                    .accessibilityLabel("Shuffle")
                 }
-                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
-                .accessibilityIdentifier("album-shuffle")
-                .accessibilityLabel("Shuffle")
                 Button {
                     if let first = tracks.first { model.play(first, in: tracks) }
                 } label: {
@@ -111,7 +122,8 @@ struct AlbumView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(discTracks) { track in
                         Button { model.play(track, in: tracks) } label: {
-                            AlbumTrackRow(track: track, isLast: track.id == discTracks.last?.id)
+                            AlbumTrackRow(track: track, isLast: track.id == discTracks.last?.id,
+                                          downloads: model.downloads)
                         }
                         .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
                         .frame(minHeight: 44)
@@ -123,11 +135,24 @@ struct AlbumView: View {
                                 .disabled(model.playback.currentTrack == nil)
                             Button("Add to Queue", systemImage: "text.badge.plus") { model.addToQueue(track) }
                                 .disabled(model.playback.currentTrack == nil)
+                            if model.downloads.isDownloaded(track.id) {
+                                Button("Remove Download", systemImage: "trash") {
+                                    Task { await model.downloads.remove(track.id) }
+                                }
+                            } else {
+                                Button("Download", systemImage: "arrow.down.circle") {
+                                    model.downloads.download([track], container: albumContainer)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    private var albumContainer: DownloadContainer {
+        DownloadContainer(kind: .album, id: album.id, name: album.name)
     }
 
     private var discNumbers: [Int] {
@@ -175,6 +200,7 @@ enum DetailMetrics {
 private struct AlbumTrackRow: View {
     let track: Track
     let isLast: Bool
+    @ObservedObject var downloads: DownloadManager
 
     var body: some View {
         HStack(spacing: JellytoneTheme.Space.md) {
@@ -193,6 +219,7 @@ private struct AlbumTrackRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: JellytoneTheme.Space.sm)
+            TrackDownloadIndicator(downloads: downloads, trackID: track.id)
             if track.durationTicks != nil {
                 Text(track.durationLabel)
                     .font(.jtCaption.monospacedDigit())
@@ -275,20 +302,29 @@ struct MiniPlayerView: View {
 }
 
 struct NowPlayingView: View {
+    @EnvironmentObject private var model: AppModel
     @ObservedObject var playback: PlaybackController
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showingQueue = false
+    @State private var lyrics: TrackLyrics?
+    @State private var showingLyrics = false
 
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
                 ScrollView {
                     VStack(spacing: dynamicTypeSize.isAccessibilitySize ? AudioDesign.Space.md : AudioDesign.Space.lg) {
-                    NowPlayingArtwork(playback: playback)
-                        .frame(width: artworkSize(for: proxy.size.width), height: artworkSize(for: proxy.size.width))
-                        .shadow(color: .black.opacity(0.25), radius: 20, y: 10)
+                    if showingLyrics, let lyrics {
+                        LyricsView(lyrics: lyrics, playback: playback)
+                            .frame(height: artworkSize(for: proxy.size.width))
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        NowPlayingArtwork(playback: playback)
+                            .frame(width: artworkSize(for: proxy.size.width), height: artworkSize(for: proxy.size.width))
+                            .shadow(color: .black.opacity(0.25), radius: 20, y: 10)
+                    }
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(playback.currentTrack?.name ?? "Nothing playing")
@@ -333,6 +369,18 @@ struct NowPlayingView: View {
                     HStack {
                         Label(playback.qualityLabel, systemImage: "waveform")
                         Spacer()
+                        if lyrics != nil {
+                            Button {
+                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                                    showingLyrics.toggle()
+                                }
+                            } label: {
+                                Label("Lyrics", systemImage: "quote.bubble")
+                                    .foregroundStyle(showingLyrics ? AudioDesign.accent : Color.secondary)
+                            }
+                            .accessibilityIdentifier("now-playing-lyrics-toggle")
+                            .accessibilityLabel(showingLyrics ? "Hide lyrics" : "Show lyrics")
+                        }
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -343,7 +391,17 @@ struct NowPlayingView: View {
                 .animation(reduceMotion ? nil : AudioDesign.Motion.standard, value: playback.currentTrack?.id)
                 }
             }
-            .audioCanvas()
+            .task(id: playback.currentTrack?.id) {
+                // New track: drop the previous track's lyrics view, then fetch.
+                showingLyrics = false
+                lyrics = nil
+                guard let track = playback.currentTrack else { return }
+                lyrics = await model.lyrics(for: track)
+            }
+            // Artwork-derived wash, kept dark always (design-system.md §4.5).
+            .background(JellytoneDetailBackdrop(tint: .black) { backdropArtwork })
+            .tint(AudioDesign.accent)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .navigationTitle("Now Playing")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -356,7 +414,21 @@ struct NowPlayingView: View {
             }
             .sheet(isPresented: $showingQueue) { PlaybackQueueView(playback: playback) }
         }
+        // Now Playing is dark regardless of the app's light/dark setting, so
+        // its adaptive text/controls resolve to their dark (light-coloured)
+        // variants over the artwork wash.
+        .preferredColorScheme(.dark)
         .presentationDetents([.large])
+    }
+
+    @ViewBuilder private var backdropArtwork: some View {
+        if let image = playback.artwork {
+            Image(uiImage: image).resizable().scaledToFill()
+        } else if let track = playback.currentTrack {
+            JellytoneTheme.placeholderGradient(hue: JellytoneTheme.placeholderHue(forID: track.id))
+        } else {
+            Color.black
+        }
     }
 
     private var repeatAccessibilityLabel: String {
@@ -377,6 +449,51 @@ struct NowPlayingView: View {
     private func time(_ seconds: TimeInterval) -> String {
         let value = max(0, Int(seconds.rounded()))
         return String(format: "%d:%02d", value / 60, value % 60)
+    }
+}
+
+/// Lyrics panel shown in place of the artwork. Synced lyrics highlight the
+/// active line (accent) and dim the rest, auto-scrolling to keep it centred;
+/// unsynced lyrics are a plain scroll. Jellyfin provides at most per-line
+/// timing, so the design spec's word-by-word karaoke isn't achievable — line
+/// level is the honest equivalent.
+private struct LyricsView: View {
+    let lyrics: TrackLyrics
+    @ObservedObject var playback: PlaybackController
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var activeIndex: Int? {
+        lyrics.activeIndex(at: playback.elapsed)
+    }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: AudioDesign.Space.md) {
+                    ForEach(lyrics.lines) { line in
+                        Text(line.text.isEmpty ? " " : line.text)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(color(for: line.index))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id(line.index)
+                    }
+                }
+                .padding(.vertical, AudioDesign.Space.lg)
+            }
+            .onChange(of: activeIndex) { _, index in
+                guard let index else { return }
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                    proxy.scrollTo(index, anchor: .center)
+                }
+            }
+        }
+        .accessibilityLabel("Lyrics")
+    }
+
+    private func color(for index: Int) -> Color {
+        guard lyrics.isSynced, let activeIndex else { return .white.opacity(0.85) }
+        if index == activeIndex { return AudioDesign.accent }
+        return index < activeIndex ? .white.opacity(0.7) : .white.opacity(0.4)
     }
 }
 

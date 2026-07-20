@@ -166,6 +166,55 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
         }
     }
 
+    func downloadedTracks(scope: LibraryScope) async throws -> [DownloadedTrack] {
+        try await databaseQueue.read { database in
+            let rows = try Row.fetchAll(
+                database,
+                sql: """
+                    SELECT item_id, payload
+                    FROM downloaded_tracks
+                    WHERE server_id = ? AND account_id = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID]
+            )
+            return rows.compactMap { row -> DownloadedTrack? in
+                guard let itemID: String = row["item_id"],
+                      let payload: Data = row["payload"],
+                      let record = try? JSONDecoder().decode(DownloadedTrack.self, from: payload),
+                      record.track.id == itemID else { return nil }
+                return record
+            }
+            .sorted { $0.completedAtEpochSeconds > $1.completedAtEpochSeconds }
+        }
+    }
+
+    func recordDownloadedTrack(_ record: DownloadedTrack, scope: LibraryScope) async throws {
+        let payload = try JSONEncoder().encode(record)
+        try await databaseQueue.write { database in
+            try database.execute(
+                sql: """
+                    INSERT INTO downloaded_tracks (server_id, account_id, item_id, payload)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT (server_id, account_id, item_id)
+                    DO UPDATE SET payload = excluded.payload
+                    """,
+                arguments: [scope.serverID, scope.accountID, record.track.id, payload]
+            )
+        }
+    }
+
+    func removeDownloadedTrack(itemID: String, scope: LibraryScope) async throws {
+        try await databaseQueue.write { database in
+            try database.execute(
+                sql: """
+                    DELETE FROM downloaded_tracks
+                    WHERE server_id = ? AND account_id = ? AND item_id = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID, itemID]
+            )
+        }
+    }
+
     func cachedHomeShelfSnapshot(
         scope: LibraryScope,
         libraryID: String?
@@ -436,6 +485,20 @@ private extension SQLiteLibraryStore {
                     FOREIGN KEY (server_id, account_id, library_scope)
                         REFERENCES library_scopes (server_id, account_id, library_scope)
                         ON DELETE CASCADE
+                ) WITHOUT ROWID
+                """)
+        }
+        migrator.registerMigration("008_create_downloaded_tracks") { database in
+            // Offline manifest (ADR 0009): one verified record per downloaded
+            // track, scoped by server/account. Downloads are user-global, so
+            // no library_scope column.
+            try database.execute(sql: """
+                CREATE TABLE downloaded_tracks (
+                    server_id TEXT NOT NULL,
+                    account_id TEXT NOT NULL,
+                    item_id TEXT NOT NULL,
+                    payload BLOB NOT NULL,
+                    PRIMARY KEY (server_id, account_id, item_id)
                 ) WITHOUT ROWID
                 """)
         }

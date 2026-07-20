@@ -48,7 +48,9 @@ directory, keys scoped `serverID_itemID`), read-through from
 full clear on logout. The OS may evict the directory under storage pressure.
 Not yet implemented from the decision above: budgeted LRU eviction, digests and
 byte-count verification, SQLite asset references, per-account (rather than
-per-server) namespaces, offline pinning, and lyrics assets. Detail metadata
-snapshots (album tracks, playlist entries — `detail_track_snapshots`, migration
-007) and ordered album pages (`sort_index`, migration 006) landed in SQLite per
-the decision.
+per-server) namespaces, and offline pinning. Lyrics are now fetched live from
+`GET /Audio/{id}/Lyrics` (per-line timing at most — Jellyfin exposes no
+per-word timing) and cached in-memory for the session, but not yet persisted to
+disk as content-addressed assets. Detail metadata snapshots (album tracks,
+playlist entries — `detail_track_snapshots`, migration 007) and ordered album
+pages (`sort_index`, migration 006) landed in SQLite per the decision.

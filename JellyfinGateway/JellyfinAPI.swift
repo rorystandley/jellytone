@@ -559,6 +559,28 @@ struct JellyfinAPI: Sendable {
         )
     }
 
+    /// Time-synced or plain lyrics for a track, or nil when the server has
+    /// none (404). Jellyfin returns per-line timing at most — there is no
+    /// per-word timing available.
+    func lyrics(itemID: String) async throws -> TrackLyrics? {
+        do {
+            let response = try await send(
+                operation: "lyrics",
+                path: ["Audio", itemID, "Lyrics"],
+                as: LyricResponse.self
+            )
+            let lines = response.Lyrics.enumerated().compactMap { index, raw -> LyricLine? in
+                let text = raw.Text ?? ""
+                // Jellyfin encodes line start as ticks (1 tick = 100ns).
+                let start = raw.Start.map { Double($0) / 10_000_000 }
+                return LyricLine(index: index, text: text, startSeconds: start)
+            }
+            return lines.isEmpty ? nil : TrackLyrics(lines: lines)
+        } catch APIError.httpStatus(404) {
+            return nil
+        }
+    }
+
     func tracks(userID: String, albumID: String) async throws -> [Track] {
         let response = try await send(
             operation: "tracks",
@@ -716,6 +738,17 @@ struct JellyfinAPI: Sendable {
             throw APIError.invalidResponse
         }
         return data
+    }
+
+    /// Original-container audio for offline download. Header-authenticated so
+    /// no token-bearing URL is ever persisted (ADR 0009).
+    func audioDownloadRequest(itemID: String) throws -> URLRequest {
+        var request = URLRequest(url: try makeURL(
+            path: ["Audio", itemID, "stream"],
+            query: [URLQueryItem(name: "static", value: "true")]
+        ))
+        addAuthorization(to: &request)
+        return request
     }
 
     func streamURL(itemID: String) throws -> URL {
@@ -1147,6 +1180,14 @@ private struct PlaybackInfoResponse: Decodable {
     }
     let MediaSources: [MediaSource]
     let PlaySessionId: String?
+}
+
+private struct LyricResponse: Decodable {
+    struct Line: Decodable {
+        let Text: String?
+        let Start: Int64?
+    }
+    let Lyrics: [Line]
 }
 
 private struct PlaybackReport: Encodable {

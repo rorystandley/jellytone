@@ -106,6 +106,33 @@ struct PlaylistEntry: Identifiable, Codable, Hashable, Sendable {
     let track: Track
 }
 
+/// One lyric line. `startSeconds` is present only for time-synced lyrics.
+struct LyricLine: Identifiable, Codable, Hashable, Sendable {
+    let index: Int
+    let text: String
+    let startSeconds: Double?
+
+    var id: Int { index }
+}
+
+struct TrackLyrics: Codable, Hashable, Sendable {
+    let lines: [LyricLine]
+
+    /// Synced when any line carries a timestamp — enables active-line highlight.
+    var isSynced: Bool { lines.contains { $0.startSeconds != nil } }
+
+    /// Index of the line active at `elapsed`, for synced lyrics only.
+    func activeIndex(at elapsed: TimeInterval) -> Int? {
+        guard isSynced else { return nil }
+        var active: Int?
+        for line in lines {
+            guard let start = line.startSeconds else { continue }
+            if start <= elapsed { active = line.index } else { break }
+        }
+        return active
+    }
+}
+
 struct PlaylistPage: Equatable, Sendable {
     let playlists: [Playlist]
     let hasMore: Bool
@@ -152,6 +179,12 @@ struct Track: Identifiable, Codable, Hashable, Sendable {
         self.durationTicks = durationTicks
         self.artistID = artistID
         self.imageTag = imageTag
+    }
+
+    /// Item whose Primary image represents this track — its own when it has
+    /// one, otherwise its album's (most tracks carry no image of their own).
+    var artworkItemID: String? {
+        imageTag != nil ? id : albumID
     }
 
     var duration: TimeInterval {

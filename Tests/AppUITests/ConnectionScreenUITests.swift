@@ -52,6 +52,20 @@ final class ConnectionScreenUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Clear Up Next"].exists)
     }
 
+    func testLyricsToggleAppearsAndSwitchesTheNowPlayingArtwork() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-player-lyrics"]
+        app.launch()
+
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        let toggle = app.buttons["now-playing-lyrics-toggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        toggle.tap()
+        XCTAssertTrue(app.staticTexts["Synthetic opening line"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["The chorus arrives now"].exists)
+    }
+
     func testRestoredPlaybackPositionDrivesNowPlayingPresentation() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-restored-playback"]

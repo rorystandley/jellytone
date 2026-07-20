@@ -48,6 +48,11 @@ protocol LibraryStoring: Sendable {
     func replaceAlbumTracks(_ tracks: [Track], albumID: String, scope: LibraryScope, libraryID: String?) async throws
     func cachedPlaylistEntries(playlistID: String, scope: LibraryScope, libraryID: String?) async throws -> [PlaylistEntry]?
     func replacePlaylistEntries(_ entries: [PlaylistEntry], playlistID: String, scope: LibraryScope, libraryID: String?) async throws
+    /// Offline download manifest (ADR 0009). Records are authoritative for
+    /// source resolution; a file without a record is an orphan.
+    func downloadedTracks(scope: LibraryScope) async throws -> [DownloadedTrack]
+    func recordDownloadedTrack(_ record: DownloadedTrack, scope: LibraryScope) async throws
+    func removeDownloadedTrack(itemID: String, scope: LibraryScope) async throws
     /// Returns the complete, versioned Home snapshot for this server/account/library
     /// scope. A missing or malformed record is treated as an unavailable cache.
     func cachedHomeShelfSnapshot(
@@ -86,6 +91,9 @@ extension LibraryStoring {
     func replaceAlbumTracks(_ tracks: [Track], albumID: String, scope: LibraryScope, libraryID: String?) async throws {}
     func cachedPlaylistEntries(playlistID: String, scope: LibraryScope, libraryID: String?) async throws -> [PlaylistEntry]? { nil }
     func replacePlaylistEntries(_ entries: [PlaylistEntry], playlistID: String, scope: LibraryScope, libraryID: String?) async throws {}
+    func downloadedTracks(scope: LibraryScope) async throws -> [DownloadedTrack] { [] }
+    func recordDownloadedTrack(_ record: DownloadedTrack, scope: LibraryScope) async throws {}
+    func removeDownloadedTrack(itemID: String, scope: LibraryScope) async throws {}
     func cachedTrackCatalogPage(scope: LibraryScope, libraryID: String?, limit: Int) async throws -> TrackCatalogPage? { nil }
     func replaceTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws {}
     func appendTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws {}

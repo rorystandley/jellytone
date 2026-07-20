@@ -51,13 +51,25 @@ struct PlaylistDetailView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(state.entries.enumerated()), id: \.element.id) { offset, entry in
                         Button { model.play(entry, in: state.entries) } label: {
-                            PlaylistEntryRow(entry: entry, isLast: entry.id == state.entries.last?.id)
+                            PlaylistEntryRow(entry: entry, isLast: entry.id == state.entries.last?.id,
+                                             downloads: model.downloads)
                         }
                         .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
                         .frame(minHeight: 44)
                         .accessibilityIdentifier("playlist-track-\(entry.id)")
                         .accessibilityLabel(trackAccessibilityLabel(entry, position: offset + 1))
                         .accessibilityHint("Starts playback from this playlist occurrence")
+                        .contextMenu {
+                            if model.downloads.isDownloaded(entry.track.id) {
+                                Button("Remove Download", systemImage: "trash") {
+                                    Task { await model.downloads.remove(entry.track.id) }
+                                }
+                            } else {
+                                Button("Download", systemImage: "arrow.down.circle") {
+                                    model.downloads.download([entry.track], container: playlistContainer)
+                                }
+                            }
+                        }
                         .task {
                             if entry.id == state.entries.last?.id { await loadMore() }
                         }
@@ -94,18 +106,29 @@ struct PlaylistDetailView: View {
             Text(metaLine)
                 .font(.jtCaption)
                 .foregroundStyle(Color.jtTextTertiary)
+            // Secondary bare-glyph actions grouped tightly; the filled play
+            // circle sits apart. The tighter inner gap compensates for the
+            // glyphs' frame padding so every optical gap reads even.
             HStack(spacing: JellytoneTheme.Space.xl) {
                 Spacer()
-                Button { model.shuffle(state.entries) } label: {
-                    Image(systemName: "shuffle")
-                        .font(.jtSubsectionHeader)
-                        .foregroundStyle(Color.jtTextPrimary)
-                        .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
-                        .contentShape(Rectangle())
+                HStack(spacing: JellytoneTheme.Space.md) {
+                    DownloadStatusButton(
+                        downloads: model.downloads,
+                        tracks: state.entries.map(\.track),
+                        container: playlistContainer,
+                        identifierPrefix: "playlist"
+                    )
+                    Button { model.shuffle(state.entries) } label: {
+                        Image(systemName: "shuffle")
+                            .font(.jtSubsectionHeader)
+                            .foregroundStyle(Color.jtTextPrimary)
+                            .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                    .accessibilityIdentifier("playlist-shuffle")
+                    .accessibilityLabel("Shuffle")
                 }
-                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
-                .accessibilityIdentifier("playlist-shuffle")
-                .accessibilityLabel("Shuffle")
                 Button { model.playAll(state.entries) } label: {
                     Image(systemName: "play.fill")
                         .font(.system(size: DetailMetrics.playDiameter / 3, weight: .semibold))
@@ -121,6 +144,10 @@ struct PlaylistDetailView: View {
             .opacity(state.entries.isEmpty ? 0.4 : 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var playlistContainer: DownloadContainer {
+        DownloadContainer(kind: .playlist, id: playlist.id, name: playlist.name)
     }
 
     private var metaLine: String {
@@ -236,10 +263,11 @@ struct PlaylistDetailView: View {
 private struct PlaylistEntryRow: View {
     let entry: PlaylistEntry
     let isLast: Bool
+    @ObservedObject var downloads: DownloadManager
 
     var body: some View {
         HStack(spacing: JellytoneTheme.Space.md) {
-            JellytoneItemArtwork(itemID: entry.track.id, imageTag: entry.track.imageTag, name: entry.track.name)
+            JellytoneTrackArtwork(track: entry.track)
                 .frame(width: DetailMetrics.rowArtworkSide, height: DetailMetrics.rowArtworkSide)
                 .clipShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.smallArtwork, style: .continuous))
             VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
@@ -253,6 +281,7 @@ private struct PlaylistEntryRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: JellytoneTheme.Space.sm)
+            TrackDownloadIndicator(downloads: downloads, trackID: entry.track.id)
             if entry.track.durationTicks != nil {
                 Text(entry.track.durationLabel)
                     .font(.jtCaption.monospacedDigit())

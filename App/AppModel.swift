@@ -17,6 +17,7 @@ final class AppModel: ObservableObject {
     @Published var errorMessage: String?
 
     let playback: PlaybackController
+    let downloads: DownloadManager
 
     private let defaults: UserDefaults
     private let libraryStore: (any LibraryStoring)?
@@ -32,6 +33,26 @@ final class AppModel: ObservableObject {
         self.defaults = defaults
         self.libraryStore = libraryStore ?? Self.makeDefaultLibraryStore()
         self.playback = PlaybackController(defaults: defaults)
+        self.downloads = DownloadManager(store: self.libraryStore)
+        downloads.scopeProvider = { [weak self] in
+            self?.session.map { LibraryScope(serverID: $0.serverID, accountID: $0.userID) }
+        }
+        downloads.requestProvider = { [weak self] track in
+            guard let api = self?.api else { throw APIError.notAuthenticated }
+            return try api.audioDownloadRequest(itemID: track.id)
+        }
+        playback.localAudioURL = { [weak self] track in
+            self?.downloads.localURL(for: track.id)
+        }
+        downloads.artworkPrefetch = { [weak self] track in
+            guard let self, let api = self.api, let session = self.session,
+                  let artworkID = track.artworkItemID else { return }
+            let key = ArtworkCache.key(serverID: session.serverID, itemID: artworkID)
+            guard await ArtworkCache.shared.image(forKey: key) == nil else { return }
+            if let data = try? await api.artworkData(itemID: artworkID) {
+                await ArtworkCache.shared.store(data, forKey: key)
+            }
+        }
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--ui-testing") {
             defaults.removeObject(forKey: Self.profileKey)
@@ -152,6 +173,7 @@ final class AppModel: ObservableObject {
         persistProfile(session)
         try await refreshAlbums(libraryID: selectedLibraryID)
         Task { await refreshHomeShelves() }
+        Task { await downloads.refreshRecords() }
     }
 
     func refreshAlbums(libraryID: String?) async throws {
@@ -369,6 +391,30 @@ final class AppModel: ObservableObject {
             entries, playlistID: playlist.id, scope: libraryScope(for: session), libraryID: nil
         )
     }
+
+    /// Lyrics for a track, or nil when the server has none. Results are cached
+    /// in-memory for the session so re-opening the lyrics view is instant.
+    func lyrics(for track: Track) async -> TrackLyrics? {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing-player-lyrics") {
+            return TrackLyrics(lines: [
+                LyricLine(index: 0, text: "Synthetic opening line", startSeconds: 0),
+                LyricLine(index: 1, text: "A second line to read", startSeconds: 4),
+                LyricLine(index: 2, text: "The chorus arrives now", startSeconds: 8),
+            ])
+        }
+        if arguments.contains("--ui-testing") { return nil }
+#endif
+        if let cached = lyricsByTrack[track.id] { return cached.value }
+        guard let api else { return nil }
+        let result = try? await api.lyrics(itemID: track.id)
+        lyricsByTrack[track.id] = LyricsCacheEntry(value: result)
+        return result
+    }
+
+    private struct LyricsCacheEntry { let value: TrackLyrics? }
+    private var lyricsByTrack: [String: LyricsCacheEntry] = [:]
 
     func searchMusic(query: String, startIndex: Int = 0) async throws -> MusicSearchPage {
 #if DEBUG
@@ -778,6 +824,7 @@ final class AppModel: ObservableObject {
         await playback.stopAndWait()
         KeychainTokenStore.delete()
         await ArtworkCache.shared.clear()
+        await downloads.removeAll()
         defaults.removeObject(forKey: Self.profileKey)
         session = nil
         libraries = []

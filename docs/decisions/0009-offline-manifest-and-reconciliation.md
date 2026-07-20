@@ -1,5 +1,22 @@
 # ADR 0009: Offline manifests and mutation reconciliation
 
+## Downloads implementation note (2026-07-20)
+
+First download slice shipped: migration 008 stores one verified manifest
+record per track (server/account scope, Track payload, initiating container,
+relative file name, byte count, SHA-256 digest, completion time). The
+`DownloadManager` queue fetches original-container audio with a
+header-authenticated request (no token-bearing URL is built or stored),
+verifies byte count against the response and computes the digest, moves the
+file atomically into Application Support/Downloads (backup-excluded), and
+commits the manifest only afterwards — a crash mid-pipeline leaves an orphan
+file, never an unverified record. Source resolution (playback and the
+Downloads screen) trusts the manifest plus file presence, never the
+filesystem alone. Sign-out removes records and files. Not yet implemented
+from the decision below: media source/version and quality recipe in the
+identity, open/probe validation before commit, orphan repair tooling, and
+storage budgets.
+
 ## Phase 3 rename implementation note
 
 The first bounded mutation applies durable reconciliation to names: migration

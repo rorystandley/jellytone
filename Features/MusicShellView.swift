@@ -23,6 +23,7 @@ struct MusicShellView: View {
         .tint(Color.jtAccent)
         .sheet(isPresented: $showingPlayer) {
             NowPlayingView(playback: model.playback)
+                .environmentObject(model)
         }
     }
 
@@ -35,6 +36,9 @@ struct MusicShellView: View {
             }
             Tab("Library", systemImage: "square.stack.fill") {
                 LibraryView()
+            }
+            Tab("Downloads", systemImage: "arrow.down.circle") {
+                DownloadsView()
             }
             Tab("Search", systemImage: "magnifyingglass", role: .search) {
                 SearchView()

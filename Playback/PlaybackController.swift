@@ -108,6 +108,11 @@ final class PlaybackController: ObservableObject {
     private var preparationTask: Task<Void, Never>?
     private var reportingTask: Task<Void, Never>?
     private var originalQueue: [QueueEntry] = []
+    /// Resolves a verified offline file for a track (set by the coordinator).
+    /// When it returns a URL the track plays locally with no server plan and
+    /// no progress reporting — offline playback must not require the network.
+    var localAudioURL: (@MainActor (Track) -> URL?)?
+
     private var api: JellyfinAPI?
     private var userID: String?
     private var scope = ""
@@ -526,6 +531,42 @@ final class PlaybackController: ObservableObject {
                     await stopTask.value
                 }
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
+                if let localURL = localAudioURL?(track) {
+                    plan = nil
+                    Diagnostics.event("playback_local_source_selected")
+                    qualityLabel = "Downloaded"
+                    let player = AVPlayer(url: localURL)
+                    self.player = player
+                    lastProgressBucket = Int(resumeAt / 10)
+                    lastPersistenceBucket = Int(resumeAt / 5)
+                    observe(player)
+                    if resumeAt > 0 {
+                        await player.seek(to: CMTime(seconds: resumeAt, preferredTimescale: 600))
+                    }
+                    guard !Task.isCancelled, generation == expectedGeneration else { return }
+                    let shouldPlay = shouldStartPreparedPlayer
+                    if shouldPlay { player.play() }
+                    isPlaying = shouldPlay
+                    isPreparing = false
+                    updateNowPlaying(track: track)
+                    if let albumID = track.albumID {
+                        // Cached artwork first — offline playback must not
+                        // depend on the network for its imagery either.
+                        let serverID = scope.split(separator: ":").first.map(String.init) ?? ""
+                        let cacheKey = ArtworkCache.key(serverID: serverID, itemID: albumID)
+                        if let cached = await ArtworkCache.shared.image(forKey: cacheKey),
+                           generation == expectedGeneration {
+                            artwork = cached
+                            updateNowPlaying(track: track)
+                        } else if let data = try? await api.artworkData(itemID: albumID),
+                                  let image = UIImage(data: data), generation == expectedGeneration {
+                            artwork = image
+                            updateNowPlaying(track: track)
+                            await ArtworkCache.shared.store(data, forKey: cacheKey)
+                        }
+                    }
+                    return
+                }
                 let selectedPlan = try await api.playbackPlan(itemID: track.id, userID: userID)
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
                 let startTask = Task {

@@ -221,9 +221,12 @@ private struct LibraryAlbumCard: View {
 }
 
 /// Full-screen blurred-artwork backdrop for detail screens (album/playlist):
-/// the item's artwork blown up, blurred, and washed with the background token
-/// so foreground text tokens stay legible in light and dark mode.
+/// the item's artwork blown up, blurred, and washed with a tint so foreground
+/// text stays legible. Defaults to the adaptive background token; Now Playing
+/// passes a fixed dark tint since that screen is always dark (design-system.md
+/// §4.5).
 struct JellytoneDetailBackdrop<Artwork: View>: View {
+    var tint: Color = .jtBackground
     @ViewBuilder let artwork: () -> Artwork
 
     private static var blurRadius: CGFloat { 60 }
@@ -232,14 +235,29 @@ struct JellytoneDetailBackdrop<Artwork: View>: View {
 
     var body: some View {
         ZStack {
-            Color.jtBackground
+            tint
             artwork()
                 .scaleEffect(Self.overscan)
                 .blur(radius: Self.blurRadius)
-            Color.jtBackground.opacity(Self.washOpacity)
+            tint.opacity(Self.washOpacity)
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
+    }
+}
+
+/// Track-row artwork: the track's own image when it has one, otherwise its
+/// album's cover, otherwise the generated gradient placeholder.
+struct JellytoneTrackArtwork: View {
+    let track: Track
+
+    var body: some View {
+        if let artworkID = track.artworkItemID {
+            AuthenticatedArtworkView(itemID: artworkID, accessibilityLabel: "Artwork for \(track.name)")
+        } else {
+            JellytoneTheme.placeholderGradient(hue: JellytoneTheme.placeholderHue(forID: track.id))
+                .accessibilityLabel("No artwork for \(track.name)")
+        }
     }
 }
 
@@ -268,11 +286,11 @@ struct AuthenticatedArtworkView: View {
 
     var body: some View {
         ZStack {
-            Rectangle().fill(.quaternary)
+            // Loading/missing state is the generated gradient, never a grey
+            // box or broken-image glyph (design-system.md §6).
+            JellytoneTheme.placeholderGradient(hue: JellytoneTheme.placeholderHue(forID: itemID))
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                Image(systemName: "music.note").font(.largeTitle).foregroundStyle(.secondary)
             }
         }
         .clipped()
