@@ -44,6 +44,12 @@ atomic replacement, and failed-migration rollback with synthetic tests.
 Invalid domain values are rejected before writes; malformed or
 identity-mismatched payloads are skipped on reads without exposing row types.
 
+Small, device-local UI preferences that do not need transactional or scoped
+storage use `UserDefaults` through `AppStorage`. The app-wide appearance
+preference is stored as the stable raw values `system`, `light`, or `dark`;
+an absent value defaults to `system`. It contains no account, server, media, or
+credential data and is deliberately retained across normal app launches.
+
 Migration `002_create_home_shelf_snapshots` adds one atomic, versioned
 application-owned Home payload per server/account/music-library key. It stores
 no Jellyfin wire model, secret, media path, or managed file reference; malformed

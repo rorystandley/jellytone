@@ -7,23 +7,27 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system
 
     @State private var imageCacheBytes: Int64?
     @State private var isSigningOut = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
-                header
-                accountSection
-                dataSection
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
+                    header
+                    appearanceSection
+                    accountSection
+                    dataSection
+                }
+                .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                .padding(.top, JellytoneTheme.Space.xl)
+                .padding(.bottom, JellytoneTheme.Space.xxxl)
             }
-            .padding(.horizontal, JellytoneTheme.Space.screenMargin)
-            .padding(.top, JellytoneTheme.Space.xl)
-            .padding(.bottom, JellytoneTheme.Space.xxxl)
+            .background(Color.jtBackground.ignoresSafeArea())
+            .task { imageCacheBytes = await ArtworkCache.shared.diskBytes() }
         }
-        .background(Color.jtBackground.ignoresSafeArea())
-        .task { imageCacheBytes = await ArtworkCache.shared.diskBytes() }
     }
 
     private var header: some View {
@@ -31,6 +35,28 @@ struct SettingsView: View {
             .font(.jtLargeTitle)
             .foregroundStyle(Color.jtTextPrimary)
             .accessibilityAddTraits(.isHeader)
+    }
+
+    // MARK: Appearance
+
+    private var appearanceSection: some View {
+        section(title: "Appearance") {
+            NavigationLink {
+                AppearanceSettingsView()
+            } label: {
+                HStack(spacing: JellytoneTheme.Space.md) {
+                    Text("Appearance")
+                        .font(.jtRowTitle)
+                        .foregroundStyle(Color.jtTextPrimary)
+                    Spacer(minLength: JellytoneTheme.Space.sm)
+                    Text(appearance.title)
+                        .font(.jtRowTitle)
+                        .foregroundStyle(Color.jtTextSecondary)
+                }
+            }
+            .padding(.vertical, JellytoneTheme.Space.mdPlus)
+            .accessibilityIdentifier("settings-appearance")
+        }
     }
 
     // MARK: Account
@@ -121,5 +147,67 @@ struct SettingsView: View {
 
     private var rowDivider: some View {
         Rectangle().fill(Color.jtBorder).frame(height: 1)
+    }
+}
+
+private struct AppearanceSettingsView: View {
+    @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
+                Text("Choose how Jellytone appears.")
+                    .font(.jtBody)
+                    .foregroundStyle(Color.jtTextSecondary)
+
+                VStack(spacing: 0) {
+                    ForEach(AppearancePreference.allCases) { preference in
+                        appearanceOption(preference)
+                        if preference != AppearancePreference.allCases.last {
+                            Rectangle().fill(Color.jtBorder).frame(height: 1)
+                        }
+                    }
+                }
+                .padding(.horizontal, JellytoneTheme.Space.lg)
+                .background(Color.jtSurface, in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous))
+            }
+            .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+            .padding(.vertical, JellytoneTheme.Space.xl)
+        }
+        .background(Color.jtBackground.ignoresSafeArea())
+        .navigationTitle("Appearance")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func appearanceOption(_ preference: AppearancePreference) -> some View {
+        Button {
+            appearance = preference
+        } label: {
+            HStack(spacing: JellytoneTheme.Space.md) {
+                VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
+                    Text(preference.title)
+                        .font(.jtRowTitle)
+                        .foregroundStyle(Color.jtTextPrimary)
+                    if preference == .system {
+                        Text("Uses your device appearance")
+                            .font(.jtRowSubtitle)
+                            .foregroundStyle(Color.jtTextSecondary)
+                    }
+                }
+                Spacer()
+                if appearance == preference {
+                    Image(systemName: "checkmark")
+                        .font(.jtRowTitle)
+                        .foregroundStyle(Color.jtAccent)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, JellytoneTheme.Space.mdPlus)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(appearance == preference ? .isSelected : [])
+        .accessibilityIdentifier("settings-appearance-option-\(preference.rawValue)")
     }
 }

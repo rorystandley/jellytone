@@ -95,6 +95,26 @@ final class HomeUITests: XCTestCase {
         assertNoPrivateConnectionData(in: app)
     }
 
+    func testAppearanceChoicePersistsAcrossAppLaunches() {
+        var app = launchHome()
+        openSettings(in: app)
+        app.buttons["settings-appearance"].tap()
+        let dark = app.buttons["settings-appearance-option-dark"]
+        XCTAssertTrue(dark.waitForExistence(timeout: 3))
+        dark.tap()
+        XCTAssertTrue(dark.isSelected)
+        app.terminate()
+
+        app = launchHome()
+        openSettings(in: app)
+        app.buttons["settings-appearance"].tap()
+        let restoredAppearance = app.buttons["settings-appearance-option-dark"]
+        XCTAssertTrue(restoredAppearance.isSelected)
+
+        // Keep later UI tests independent of this test's persisted choice.
+        app.buttons["settings-appearance-option-system"].tap()
+    }
+
     func testContinueListeningUsesTheExistingPlaybackController() {
         let app = launchHome(extraArguments: ["--ui-testing-restored-playback"])
         let card = element(in: app, identifier: "home-continue-listening")
@@ -113,6 +133,13 @@ final class HomeUITests: XCTestCase {
 
     private func element(in app: XCUIApplication, identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
+    }
+
+    private func openSettings(in app: XCUIApplication) {
+        let avatar = element(in: app, identifier: "home-settings")
+        XCTAssertTrue(avatar.waitForExistence(timeout: 4))
+        avatar.tap()
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 3))
     }
 
     private func assertNoPrivateConnectionData(in app: XCUIApplication) {

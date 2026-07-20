@@ -17,6 +17,13 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertEqual(track.durationLabel, "2:05")
     }
 
+    func testAppearancePreferenceMapsToTheExpectedColorScheme() {
+        XCTAssertNil(AppearancePreference.system.colorScheme)
+        XCTAssertEqual(AppearancePreference.light.colorScheme, .light)
+        XCTAssertEqual(AppearancePreference.dark.colorScheme, .dark)
+        XCTAssertEqual(AppearancePreference.allCases.map(\.title), ["System", "Light", "Dark"])
+    }
+
     func testArtworkRequestPreservesReverseProxyBasePathAndUsesHeaderToken() throws {
         let api = JellyfinAPI(
             baseURL: try XCTUnwrap(URL(string: "https://example.com/jellyfin")),
