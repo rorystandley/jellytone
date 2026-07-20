@@ -74,11 +74,14 @@ continue to clear only their synthetic profile and Keychain state.
 
 CI readiness checks retry only transient startup states: simulator boot recovery is
 bounded to three clean boot attempts, and disposable Jellyfin provisioning waits
-for the specific startup endpoint needed before mutating setup state. Playback
-loopback probes similarly require a successful HTTP fixture response before the
-native probe starts. These retries do not mask failed tests or broaden pass
-criteria; they only distinguish a service that is still starting from one that
-has failed to start.
+for the specific startup endpoint needed before retrying each bounded setup
+mutation. Playback loopback probes similarly require a successful HTTP fixture
+response and complete their loopback download before the native probe starts.
+These retries do not mask failed tests or broaden pass criteria; they only
+distinguish a service that is still starting from one that has failed to start.
+The UI gate runs all test classes in three named, non-overlapping matrix shards;
+each shard retains the same simulator isolation and pass criteria while keeping
+the complete suite below the job timeout.
 
 ## Rollback and migration
 

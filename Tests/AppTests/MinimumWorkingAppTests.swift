@@ -629,10 +629,8 @@ final class MinimumWorkingAppTests: XCTestCase {
 
     @MainActor
     func testPlaybackActivatesBackgroundAudioSessionBeforePreparingStream() async throws {
-        let stopped = expectation(description: "Playback stop report completes")
         MockURLProtocol.handler = { request in
             if request.url?.path == "/Sessions/Playing/Stopped" {
-                stopped.fulfill()
                 return Self.response(for: request, status: 204, json: "")
             }
             if request.url?.path == "/Sessions/Playing" {
@@ -665,14 +663,11 @@ final class MinimumWorkingAppTests: XCTestCase {
         )
 
         playback.play(track, queue: [track], using: api, userID: "user", scope: "server:user")
-        for _ in 0..<100 where playback.isPreparing {
-            try await Task.sleep(for: .milliseconds(1))
-        }
+        await playback.waitForPendingReportingForTesting()
 
         XCTAssertEqual(session.activationCount, 1)
         XCTAssertFalse(playback.isPreparing)
-        playback.stop()
-        await fulfillment(of: [stopped], timeout: 1)
+        await playback.stopAndWait()
         XCTAssertEqual(session.deactivationCount, 1)
     }
 

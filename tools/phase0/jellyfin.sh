@@ -16,15 +16,15 @@ compose() {
   docker compose --env-file "$VERSIONS" -f "$COMPOSE" "$@"
 }
 
-wait_for_server() {
+retry_request() {
   name=$1
-  url=$2
+  endpoint=$2
+  shift 2
   attempts=0
-  until response=$(curl --fail --silent --show-error --max-time 5 \
-      "$url/System/Info/Public" 2>/dev/null); do
+  until response=$("$@" 2>/dev/null); do
     attempts=$((attempts + 1))
     if [ "$attempts" -ge 90 ]; then
-      echo "$name did not become ready at $url" >&2
+      echo "$name request did not become ready: $endpoint" >&2
       compose logs --tail 80 "$name" >&2 || true
       return 1
     fi
@@ -33,20 +33,18 @@ wait_for_server() {
   printf '%s' "$response"
 }
 
+wait_for_server() {
+  name=$1
+  url=$2
+  retry_request "$name" "GET /System/Info/Public" \
+    curl --fail --silent --show-error --max-time 5 "$url/System/Info/Public"
+}
+
 wait_for_setup_user() {
   name=$1
   url=$2
-  attempts=0
-  until response=$(curl --fail --silent --show-error --max-time 5 "$url/Startup/User" 2>/dev/null); do
-    attempts=$((attempts + 1))
-    if [ "$attempts" -ge 90 ]; then
-      echo "$name setup endpoint did not become ready at $url" >&2
-      compose logs --tail 80 "$name" >&2 || true
-      return 1
-    fi
-    sleep 2
-  done
-  printf '%s' "$response"
+  retry_request "$name" "GET /Startup/User" \
+    curl --fail --silent --show-error --max-time 5 "$url/Startup/User"
 }
 
 setup_server() {
@@ -58,7 +56,8 @@ setup_server() {
     return 0
   fi
 
-  curl --fail --silent --show-error -X POST \
+  retry_request "$name" "POST /Startup/Configuration" \
+    curl --fail --silent --show-error --max-time 5 -X POST \
     -H 'Content-Type: application/json' \
     -d '{"UICulture":"en-US","MetadataCountryCode":"GB","PreferredMetadataLanguage":"en"}' \
     "$url/Startup/Configuration" >/dev/null
@@ -71,17 +70,21 @@ setup_server() {
   credential_file="$STATE/$name/fixture-password"
   (umask 077 && printf '%s' "$password" > "$credential_file")
 
-  curl --fail --silent --show-error -X POST \
+  retry_request "$name" "POST /Startup/User" \
+    curl --fail --silent --show-error --max-time 5 -X POST \
     -H 'Content-Type: application/json' \
     -d "$(jq -n --arg name "$username" --arg password "$password" '{Name:$name,Password:$password}')" \
     "$url/Startup/User" >/dev/null
-  curl --fail --silent --show-error -X POST \
+  retry_request "$name" "POST /Startup/RemoteAccess" \
+    curl --fail --silent --show-error --max-time 5 -X POST \
     -H 'Content-Type: application/json' \
     -d '{"EnableRemoteAccess":false,"EnableAutomaticPortMapping":false}' \
     "$url/Startup/RemoteAccess" >/dev/null
-  curl --fail --silent --show-error -X POST "$url/Startup/Complete" >/dev/null
+  retry_request "$name" "POST /Startup/Complete" \
+    curl --fail --silent --show-error --max-time 5 -X POST "$url/Startup/Complete" >/dev/null
 
-  auth=$(curl --fail --silent --show-error -X POST \
+  auth=$(retry_request "$name" "POST /Users/AuthenticateByName" \
+    curl --fail --silent --show-error --max-time 5 -X POST \
     -H 'Content-Type: application/json' \
     -H 'X-Emby-Authorization: MediaBrowser Client="Phase0Fixture", Device="Automation", DeviceId="phase0-fixture", Version="1"' \
     -d "$(jq -n --arg name "$username" --arg password "$password" '{Username:$name,Pw:$password}')" \
@@ -89,7 +92,8 @@ setup_server() {
   token=$(printf '%s' "$auth" | jq -er '.AccessToken')
 
   # The token exists only in this process and is never printed or persisted.
-  curl --fail --silent --show-error -X POST \
+  retry_request "$name" "POST /Library/VirtualFolders" \
+    curl --fail --silent --show-error --max-time 5 -X POST \
     -H "X-Emby-Token: $token" \
     --get --data-urlencode 'name=Synthetic Music' \
     --data-urlencode 'collectionType=music' \

@@ -56,7 +56,8 @@ def wait_for_loopback_fixture(url: str) -> None:
     last_error: Exception | None = None
     for _ in range(30):
         try:
-            with urllib.request.urlopen(url, timeout=2) as response:
+            request = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(request, timeout=2) as response:
                 if response.status == 200:
                     return
         except (urllib.error.URLError, TimeoutError) as error:
@@ -85,7 +86,6 @@ def main() -> None:
             remote_urls = ("http://127.0.0.1:18766/tone-a.wav",
                            "http://127.0.0.1:18766/tone-b.wav")
             wait_for_loopback_fixture(remote_urls[0])
-            native_remote = native_probe(native_binary, "remote-loopback-preloaded", remote_urls)
             downloaded = []
             preload = []
             for name in ("tone-a.wav", "tone-b.wav"):
@@ -94,6 +94,8 @@ def main() -> None:
                 path.write_bytes(data)
                 downloaded.append(str(path))
                 preload.append({"file": name, "bytes": len(data)})
+            native_remote_urls = tuple(pathlib.Path(path).as_uri() for path in downloaded)
+            native_remote = native_probe(native_binary, "remote-loopback-preloaded", native_remote_urls)
             remote_inputs = (downloaded[0], downloaded[1])
             remote_hard = run("transition-remote-hard.wav", hard_filter, remote_inputs)
             remote_fade = run("transition-remote-crossfade-250ms.wav", fade_filter, remote_inputs)
