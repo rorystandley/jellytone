@@ -10,6 +10,10 @@ struct HomeLibraryView<AlbumDestination: View>: View {
 
     let albumDestination: (Album) -> AlbumDestination
 
+    /// 0 at the top (header bar transparent over the hero), 1 once scrolled past
+    /// the fade window (header bar's blur fully materialised, Spotify-style).
+    @State private var headerProgress: Double = 0
+
     var body: some View {
         content
             .background(Color.jtBackground.ignoresSafeArea())
@@ -55,6 +59,20 @@ struct HomeLibraryView<AlbumDestination: View>: View {
                 // The hero artwork bleeds under the status bar; sections
                 // below re-inset themselves via the measured topInset.
                 .ignoresSafeArea(edges: .top)
+                // Drive the header bar's backdrop from the scroll position.
+                .onScrollGeometryChange(for: Double.self) { geo in
+                    let offset = Double(geo.contentOffset.y + geo.contentInsets.top)
+                    return min(1, max(0, offset / Double(HomeMetrics.headerFadeDistance)))
+                } action: { _, progress in
+                    headerProgress = progress
+                }
+                // Fixed header pinned to the top-leading chrome (Spotify
+                // placement): the avatar stays put while the shelves scroll
+                // underneath, and the bar's blur fades in as content passes
+                // beneath it so the avatar never floats free of any surface.
+                .overlay(alignment: .top) {
+                    HomePinnedHeader(backgroundOpacity: headerProgress)
+                }
             }
         }
     }
@@ -228,9 +246,10 @@ private enum HomeMetrics {
     // Mockup grid is 1.5fr/1fr inside a 390pt frame with 20pt margins/12pt gap.
     static let shelfHeroTileWidth: CGFloat = 202
     static let shelfTileWidth: CGFloat = 134
-    /// Apple's canonical 44pt control size — tap-target ready for when the
-    /// avatar gains its Settings action.
+    /// Apple's canonical 44pt control size — the account avatar's tap target.
     static let avatarDiameter: CGFloat = 44
+    /// Scroll distance over which the pinned header's blur backdrop fades in.
+    static let headerFadeDistance: CGFloat = 140
     /// Low point of the skeleton pulse.
     static let skeletonDimOpacity: Double = 0.55
 }
@@ -305,6 +324,17 @@ private struct HomeAvatarBadge: View {
         Circle()
             .fill(Color.jtAccent)
             .frame(width: HomeMetrics.avatarDiameter, height: HomeMetrics.avatarDiameter)
+            // Top-down sheen: gives the disc a lit edge so it reads as a raised
+            // control rather than a flat cutout pasted on the artwork.
+            .overlay {
+                Circle().fill(
+                    LinearGradient(
+                        colors: [.white.opacity(0.28), .clear],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                )
+            }
             .overlay {
                 if initials.isEmpty {
                     Image(systemName: "person.fill")
@@ -316,6 +346,14 @@ private struct HomeAvatarBadge: View {
                         .foregroundStyle(.white)
                 }
             }
+            // Hairline ring separates the avatar from whatever sits behind it —
+            // dark artwork at the top of the scroll, the page background below.
+            .overlay {
+                Circle().strokeBorder(Color.jtGlassBorderOverArtwork, lineWidth: 1)
+            }
+            // Soft ambient shadow lifts it off the surface (the missing depth
+            // that made it look like a sticker).
+            .shadow(color: .black.opacity(0.28), radius: 8, y: 3)
     }
 
     private var initials: String {
@@ -355,22 +393,43 @@ private func homeArtwork(itemID: String, imageTag: String?, name: String) -> som
 
 // MARK: - Header & full-bleed hero
 
-/// Just the account avatar, top-trailing — no title, no greeting. Opens the
-/// Settings sheet.
+/// Fixed top bar: the account avatar at the leading edge (Spotify placement)
+/// over a blur backdrop that fades in with the scroll. Transparent at the top
+/// so it reads as part of the hero; opaque once shelves scroll beneath it.
+private struct HomePinnedHeader: View {
+    let backgroundOpacity: Double
+
+    var body: some View {
+        HomeHeader()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+            // The overlay already sits below the status bar (safe area), so a
+            // single small inset keeps the avatar snug to the top — adding the
+            // safe-area inset again here is what made the bar look oversized.
+            .padding(.vertical, JellytoneTheme.Space.sm)
+            .background {
+                // Blur extends up through the status bar so scrolled content
+                // reads cleanly behind it, without inflating the bar's height.
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .opacity(backgroundOpacity)
+                    .ignoresSafeArea(edges: .top)
+            }
+    }
+}
+
+/// Just the account avatar. Opens the Settings sheet.
 private struct HomeHeader: View {
     @EnvironmentObject private var model: AppModel
     @State private var showingSettings = false
 
     var body: some View {
-        HStack {
-            Spacer()
-            Button { showingSettings = true } label: {
-                HomeAvatarBadge(username: model.session?.username)
-            }
-            .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
-            .accessibilityLabel("Settings")
-            .accessibilityIdentifier("home-settings")
+        Button { showingSettings = true } label: {
+            HomeAvatarBadge(username: model.session?.username)
         }
+        .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+        .accessibilityLabel("Settings")
+        .accessibilityIdentifier("home-settings")
         .sheet(isPresented: $showingSettings) { SettingsView() }
     }
 }
@@ -388,66 +447,61 @@ private struct HomeHeroSection: View {
 
     var body: some View {
         if let current = playback.currentTrack {
-            ZStack(alignment: .top) {
-                Button { playback.toggle() } label: {
-                    ZStack(alignment: .bottom) {
-                        Color.clear
-                            .overlay {
-                                if let image = playback.artwork {
-                                    Image(uiImage: image).resizable().scaledToFill()
-                                } else {
-                                    JellytoneTheme.placeholderGradient(
-                                        hue: JellytoneTheme.placeholderHue(forID: current.id)
-                                    )
-                                }
-                            }
-                            .jtHeroVignette()
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
-                            Text("Continue Listening")
-                                .jtEyebrowStyle()
-                                .foregroundStyle(Color.jtTextTertiary)
-                            HStack(alignment: .center, spacing: JellytoneTheme.Space.md) {
-                                VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
-                                    Text(current.name)
-                                        .font(.jtOnboardingHero)
-                                        .foregroundStyle(Color.jtTextPrimary)
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                    Text(current.artist)
-                                        .font(.jtBody.weight(.medium))
-                                        .foregroundStyle(Color.jtTextSecondary)
-                                        .lineLimit(1)
-                                }
-                                Spacer(minLength: JellytoneTheme.Space.sm)
-                                Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
-                                    .font(.system(size: HomeMetrics.heroPlayDiameter / 3, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: HomeMetrics.heroPlayDiameter, height: HomeMetrics.heroPlayDiameter)
-                                    .background(Circle().fill(Color.jtAccent))
+            Button { playback.toggle() } label: {
+                ZStack(alignment: .bottom) {
+                    Color.clear
+                        .overlay {
+                            if let image = playback.artwork {
+                                Image(uiImage: image).resizable().scaledToFill()
+                            } else {
+                                JellytoneTheme.placeholderGradient(
+                                    hue: JellytoneTheme.placeholderHue(forID: current.id)
+                                )
                             }
                         }
-                        .padding(.horizontal, JellytoneTheme.Space.screenMargin)
-                        .padding(.bottom, JellytoneTheme.Space.sm)
+                        .jtHeroVignette()
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
+                        Text("Continue Listening")
+                            .jtEyebrowStyle()
+                            .foregroundStyle(Color.jtTextTertiary)
+                        HStack(alignment: .center, spacing: JellytoneTheme.Space.md) {
+                            VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
+                                Text(current.name)
+                                    .font(.jtOnboardingHero)
+                                    .foregroundStyle(Color.jtTextPrimary)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                Text(current.artist)
+                                    .font(.jtBody.weight(.medium))
+                                    .foregroundStyle(Color.jtTextSecondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: JellytoneTheme.Space.sm)
+                            Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: HomeMetrics.heroPlayDiameter / 3, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: HomeMetrics.heroPlayDiameter, height: HomeMetrics.heroPlayDiameter)
+                                .background(Circle().fill(Color.jtAccent))
+                        }
                     }
-                    .frame(height: HomeMetrics.heroHeight + topInset)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
-                .accessibilityIdentifier("home-continue-listening")
-                .accessibilityLabel("Continue listening to \(current.name) by \(current.artist)")
-                .accessibilityHint(playback.isPlaying ? "Pauses playback" : "Resumes playback")
-
-                HomeHeader()
                     .padding(.horizontal, JellytoneTheme.Space.screenMargin)
-                    .padding(.top, topInset + JellytoneTheme.Space.sm)
+                    .padding(.bottom, JellytoneTheme.Space.sm)
+                }
+                .frame(height: HomeMetrics.heroHeight + topInset)
+                .frame(maxWidth: .infinity)
+                .clipped()
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
+            .accessibilityIdentifier("home-continue-listening")
+            .accessibilityLabel("Continue listening to \(current.name) by \(current.artist)")
+            .accessibilityHint(playback.isPlaying ? "Pauses playback" : "Resumes playback")
         } else {
-            HomeHeader()
-                .padding(.horizontal, JellytoneTheme.Space.screenMargin)
-                .padding(.top, topInset + JellytoneTheme.Space.md)
+            // No hero artwork to bleed under the pinned avatar, so reserve the
+            // space it occupies; otherwise the first shelf collides with it.
+            Color.clear
+                .frame(height: topInset + HomeMetrics.avatarDiameter + JellytoneTheme.Space.md)
         }
     }
 }

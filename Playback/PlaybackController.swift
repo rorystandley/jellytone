@@ -112,6 +112,12 @@ final class PlaybackController: ObservableObject {
     /// When it returns a URL the track plays locally with no server plan and
     /// no progress reporting — offline playback must not require the network.
     var localAudioURL: (@MainActor (Track) -> URL?)?
+    /// Resolves an ephemeral replay-cache file for a track (set by the
+    /// coordinator). Used only for direct play, and only for the audio source
+    /// — the server plan and reporting still run normally.
+    var replayCachedAudioURL: (@MainActor (Track) -> URL?)?
+    /// Asks the coordinator to cache a direct-play track's audio for replay.
+    var cacheAudioForReplay: (@MainActor (Track) -> Void)?
 
     private var api: JellyfinAPI?
     private var userID: String?
@@ -603,7 +609,19 @@ final class PlaybackController: ObservableObject {
                 plan = selectedPlan
                 Diagnostics.event("playback_plan_selected", ["method_code": selectedPlan.method.diagnosticCode])
                 qualityLabel = selectedPlan.method == .directPlay ? "Direct Play" : "AAC transcode"
-                let player = AVPlayer(url: selectedPlan.url)
+                // Direct play can read a replay-cached copy of the original
+                // file instead of re-streaming; reporting above is unchanged.
+                // A cache miss falls back to the network stream and asks the
+                // coordinator to cache it for next time.
+                let playbackURL: URL
+                if selectedPlan.method == .directPlay, let cached = replayCachedAudioURL?(track) {
+                    playbackURL = cached
+                    Diagnostics.event("playback_local_source_selected")
+                } else {
+                    playbackURL = selectedPlan.url
+                    if selectedPlan.method == .directPlay { cacheAudioForReplay?(track) }
+                }
+                let player = AVPlayer(url: playbackURL)
                 self.player = player
                 lastProgressBucket = Int(resumeAt / 10)
                 lastPersistenceBucket = Int(resumeAt / 5)
