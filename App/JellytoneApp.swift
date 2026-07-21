@@ -13,7 +13,11 @@ struct JellytoneApp: App {
                 .preferredColorScheme(appearance.colorScheme)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { model.playback.persistState() }
+            if phase == .active {
+                Task { await model.runFavouriteReconciliation() }
+            } else {
+                model.playback.persistState()
+            }
         }
     }
 }

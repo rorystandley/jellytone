@@ -575,17 +575,17 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
         }
     }
 
-    func enqueueTrackFavourite(scope: LibraryScope, itemID: String, desired: Bool, sequence: Int64) async throws -> TrackFavouriteMutation {
+    func enqueueFavourite(scope: LibraryScope, itemID: String, desired: Bool, sequence: Int64) async throws -> FavouriteMutation {
         let id = "favourite:\(scope.serverID):\(scope.accountID):\(itemID)"
         return try await databaseQueue.write { db in
             try Self.ensureScope(scope, libraryScope: Self.globalLibraryScope, in: db)
-            try db.execute(sql: "INSERT INTO track_favourite_mutations (id,server_id,account_id,item_id,desired,sequence,attempts,next_retry_at,state) VALUES (?,?,?,?,?,?,0,0,'pending') ON CONFLICT(server_id,account_id,item_id) DO UPDATE SET desired=excluded.desired, sequence=excluded.sequence, attempts=0, next_retry_at=0, state='pending'", arguments: [id, scope.serverID, scope.accountID, itemID, desired ? 1 : 0, sequence])
-            return TrackFavouriteMutation(id: id, serverID: scope.serverID, accountID: scope.accountID, itemID: itemID, desired: desired, sequence: sequence, attempts: 0, nextRetryAt: 0, state: .pending)
+            try db.execute(sql: "INSERT INTO favourite_mutations (id,server_id,account_id,item_id,desired,sequence,attempts,next_retry_at,state) VALUES (?,?,?,?,?,?,0,0,'pending') ON CONFLICT(server_id,account_id,item_id) DO UPDATE SET desired=excluded.desired, sequence=excluded.sequence, attempts=0, next_retry_at=0, state='pending'", arguments: [id, scope.serverID, scope.accountID, itemID, desired ? 1 : 0, sequence])
+            return FavouriteMutation(id: id, serverID: scope.serverID, accountID: scope.accountID, itemID: itemID, desired: desired, sequence: sequence, attempts: 0, nextRetryAt: 0, state: .pending)
         }
     }
-    func pendingTrackFavourites(scope: LibraryScope) async throws -> [TrackFavouriteMutation] { try await databaseQueue.read { db in try Row.fetchAll(db, sql: "SELECT * FROM track_favourite_mutations WHERE server_id=? AND account_id=? AND state != 'completed' ORDER BY sequence", arguments: [scope.serverID, scope.accountID]).compactMap(Self.mutation) } }
-    func completeTrackFavourite(_ mutation: TrackFavouriteMutation) async throws { try await updateTrackFavourite({ var x=mutation; x.state = .completed; return x }()) }
-    func updateTrackFavourite(_ m: TrackFavouriteMutation) async throws { try await databaseQueue.write { db in try db.execute(sql: "UPDATE track_favourite_mutations SET desired=?, sequence=?, attempts=?, next_retry_at=?, state=? WHERE id=?", arguments: [m.desired ? 1:0,m.sequence,m.attempts,m.nextRetryAt,m.state.rawValue,m.id]) } }
+    func pendingFavourites(scope: LibraryScope) async throws -> [FavouriteMutation] { try await databaseQueue.read { db in try Row.fetchAll(db, sql: "SELECT * FROM favourite_mutations WHERE server_id=? AND account_id=? AND state != 'completed' ORDER BY sequence", arguments: [scope.serverID, scope.accountID]).compactMap(Self.mutation) } }
+    func completeFavourite(_ mutation: FavouriteMutation) async throws { try await updateFavourite({ var x=mutation; x.state = .completed; return x }()) }
+    func updateFavourite(_ m: FavouriteMutation) async throws { try await databaseQueue.write { db in try db.execute(sql: "UPDATE favourite_mutations SET desired=?, sequence=?, attempts=?, next_retry_at=?, state=? WHERE id=?", arguments: [m.desired ? 1:0,m.sequence,m.attempts,m.nextRetryAt,m.state.rawValue,m.id]) } }
     func enqueuePlaylistRename(scope: LibraryScope, playlistID: String, baseRevision: String, baseName: String, desiredName: String, sequence: Int64) async throws -> PlaylistRenameMutation {
         let desired = try PlaylistRenameValidation.validate(desiredName)
         let id = "playlist-rename:\(scope.serverID):\(scope.accountID):\(playlistID)"
@@ -668,7 +668,7 @@ private extension SQLiteLibraryStore {
                 """)
         }
         migrator.registerMigration("004_create_track_favourite_outbox") { database in
-            try database.execute(sql: "CREATE TABLE track_favourite_mutations (id TEXT PRIMARY KEY, server_id TEXT NOT NULL, account_id TEXT NOT NULL, item_id TEXT NOT NULL, desired INTEGER NOT NULL, sequence INTEGER NOT NULL, attempts INTEGER NOT NULL, next_retry_at INTEGER NOT NULL, state TEXT NOT NULL, UNIQUE(server_id, account_id, item_id))")
+            try database.execute(sql: "CREATE TABLE favourite_mutations (id TEXT PRIMARY KEY, server_id TEXT NOT NULL, account_id TEXT NOT NULL, item_id TEXT NOT NULL, desired INTEGER NOT NULL, sequence INTEGER NOT NULL, attempts INTEGER NOT NULL, next_retry_at INTEGER NOT NULL, state TEXT NOT NULL, UNIQUE(server_id, account_id, item_id))")
         }
         migrator.registerMigration("005_create_playlist_rename_outbox") { database in
             try database.execute(sql: "CREATE TABLE playlist_rename_mutations (id TEXT PRIMARY KEY, server_id TEXT NOT NULL, account_id TEXT NOT NULL, playlist_id TEXT NOT NULL, base_revision TEXT NOT NULL, base_name TEXT NOT NULL, desired_name TEXT NOT NULL, sequence INTEGER NOT NULL, attempts INTEGER NOT NULL, next_retry_at INTEGER NOT NULL, state TEXT NOT NULL, UNIQUE(server_id, account_id, playlist_id))")
@@ -870,7 +870,7 @@ private extension SQLiteLibraryStore {
     static func homeShelfSnapshot(from payload: Data) -> HomeShelfSnapshot? {
         try? JSONDecoder().decode(HomeShelfSnapshot.self, from: payload)
     }
-    static func mutation(from row: Row) -> TrackFavouriteMutation? { guard let id: String=row["id"], let server: String=row["server_id"], let account: String=row["account_id"], let item: String=row["item_id"], let desired: Int=row["desired"], let sequence: Int64=row["sequence"], let attempts: Int=row["attempts"], let retry: Int64=row["next_retry_at"], let stateRaw: String=row["state"], let state=FavouriteMutationState(rawValue: stateRaw) else { return nil }; return TrackFavouriteMutation(id:id,serverID:server,accountID:account,itemID:item,desired:desired == 1,sequence:sequence,attempts:attempts,nextRetryAt:retry,state:state) }
+    static func mutation(from row: Row) -> FavouriteMutation? { guard let id: String=row["id"], let server: String=row["server_id"], let account: String=row["account_id"], let item: String=row["item_id"], let desired: Int=row["desired"], let sequence: Int64=row["sequence"], let attempts: Int=row["attempts"], let retry: Int64=row["next_retry_at"], let stateRaw: String=row["state"], let state=FavouriteMutationState(rawValue: stateRaw) else { return nil }; return FavouriteMutation(id:id,serverID:server,accountID:account,itemID:item,desired:desired == 1,sequence:sequence,attempts:attempts,nextRetryAt:retry,state:state) }
     static func playlistRename(from row: Row) -> PlaylistRenameMutation? {
         guard let id:String=row["id"], let serverID:String=row["server_id"], let accountID:String=row["account_id"], let playlistID:String=row["playlist_id"], let baseRevision:String=row["base_revision"], let baseName:String=row["base_name"], let desiredName:String=row["desired_name"], let sequence:Int64=row["sequence"], let attempts:Int=row["attempts"], let nextRetryAt:Int64=row["next_retry_at"], let raw:String=row["state"], let state=PlaylistRenameState(rawValue: raw) else { return nil }
         return PlaylistRenameMutation(id:id,serverID:serverID,accountID:accountID,playlistID:playlistID,baseRevision:baseRevision,baseName:baseName,desiredName:desiredName,sequence:sequence,attempts:attempts,nextRetryAt:nextRetryAt,state:state)

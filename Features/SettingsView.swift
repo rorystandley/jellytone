@@ -25,7 +25,15 @@ struct SettingsView: View {
                 .padding(.top, JellytoneTheme.Space.xl)
                 .padding(.bottom, JellytoneTheme.Space.xxxl)
             }
+            .scrollBounceBehavior(.basedOnSize)
             .background(Color.jtBackground.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("settings-done")
+                }
+            }
+            .tint(Color.jtAccent)
             .task { imageCacheBytes = await ArtworkCache.shared.diskBytes() }
         }
     }
