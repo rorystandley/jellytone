@@ -8,8 +8,14 @@ struct TrackCatalogView: View {
             .navigationTitle("Tracks")
             .audioCanvas()
             .accessibilityIdentifier("library-tracks-screen")
-            .refreshable { await model.refreshTrackCatalog() }
-            .task(id: model.selectedLibraryID) { await model.refreshTrackCatalog() }
+            .refreshable {
+                await model.refreshTrackCatalog()
+                await model.refreshFavouriteStatus(ids: model.trackCatalogState.occurrences.map(\.track.id))
+            }
+            .task(id: model.selectedLibraryID) {
+                await model.refreshTrackCatalog()
+                await model.refreshFavouriteStatus(ids: model.trackCatalogState.occurrences.map(\.track.id))
+            }
     }
 
     @ViewBuilder private var content: some View {
@@ -63,6 +69,11 @@ struct TrackCatalogView: View {
         .accessibilityValue("Track \(position) of \(total)")
         .accessibilityHint("Starts playback at this displayed track")
         .contextMenu {
+            let liked = model.isFavourite(track.id)
+            Button(liked ? "Unfavourite" : "Favourite",
+                   systemImage: liked ? "heart.slash" : "heart") {
+                model.toggleFavourite(id: track.id)
+            }
             Button("Play Next", systemImage: "text.insert") { model.playNext(track) }
             Button("Add to Queue", systemImage: "text.badge.plus") { model.addToQueue(track) }
             if let albumID = track.albumID, !track.album.isEmpty {
