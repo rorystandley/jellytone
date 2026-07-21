@@ -128,6 +128,13 @@ struct GenreDetailView: View {
                     .frame(minHeight: 44)
                     .accessibilityLabel(trackAccessibilityLabel(occurrence, position: offset + 1))
                     .accessibilityHint("Starts playback from this genre occurrence")
+                    .contextMenu {
+                        let liked = model.isFavourite(occurrence.track.id)
+                        Button(liked ? "Unfavourite" : "Favourite",
+                               systemImage: liked ? "heart.slash" : "heart") {
+                            model.toggleFavourite(id: occurrence.track.id)
+                        }
+                    }
                     .task {
                         if offset == state.trackOccurrences.indices.last { await loadMoreTracks() }
                     }
@@ -185,10 +192,13 @@ struct GenreDetailView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
 
-            AudioPlayActions(isDisabled: state.trackOccurrences.isEmpty,
-                             play: { model.playAll(state.trackOccurrences) },
-                             shuffle: { model.shuffle(state.trackOccurrences) },
-                             playIdentifier: "genre-play-all", shuffleIdentifier: "genre-shuffle")
+            HStack(spacing: JellytoneTheme.Space.xl) {
+                FavouriteHeartButton(itemID: genre.id, identifierPrefix: "genre")
+                AudioPlayActions(isDisabled: state.trackOccurrences.isEmpty,
+                                 play: { model.playAll(state.trackOccurrences) },
+                                 shuffle: { model.shuffle(state.trackOccurrences) },
+                                 playIdentifier: "genre-play-all", shuffleIdentifier: "genre-shuffle")
+            }
         }
         .frame(maxWidth: .infinity, alignment: horizontalSizeClass == .regular ? .leading : .center)
     }
@@ -268,6 +278,7 @@ struct GenreDetailView: View {
         } loadTracks: { startIndex in
             try await model.genreTracks(for: genre, startIndex: startIndex)
         }
+        await model.refreshFavouriteStatus(ids: [genre.id] + state.trackOccurrences.map(\.track.id))
     }
 
     private func refresh() async {

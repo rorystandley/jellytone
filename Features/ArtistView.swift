@@ -68,31 +68,36 @@ struct ArtistView: View {
                 .accessibilityAddTraits(.isHeader)
             HStack(spacing: JellytoneTheme.Space.xl) {
                 Spacer()
-                Button { model.shuffle(topTracks) } label: {
-                    Image(systemName: "shuffle")
-                        .font(.jtSubsectionHeader)
-                        .foregroundStyle(Color.jtTextPrimary)
-                        .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
-                        .contentShape(Rectangle())
+                // Liking an artist is independent of whether they have top
+                // songs, so the heart stays enabled while playback dims.
+                FavouriteHeartButton(itemID: artist.id, identifierPrefix: "artist")
+                HStack(spacing: JellytoneTheme.Space.xl) {
+                    Button { model.shuffle(topTracks) } label: {
+                        Image(systemName: "shuffle")
+                            .font(.jtSubsectionHeader)
+                            .foregroundStyle(Color.jtTextPrimary)
+                            .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                    .accessibilityIdentifier("artist-shuffle")
+                    .accessibilityLabel("Shuffle top songs")
+                    Button {
+                        if let first = topTracks.first { model.play(first, in: topTracks) }
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: DetailMetrics.playDiameter / 3, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: DetailMetrics.playDiameter, height: DetailMetrics.playDiameter)
+                            .background(Circle().fill(Color.jtAccent))
+                    }
+                    .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                    .accessibilityIdentifier("artist-play-all")
+                    .accessibilityLabel("Play top songs")
                 }
-                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
-                .accessibilityIdentifier("artist-shuffle")
-                .accessibilityLabel("Shuffle top songs")
-                Button {
-                    if let first = topTracks.first { model.play(first, in: topTracks) }
-                } label: {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: DetailMetrics.playDiameter / 3, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: DetailMetrics.playDiameter, height: DetailMetrics.playDiameter)
-                        .background(Circle().fill(Color.jtAccent))
-                }
-                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
-                .accessibilityIdentifier("artist-play-all")
-                .accessibilityLabel("Play top songs")
+                .disabled(topTracks.isEmpty)
+                .opacity(topTracks.isEmpty ? 0.4 : 1)
             }
-            .disabled(topTracks.isEmpty)
-            .opacity(topTracks.isEmpty ? 0.4 : 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -130,6 +135,11 @@ struct ArtistView: View {
                     .accessibilityLabel("Song, \(track.name), by \(track.artist)")
                     .accessibilityHint("Plays this song")
                     .contextMenu {
+                        let liked = model.isFavourite(track.id)
+                        Button(liked ? "Unfavourite" : "Favourite",
+                               systemImage: liked ? "heart.slash" : "heart") {
+                            model.toggleFavourite(id: track.id)
+                        }
                         Button("Play Next", systemImage: "text.insert") { model.playNext(track) }
                             .disabled(model.playback.currentTrack == nil)
                         Button("Add to Queue", systemImage: "text.badge.plus") { model.addToQueue(track) }
@@ -208,6 +218,8 @@ struct ArtistView: View {
         async let songs: Void = refreshTopTracks()
         await loadAlbums(replacing: true)
         await songs
+        // Seed heart state for the artist and its now-loaded top songs.
+        await model.refreshFavouriteStatus(ids: [artist.id] + topTracks.map(\.id))
         isLoading = false
     }
 

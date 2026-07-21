@@ -60,6 +60,11 @@ struct PlaylistDetailView: View {
                         .accessibilityLabel(trackAccessibilityLabel(entry, position: offset + 1))
                         .accessibilityHint("Starts playback from this playlist occurrence")
                         .contextMenu {
+                            let liked = model.isFavourite(entry.track.id)
+                            Button(liked ? "Unfavourite" : "Favourite",
+                                   systemImage: liked ? "heart.slash" : "heart") {
+                                model.toggleFavourite(id: entry.track.id)
+                            }
                             if model.downloads.isDownloaded(entry.track.id) {
                                 Button("Remove Download", systemImage: "trash") {
                                     Task { await model.downloads.remove(entry.track.id) }
@@ -111,37 +116,42 @@ struct PlaylistDetailView: View {
             // glyphs' frame padding so every optical gap reads even.
             HStack(spacing: JellytoneTheme.Space.xl) {
                 Spacer()
-                HStack(spacing: JellytoneTheme.Space.md) {
-                    DownloadStatusButton(
-                        downloads: model.downloads,
-                        tracks: state.entries.map(\.track),
-                        container: playlistContainer,
-                        identifierPrefix: "playlist"
-                    )
-                    Button { model.shuffle(state.entries) } label: {
-                        Image(systemName: "shuffle")
-                            .font(.jtSubsectionHeader)
-                            .foregroundStyle(Color.jtTextPrimary)
-                            .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
-                            .contentShape(Rectangle())
+                // Liking the playlist itself is independent of whether its
+                // tracks have loaded, so the heart never dims.
+                FavouriteHeartButton(itemID: playlist.id, identifierPrefix: "playlist")
+                HStack(spacing: JellytoneTheme.Space.xl) {
+                    HStack(spacing: JellytoneTheme.Space.md) {
+                        DownloadStatusButton(
+                            downloads: model.downloads,
+                            tracks: state.entries.map(\.track),
+                            container: playlistContainer,
+                            identifierPrefix: "playlist"
+                        )
+                        Button { model.shuffle(state.entries) } label: {
+                            Image(systemName: "shuffle")
+                                .font(.jtSubsectionHeader)
+                                .foregroundStyle(Color.jtTextPrimary)
+                                .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                        .accessibilityIdentifier("playlist-shuffle")
+                        .accessibilityLabel("Shuffle")
+                    }
+                    Button { model.playAll(state.entries) } label: {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: DetailMetrics.playDiameter / 3, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: DetailMetrics.playDiameter, height: DetailMetrics.playDiameter)
+                            .background(Circle().fill(Color.jtAccent))
                     }
                     .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
-                    .accessibilityIdentifier("playlist-shuffle")
-                    .accessibilityLabel("Shuffle")
+                    .accessibilityIdentifier("playlist-play-all")
+                    .accessibilityLabel("Play All")
                 }
-                Button { model.playAll(state.entries) } label: {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: DetailMetrics.playDiameter / 3, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: DetailMetrics.playDiameter, height: DetailMetrics.playDiameter)
-                        .background(Circle().fill(Color.jtAccent))
-                }
-                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
-                .accessibilityIdentifier("playlist-play-all")
-                .accessibilityLabel("Play All")
+                .disabled(state.entries.isEmpty)
+                .opacity(state.entries.isEmpty ? 0.4 : 1)
             }
-            .disabled(state.entries.isEmpty)
-            .opacity(state.entries.isEmpty ? 0.4 : 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -234,6 +244,7 @@ struct PlaylistDetailView: View {
             try await model.playlistEntries(for: playlist, startIndex: startIndex)
         }
         await persistSnapshot()
+        await model.refreshFavouriteStatus(ids: [playlist.id] + state.entries.map(\.track.id))
     }
 
     private func refresh() async {
