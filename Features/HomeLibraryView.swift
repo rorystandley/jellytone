@@ -15,6 +15,10 @@ struct HomeLibraryView<AlbumDestination: View, ArtistDestination: View>: View {
     /// the fade window (header bar's blur fully materialised, Spotify-style).
     @State private var headerProgress: Double = 0
 
+    /// Owned here (not in the header) so the Settings sheet is presented above
+    /// the `.refreshable` and never inherits its pull-to-refresh action.
+    @State private var showingSettings = false
+
     var body: some View {
         content
             .background(Color.jtBackground.ignoresSafeArea())
@@ -25,6 +29,10 @@ struct HomeLibraryView<AlbumDestination: View, ArtistDestination: View>: View {
             // pull spinner is the only refresh indicator, and fresh content
             // cross-fades in over the cached shelves.
             .animation(JellytoneTheme.Motion.crossfade, value: model.homeSnapshot)
+            // Present Settings here, OUTSIDE the `.refreshable` above, so the
+            // sheet does not inherit Home's RefreshAction — otherwise pulling
+            // the sheet down would run a Home refresh instead of dismissing it.
+            .sheet(isPresented: $showingSettings) { SettingsView() }
     }
 
     private var hasContent: Bool {
@@ -74,7 +82,7 @@ struct HomeLibraryView<AlbumDestination: View, ArtistDestination: View>: View {
                 // underneath, and the bar's blur fades in as content passes
                 // beneath it so the avatar never floats free of any surface.
                 .overlay(alignment: .top) {
-                    HomePinnedHeader(backgroundOpacity: headerProgress)
+                    HomePinnedHeader(backgroundOpacity: headerProgress) { showingSettings = true }
                 }
             }
         }
@@ -439,9 +447,10 @@ private func homeArtwork(itemID: String, imageTag: String?, name: String) -> som
 /// so it reads as part of the hero; opaque once shelves scroll beneath it.
 private struct HomePinnedHeader: View {
     let backgroundOpacity: Double
+    let onOpenSettings: () -> Void
 
     var body: some View {
-        HomeHeader()
+        HomeHeader(onOpenSettings: onOpenSettings)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, JellytoneTheme.Space.screenMargin)
             // The overlay already sits below the status bar (safe area), so a
@@ -459,19 +468,20 @@ private struct HomePinnedHeader: View {
     }
 }
 
-/// Just the account avatar. Opens the Settings sheet.
+/// Just the account avatar. Asks the owner (HomeLibraryView) to open Settings;
+/// the sheet is presented there, above the `.refreshable`, so pulling it down
+/// dismisses rather than triggering a Home refresh.
 private struct HomeHeader: View {
     @EnvironmentObject private var model: AppModel
-    @State private var showingSettings = false
+    let onOpenSettings: () -> Void
 
     var body: some View {
-        Button { showingSettings = true } label: {
+        Button { onOpenSettings() } label: {
             HomeAvatarBadge(username: model.session?.username)
         }
         .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
         .accessibilityLabel("Settings")
         .accessibilityIdentifier("home-settings")
-        .sheet(isPresented: $showingSettings) { SettingsView() }
     }
 }
 
