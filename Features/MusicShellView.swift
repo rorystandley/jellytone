@@ -31,7 +31,8 @@ struct MusicShellView: View {
         TabView {
             Tab("Home", systemImage: "house.fill") {
                 NavigationStack {
-                    HomeLibraryView { AlbumView(album: $0) }
+                    HomeLibraryView(albumDestination: { AlbumView(album: $0) },
+                                    artistDestination: { ArtistView(artist: $0) })
                 }
             }
             Tab("Library", systemImage: "square.stack.fill") {
