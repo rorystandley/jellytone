@@ -25,6 +25,15 @@ final class HomeUITests: XCTestCase {
         XCTAssertTrue(track.waitForExistence(timeout: 3))
         XCTAssertTrue(track.isHittable)
         XCTAssertFalse(track.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+        XCTAssertTrue(app.staticTexts["Favourite Artists"].exists)
+        let artist = element(in: app, identifier: "home-favourite-artist-home-artist-1")
+        XCTAssertTrue(artist.waitForExistence(timeout: 3))
+        XCTAssertTrue(artist.isHittable)
+        artist.tap()
+        XCTAssertTrue(app.navigationBars["Synthetic Artist"].waitForExistence(timeout: 3))
+        app.navigationBars.buttons.firstMatch.tap()
+
         capture("home-light-content", app: app)
         assertNoPrivateConnectionData(in: app)
     }

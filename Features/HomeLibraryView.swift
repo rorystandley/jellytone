@@ -5,10 +5,11 @@ import SwiftUI
 ///
 /// First screen migrated to `JellytoneTheme` (docs/design/design-system.md);
 /// no raw colours, system-default fonts, or magic spacing belong here.
-struct HomeLibraryView<AlbumDestination: View>: View {
+struct HomeLibraryView<AlbumDestination: View, ArtistDestination: View>: View {
     @EnvironmentObject private var model: AppModel
 
     let albumDestination: (Album) -> AlbumDestination
+    let artistDestination: (Artist) -> ArtistDestination
 
     /// 0 at the top (header bar transparent over the hero), 1 once scrolled past
     /// the fade window (header bar's blur fully materialised, Spotify-style).
@@ -30,6 +31,7 @@ struct HomeLibraryView<AlbumDestination: View>: View {
         model.playback.currentTrack != nil
             || !(model.homeSnapshot?.recentlyAddedAlbums.isEmpty ?? true)
             || !(model.homeSnapshot?.recentlyPlayedTracks.isEmpty ?? true)
+            || !(model.homeSnapshot?.favouriteArtists.isEmpty ?? true)
     }
 
     @ViewBuilder private var content: some View {
@@ -46,6 +48,7 @@ struct HomeLibraryView<AlbumDestination: View>: View {
                     LazyVStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
                         HomeHeroSection(playback: model.playback, topInset: proxy.safeAreaInsets.top)
                         recentlyAddedSection
+                        favouriteArtistsSection
                         madeForYouSection
                         recentlyPlayedSection
                         if hasContent, let error = model.homeRefreshError { partialFailure(message: error) }
@@ -111,6 +114,41 @@ struct HomeLibraryView<AlbumDestination: View>: View {
                         .padding(.vertical, JellytoneTheme.Space.sm)
                     }
                 }
+            }
+        }
+    }
+
+    // MARK: Favourite Artists
+
+    // Cached with the rest of the Home snapshot — paints from the last
+    // persisted shelf and silently updates when the refresh lands. Hidden
+    // entirely when the user has no favourite artists (no empty chrome).
+    private var favouriteArtists: [Artist] {
+        model.homeSnapshot?.favouriteArtists ?? []
+    }
+
+    @ViewBuilder private var favouriteArtistsSection: some View {
+        if !favouriteArtists.isEmpty {
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.lg) {
+                HomeSectionHeader(title: "Favourite Artists")
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: JellytoneTheme.Space.lg) {
+                        ForEach(favouriteArtists) { artist in
+                            NavigationLink { artistDestination(artist) } label: {
+                                HomeArtistCircle(artist: artist)
+                            }
+                            .buttonStyle(.jtPressScale())
+                            .accessibilityIdentifier("home-favourite-artist-\(artist.id)")
+                            .accessibilityLabel("\(artist.name), favourite artist")
+                            .accessibilityHint("Opens artist")
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                    .padding(.vertical, JellytoneTheme.Space.sm)
+                }
+                .scrollTargetBehavior(.viewAligned)
             }
         }
     }
@@ -242,6 +280,9 @@ private enum HomeMetrics {
     static let heroPlayDiameter: CGFloat = 54
     static let recentlyAddedHeroHeight: CGFloat = 170
     static let smallCardSide: CGFloat = 112
+    /// Favourite Artists shelf — circular artwork, same footprint as the
+    /// small album cards so the shelves share a rhythm.
+    static let artistCircleDiameter: CGFloat = 112
     static let shelfTileHeight: CGFloat = 140
     // Mockup grid is 1.5fr/1fr inside a 390pt frame with 20pt margins/12pt gap.
     static let shelfHeroTileWidth: CGFloat = 202
@@ -532,6 +573,28 @@ private struct HomeHeroAlbumCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(album.name), \(album.artist), recently added album")
         .accessibilityHint("Opens album")
+    }
+}
+
+/// Favourite Artists tile: circular artwork with the artist's name centred
+/// beneath (Apple Music-style artist presentation).
+private struct HomeArtistCircle: View {
+    let artist: Artist
+
+    var body: some View {
+        VStack(spacing: JellytoneTheme.Space.sm) {
+            homeArtwork(itemID: artist.id, imageTag: artist.imageTag, name: artist.name)
+                .frame(width: HomeMetrics.artistCircleDiameter, height: HomeMetrics.artistCircleDiameter)
+                .clipShape(Circle())
+                .jtFloatingCardShadow()
+            Text(artist.name)
+                .font(.jtRowSubtitle.weight(.bold))
+                .foregroundStyle(Color.jtTextPrimary)
+                .lineLimit(1)
+                .multilineTextAlignment(.center)
+        }
+        .frame(width: HomeMetrics.artistCircleDiameter)
+        .accessibilityElement(children: .combine)
     }
 }
 
