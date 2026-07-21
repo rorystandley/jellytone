@@ -84,6 +84,76 @@ final class ArtistGatewayTests: XCTestCase {
         }
     }
 
+    func testArtistsBrowseRequestIsAlbumArtistsSortNameScopedAndPaged() async throws {
+        var requests: [URLRequest] = []
+        ArtistURLProtocol.handler = { request in
+            requests.append(request)
+            return Self.response(request, json: #"{"Items":[],"TotalRecordCount":0}"#)
+        }
+        let api = try makeAPI()
+
+        _ = try await api.artists(userID: "account/id", libraryID: "library/id", startIndex: 100, limit: 100)
+        _ = try await api.artists(userID: "account/id", libraryID: nil, startIndex: 0, limit: 50)
+
+        XCTAssertEqual(requests.count, 2)
+        let scoped = try query(requests[0])
+        XCTAssertEqual(scoped["userId"], "account/id")
+        XCTAssertEqual(scoped["ParentId"], "library/id")
+        XCTAssertEqual(scoped["Recursive"], "true")
+        XCTAssertEqual(scoped["SortBy"], "SortName")
+        XCTAssertEqual(scoped["SortOrder"], "Ascending")
+        XCTAssertEqual(scoped["StartIndex"], "100")
+        XCTAssertEqual(scoped["Limit"], "100")
+        XCTAssertEqual(scoped["EnableTotalRecordCount"], "true")
+        XCTAssertEqual(scoped["Fields"], "PrimaryImageAspectRatio,SortName")
+
+        let unscoped = try query(requests[1])
+        XCTAssertNil(unscoped["ParentId"])
+        for request in requests {
+            let components = try XCTUnwrap(request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) })
+            XCTAssertEqual(components.path, "/reverse-proxy/Artists/AlbumArtists")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-Emby-Token"), "synthetic-secret")
+            XCTAssertFalse(components.url?.absoluteString.contains("synthetic-secret") == true)
+        }
+    }
+
+    func testArtistsBrowseMappingKeepsSortNameDropsMalformedAndReportsMorePages() async throws {
+        ArtistURLProtocol.handler = { request in
+            Self.response(request, json: #"""
+            {"Items":[
+                {"Id":"artist-b","Name":"The Beatles","SortName":"Beatles","Type":"MusicArtist",
+                 "ImageTags":{"Primary":"tag-b"}},
+                {"Id":"artist-untyped","Name":"Aurora","SortName":"   "},
+                {"Id":"","Name":"Malformed"}
+            ],"TotalRecordCount":10}
+            """#)
+        }
+        let api = try makeAPI()
+
+        let page = try await api.artists(userID: "account", libraryID: nil, startIndex: 0, limit: 2)
+
+        XCTAssertEqual(page.artists.map(\.id), ["artist-b", "artist-untyped"])
+        XCTAssertEqual(page.artists[0].sortName, "Beatles")
+        XCTAssertEqual(page.artists[0].imageTag, "tag-b")
+        XCTAssertNil(page.artists[1].sortName, "A blank SortName folds to nil rather than whitespace")
+        XCTAssertTrue(page.hasMore, "Three received of ten total means more pages remain")
+        // The cursor advances by every raw item the server returned (including
+        // the malformed row that mapping dropped), not by the mapped count.
+        XCTAssertEqual(page.nextStartIndex, 3)
+    }
+
+    func testArtistsBrowseAuthenticationAndMalformedPayloadRemainTyped() async throws {
+        let api = try makeAPI()
+        ArtistURLProtocol.handler = { request in Self.response(request, status: 401, json: #"{}"#) }
+        await XCTAssertThrowsErrorAsync(try await api.artists(userID: "user", libraryID: nil)) {
+            XCTAssertEqual($0 as? APIError, .httpStatus(401))
+        }
+        ArtistURLProtocol.handler = { request in Self.response(request, json: #"{"Items":{"not":"an-array"}}"#) }
+        await XCTAssertThrowsErrorAsync(try await api.artists(userID: "user", libraryID: nil)) {
+            XCTAssertEqual($0 as? APIError, .invalidPayload)
+        }
+    }
+
     private func makeAPI() throws -> JellyfinAPI {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ArtistURLProtocol.self]

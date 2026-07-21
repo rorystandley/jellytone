@@ -275,6 +275,67 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
         }
     }
 
+    func cachedArtists(scope: LibraryScope, libraryID: String?) async throws -> [Artist] {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        return try await databaseQueue.read { database in
+            let rows = try Row.fetchAll(
+                database,
+                sql: """
+                    SELECT item_id, payload
+                    FROM cached_artists
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    ORDER BY sort_index, item_id
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            )
+            // Server-authoritative order: rows come back in the sequence the
+            // pages were received (SortName collation for the browse list).
+            return rows.compactMap(Self.artist(from:))
+        }
+    }
+
+    func replaceArtists(_ artists: [Artist], scope: LibraryScope, libraryID: String?) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        let validArtists = artists.filter(Self.isValid)
+
+        try await databaseQueue.write { database in
+            try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            try database.execute(
+                sql: """
+                    DELETE FROM cached_artists
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            )
+            for (position, artist) in validArtists.enumerated() {
+                try Self.upsert(artist, sortIndex: position, scope: scope, libraryScope: libraryScope, in: database)
+            }
+        }
+    }
+
+    func appendArtists(_ artists: [Artist], scope: LibraryScope, libraryID: String?) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        let validArtists = artists.filter(Self.isValid)
+        guard !validArtists.isEmpty else { return }
+
+        try await databaseQueue.write { database in
+            try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            var nextIndex = try Int.fetchOne(
+                database,
+                sql: """
+                    SELECT COALESCE(MAX(sort_index) + 1, 0)
+                    FROM cached_artists
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            ) ?? 0
+            for artist in validArtists {
+                try Self.upsert(artist, sortIndex: nextIndex, scope: scope, libraryScope: libraryScope, in: database)
+                nextIndex += 1
+            }
+        }
+    }
+
     func storeSearchMetadata(
         artists: [Artist],
         albums: [Album],
@@ -287,12 +348,22 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
 
         try await databaseQueue.write { database in
             try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            // Search metadata must not disturb the browse order: already-cached
+            // artists/albums keep their sort_index on conflict; genuinely new
+            // ones land after the current tail rather than at the top.
+            var nextArtistIndex = try Int.fetchOne(
+                database,
+                sql: """
+                    SELECT COALESCE(MAX(sort_index) + 1, 0)
+                    FROM cached_artists
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            ) ?? 0
             for artist in validArtists {
-                try Self.upsert(artist, scope: scope, libraryScope: libraryScope, in: database)
+                try Self.upsert(artist, sortIndex: nextArtistIndex, scope: scope, libraryScope: libraryScope, in: database)
+                nextArtistIndex += 1
             }
-            // Search metadata must not disturb the album shelf order: albums
-            // already cached keep their sort_index on conflict; genuinely new
-            // ones land after the current tail.
             var nextIndex = try Int.fetchOne(
                 database,
                 sql: """
@@ -518,6 +589,12 @@ private extension SQLiteLibraryStore {
                 ) WITHOUT ROWID
                 """)
         }
+        migrator.registerMigration("009_add_artist_sort_index") { database in
+            // Preserves the server-received page order so the artist browse
+            // list can present the server's SortName collation without
+            // reinterpreting it locally.
+            try database.execute(sql: "ALTER TABLE cached_artists ADD COLUMN sort_index INTEGER NOT NULL DEFAULT 0")
+        }
         return migrator
     }
 
@@ -536,16 +613,16 @@ private extension SQLiteLibraryStore {
         )
     }
 
-    static func upsert(_ artist: Artist, scope: LibraryScope, libraryScope: String, in database: Database) throws {
+    static func upsert(_ artist: Artist, sortIndex: Int, scope: LibraryScope, libraryScope: String, in database: Database) throws {
         let payload = try JSONEncoder().encode(artist)
         try database.execute(
             sql: """
-                INSERT INTO cached_artists (server_id, account_id, library_scope, item_id, payload)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO cached_artists (server_id, account_id, library_scope, item_id, payload, sort_index)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT (server_id, account_id, library_scope, item_id)
                 DO UPDATE SET payload = excluded.payload
                 """,
-            arguments: [scope.serverID, scope.accountID, libraryScope, artist.id, payload]
+            arguments: [scope.serverID, scope.accountID, libraryScope, artist.id, payload, sortIndex]
         )
     }
 

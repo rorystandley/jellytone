@@ -69,6 +69,10 @@ struct LibraryView: View {
                 PlaylistLibraryView()
             }
             rowDivider
+            categoryRow("Artists", systemImage: "music.mic", identifier: "library-artists-link") {
+                ArtistLibraryView()
+            }
+            rowDivider
             categoryRow("Songs", systemImage: "music.note", identifier: "library-tracks-link") {
                 TrackCatalogView()
             }
