@@ -22,6 +22,24 @@ final class PlaylistLibraryState: ObservableObject {
 
     var canLoadMore: Bool { hasMore && !isLoading && !isLoadingMore }
 
+    /// Paints a persisted snapshot immediately (cache-first) so the screen
+    /// never opens empty when a cache exists; the silent network refresh that
+    /// follows replaces it. Ignored once this scope already has content.
+    func seed(_ cached: [Playlist], scope requestedScope: PlaylistFeatureScope) {
+        guard !cached.isEmpty else { return }
+        if scope == requestedScope, hasLoaded || !playlists.isEmpty { return }
+        generation += 1
+        scope = requestedScope
+        playlists = Self.uniquePlaylists(cached)
+        hasMore = false
+        nextStartIndex = 0
+        hasLoaded = false
+        isLoading = false
+        isLoadingMore = false
+        errorMessage = nil
+        paginationError = nil
+    }
+
     func load(
         scope requestedScope: PlaylistFeatureScope,
         loadPage: (Int) async throws -> PlaylistPage

@@ -254,7 +254,16 @@ struct GenreDetailView: View {
 
     private func load() async {
         let requestScope = scope
-        await state.load(genre: genre, scope: requestScope) { startIndex in
+        // Cache-first: the persisted snapshots paint immediately while the
+        // network results replace them silently.
+        let cachedAlbums = await model.cachedGenreAlbums(for: genre)
+        let cachedTracks = await model.cachedGenreTracks(for: genre)
+        await state.load(
+            genre: genre,
+            scope: requestScope,
+            cachedAlbums: (cachedAlbums?.isEmpty == false) ? cachedAlbums : nil,
+            cachedTracks: (cachedTracks?.isEmpty == false) ? cachedTracks : nil
+        ) { startIndex in
             try await model.genreAlbums(for: genre, startIndex: startIndex)
         } loadTracks: { startIndex in
             try await model.genreTracks(for: genre, startIndex: startIndex)

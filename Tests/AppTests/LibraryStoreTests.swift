@@ -40,6 +40,8 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertTrue(tableNames.contains("library_scopes"))
         XCTAssertTrue(tableNames.contains("cached_artists"))
         XCTAssertTrue(tableNames.contains("cached_albums"))
+        XCTAssertTrue(tableNames.contains("cached_genres"))
+        XCTAssertTrue(tableNames.contains("cached_playlists"))
         XCTAssertTrue(tableNames.contains("home_shelf_snapshots"))
         XCTAssertTrue(tableNames.contains("track_catalog_entries"))
         XCTAssertTrue(tableNames.contains("track_catalog_metadata"))
@@ -48,7 +50,7 @@ final class LibraryStoreTests: XCTestCase {
         let appliedMigrations = try await inspectionQueue.read { database in
             try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM grdb_migrations")
         }
-        XCTAssertEqual(appliedMigrations, 9)
+        XCTAssertEqual(appliedMigrations, 10)
         let foreignKeyViolationCount = try await inspectionQueue.read { database in
             try Row.fetchAll(database, sql: "PRAGMA foreign_key_check").count
         }
@@ -94,7 +96,7 @@ final class LibraryStoreTests: XCTestCase {
         }
         XCTAssertEqual(
             appliedMigrations,
-                ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots", "003_create_track_catalog", "004_create_track_favourite_outbox", "005_create_playlist_rename_outbox", "006_add_album_sort_index", "007_create_detail_track_snapshots", "008_create_downloaded_tracks", "009_add_artist_sort_index"]
+                ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots", "003_create_track_catalog", "004_create_track_favourite_outbox", "005_create_playlist_rename_outbox", "006_add_album_sort_index", "007_create_detail_track_snapshots", "008_create_downloaded_tracks", "009_add_artist_sort_index", "010_create_playlist_and_genre_caches"]
         )
     }
 
@@ -756,5 +758,73 @@ extension LibraryStoreTests {
 
         let cached = try await store.cachedArtists(scope: scope, libraryID: nil)
         XCTAssertEqual(cached.map(\.id), ["a", "b", "z"])
+    }
+}
+
+extension LibraryStoreTests {
+    private func genre(_ id: String, _ name: String) -> Genre {
+        Genre(id: id, name: name, imageTag: nil, itemCount: nil, albumCount: nil)
+    }
+
+    private func playlist(_ id: String, _ name: String) -> Playlist {
+        Playlist(id: id, name: name, imageTag: nil, itemCount: nil)
+    }
+
+    func testGenreBrowseCacheRoundTripsInServerOrderAcrossLaunches() async throws {
+        let databaseURL = temporaryDatabaseURL()
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+
+        let store = try SQLiteLibraryStore(databaseURL: databaseURL)
+        try await store.replaceGenres([genre("rock", "Rock"), genre("ambient", "Ambient")], scope: scope, libraryID: "library-a")
+        try await store.appendGenres([genre("jazz", "Jazz")], scope: scope, libraryID: "library-a")
+
+        let reopened = try SQLiteLibraryStore(databaseURL: databaseURL)
+        let cached = try await reopened.cachedGenres(scope: scope, libraryID: "library-a")
+        XCTAssertEqual(cached.map(\.id), ["rock", "ambient", "jazz"])
+    }
+
+    func testReplaceGenresClearsSnapshotAndDropsInvalidEntries() async throws {
+        let store = try SQLiteLibraryStore(databaseURL: temporaryDatabaseURL())
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+
+        try await store.replaceGenres([genre("rock", "Rock"), genre("pop", "Pop")], scope: scope, libraryID: nil)
+        try await store.replaceGenres([genre("jazz", "Jazz"), genre("", "Malformed")], scope: scope, libraryID: nil)
+
+        let cached = try await store.cachedGenres(scope: scope, libraryID: nil)
+        XCTAssertEqual(cached.map(\.id), ["jazz"])
+    }
+
+    func testPlaylistBrowseCacheRoundTripsUnderGlobalScope() async throws {
+        let store = try SQLiteLibraryStore(databaseURL: temporaryDatabaseURL())
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+
+        // Playlists are user-global: written and read under the nil (global)
+        // library scope, so a per-library read must not see them.
+        try await store.replacePlaylists([playlist("road", "Road Mix"), playlist("chill", "Chill")], scope: scope, libraryID: nil)
+
+        let globalScoped = try await store.cachedPlaylists(scope: scope, libraryID: nil)
+        let libraryScoped = try await store.cachedPlaylists(scope: scope, libraryID: "library-a")
+        XCTAssertEqual(globalScoped.map(\.id), ["road", "chill"])
+        XCTAssertTrue(libraryScoped.isEmpty)
+    }
+
+    func testGenreDetailSnapshotsRoundTripAlbumsAndTracks() async throws {
+        let store = try SQLiteLibraryStore(databaseURL: temporaryDatabaseURL())
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+        let albums = [album(id: "a1", name: "Comp One"), album(id: "a2", name: "Comp Two")]
+        let occurrences = [
+            GenreTrackOccurrence(id: "occ-1", track: Track(id: "t1", name: "Song", artist: "A", album: "Comp One",
+                                                            index: 1, disc: 1, durationTicks: 1_800_000_000))
+        ]
+
+        try await store.replaceGenreAlbums(albums, genreID: "rock", scope: scope, libraryID: "library-a")
+        try await store.replaceGenreTracks(occurrences, genreID: "rock", scope: scope, libraryID: "library-a")
+
+        let cachedAlbums = try await store.cachedGenreAlbums(genreID: "rock", scope: scope, libraryID: "library-a")
+        let cachedTracks = try await store.cachedGenreTracks(genreID: "rock", scope: scope, libraryID: "library-a")
+        let otherGenre = try await store.cachedGenreAlbums(genreID: "jazz", scope: scope, libraryID: "library-a")
+        XCTAssertEqual(cachedAlbums?.map(\.id), ["a1", "a2"])
+        XCTAssertEqual(cachedTracks?.map(\.id), ["occ-1"])
+        XCTAssertNil(otherGenre, "A different genre id shares no snapshot")
     }
 }

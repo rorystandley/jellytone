@@ -23,7 +23,11 @@ struct GenreLibraryView: View {
         .accessibilityIdentifier("genres-screen")
         .navigationTitle("Genres")
         .audioCanvas()
-        .task(id: scope) { await load() }
+        .task(id: scope) {
+            // Cache-first: paint the persisted snapshot, then refresh silently.
+            state.seed(await model.cachedGenres(), scope: scope)
+            if state.genres.isEmpty { await load() } else { await refresh() }
+        }
     }
 
     private var scope: GenreFeatureScope {

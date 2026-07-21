@@ -57,6 +57,21 @@ protocol LibraryStoring: Sendable {
     func replaceArtistAlbums(_ albums: [Album], artistID: String, scope: LibraryScope, libraryID: String?) async throws
     func cachedArtistTopTracks(artistID: String, scope: LibraryScope, libraryID: String?) async throws -> [Track]?
     func replaceArtistTopTracks(_ tracks: [Track], artistID: String, scope: LibraryScope, libraryID: String?) async throws
+    /// Browse caches for the playlist and genre Library screens, shaped like
+    /// the album cache: the first page replaces the snapshot, later pages
+    /// append, so the screen paints instantly across launches.
+    func cachedPlaylists(scope: LibraryScope, libraryID: String?) async throws -> [Playlist]
+    func replacePlaylists(_ playlists: [Playlist], scope: LibraryScope, libraryID: String?) async throws
+    func appendPlaylists(_ playlists: [Playlist], scope: LibraryScope, libraryID: String?) async throws
+    func cachedGenres(scope: LibraryScope, libraryID: String?) async throws -> [Genre]
+    func replaceGenres(_ genres: [Genre], scope: LibraryScope, libraryID: String?) async throws
+    func appendGenres(_ genres: [Genre], scope: LibraryScope, libraryID: String?) async throws
+    /// Genre detail snapshots (albums and tracks), like the artist-albums
+    /// snapshot, so a genre screen paints from cache before the refresh lands.
+    func cachedGenreAlbums(genreID: String, scope: LibraryScope, libraryID: String?) async throws -> [Album]?
+    func replaceGenreAlbums(_ albums: [Album], genreID: String, scope: LibraryScope, libraryID: String?) async throws
+    func cachedGenreTracks(genreID: String, scope: LibraryScope, libraryID: String?) async throws -> [GenreTrackOccurrence]?
+    func replaceGenreTracks(_ occurrences: [GenreTrackOccurrence], genreID: String, scope: LibraryScope, libraryID: String?) async throws
     /// Offline download manifest (ADR 0009). Records are authoritative for
     /// source resolution; a file without a record is an orphan.
     func downloadedTracks(scope: LibraryScope) async throws -> [DownloadedTrack]
@@ -107,6 +122,16 @@ extension LibraryStoring {
     func replaceArtistAlbums(_ albums: [Album], artistID: String, scope: LibraryScope, libraryID: String?) async throws {}
     func cachedArtistTopTracks(artistID: String, scope: LibraryScope, libraryID: String?) async throws -> [Track]? { nil }
     func replaceArtistTopTracks(_ tracks: [Track], artistID: String, scope: LibraryScope, libraryID: String?) async throws {}
+    func cachedPlaylists(scope: LibraryScope, libraryID: String?) async throws -> [Playlist] { [] }
+    func replacePlaylists(_ playlists: [Playlist], scope: LibraryScope, libraryID: String?) async throws {}
+    func appendPlaylists(_ playlists: [Playlist], scope: LibraryScope, libraryID: String?) async throws {}
+    func cachedGenres(scope: LibraryScope, libraryID: String?) async throws -> [Genre] { [] }
+    func replaceGenres(_ genres: [Genre], scope: LibraryScope, libraryID: String?) async throws {}
+    func appendGenres(_ genres: [Genre], scope: LibraryScope, libraryID: String?) async throws {}
+    func cachedGenreAlbums(genreID: String, scope: LibraryScope, libraryID: String?) async throws -> [Album]? { nil }
+    func replaceGenreAlbums(_ albums: [Album], genreID: String, scope: LibraryScope, libraryID: String?) async throws {}
+    func cachedGenreTracks(genreID: String, scope: LibraryScope, libraryID: String?) async throws -> [GenreTrackOccurrence]? { nil }
+    func replaceGenreTracks(_ occurrences: [GenreTrackOccurrence], genreID: String, scope: LibraryScope, libraryID: String?) async throws {}
     func downloadedTracks(scope: LibraryScope) async throws -> [DownloadedTrack] { [] }
     func recordDownloadedTrack(_ record: DownloadedTrack, scope: LibraryScope) async throws {}
     func removeDownloadedTrack(itemID: String, scope: LibraryScope) async throws {}

@@ -22,6 +22,24 @@ final class GenreLibraryState: ObservableObject {
 
     var canLoadMore: Bool { hasMore && !isLoading && !isLoadingMore }
 
+    /// Paints a persisted snapshot immediately (cache-first) so the screen
+    /// never opens empty when a cache exists; the silent network refresh that
+    /// follows replaces it. Ignored once this scope already has content.
+    func seed(_ cached: [Genre], scope requestedScope: GenreFeatureScope) {
+        guard !cached.isEmpty else { return }
+        if scope == requestedScope, hasLoaded || !genres.isEmpty { return }
+        generation += 1
+        scope = requestedScope
+        genres = Self.uniqueByIdentity(cached)
+        hasMore = false
+        nextStartIndex = 0
+        hasLoaded = false
+        isLoading = false
+        isLoadingMore = false
+        errorMessage = nil
+        paginationError = nil
+    }
+
     func load(
         scope requestedScope: GenreFeatureScope,
         loadPage: (Int) async throws -> GenrePage
@@ -156,6 +174,8 @@ final class GenreDetailState: ObservableObject {
     func load(
         genre: Genre,
         scope requestedScope: GenreFeatureScope,
+        cachedAlbums: [Album]? = nil,
+        cachedTracks: [GenreTrackOccurrence]? = nil,
         loadAlbums: (Int) async throws -> AlbumPage,
         loadTracks: (Int) async throws -> GenreTrackPage
     ) async {
@@ -163,8 +183,10 @@ final class GenreDetailState: ObservableObject {
         let requestGeneration = generation
         scope = requestedScope
         genreID = genre.id
-        albums = []
-        trackOccurrences = []
+        // Present the persisted snapshots immediately; the network results
+        // replace them below so the refresh stays silent.
+        albums = cachedAlbums ?? []
+        trackOccurrences = cachedTracks ?? []
         resetPagination()
         hasLoadedAlbums = false
         hasLoadedTracks = false
