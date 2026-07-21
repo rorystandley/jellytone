@@ -159,7 +159,9 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "SearchTerm", value: searchTerm),
             URLQueryItem(name: "IncludeItemTypes", value: "MusicArtist,MusicAlbum"),
             URLQueryItem(name: "Recursive", value: "true"),
-            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
+            // SortName keeps search-driven cache writes from erasing the
+            // collation key the artist browse cache depends on.
+            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,SortName"),
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
@@ -178,7 +180,8 @@ struct JellyfinAPI: Sendable {
         let artists = response.Items.compactMap { item -> Artist? in
             guard item.`Type` == "MusicArtist" else { return nil }
             guard let identity = item.validatedIdentity else { return nil }
-            return Artist(id: identity.id, name: identity.name, imageTag: item.ImageTags?["Primary"])
+            return Artist(id: identity.id, name: identity.name, imageTag: item.ImageTags?["Primary"],
+                          sortName: item.SortName?.nonEmpty)
         }
         let albums = response.Items.compactMap { item -> Album? in
             guard item.`Type` == "MusicAlbum" else { return nil }
@@ -191,6 +194,48 @@ struct JellyfinAPI: Sendable {
             artists: artists,
             albums: albums,
             hasMore: hasMore,
+            nextStartIndex: startIndex + response.receivedItemCount
+        )
+    }
+
+    /// The full album-artist browse list, SortName-collated, for the Library
+    /// Artists screen. AlbumArtists (not the plain Artists endpoint) mirrors
+    /// Apple Music's Artists screen: album artists only, not every guest
+    /// performer credited on a track.
+    func artists(
+        userID: String,
+        libraryID: String?,
+        startIndex: Int = 0,
+        limit: Int = 100
+    ) async throws -> ArtistPage {
+        var query = [
+            URLQueryItem(name: "userId", value: userID),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,SortName"),
+            URLQueryItem(name: "StartIndex", value: String(startIndex)),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
+            URLQueryItem(name: "SortBy", value: "SortName"),
+            URLQueryItem(name: "SortOrder", value: "Ascending"),
+        ]
+        if let libraryID {
+            query.append(URLQueryItem(name: "ParentId", value: libraryID))
+        }
+        let response = try await send(
+            operation: "artists",
+            path: ["Artists", "AlbumArtists"],
+            query: query,
+            as: ItemsResponse<Item>.self
+        )
+        let artists = response.Items.compactMap { item -> Artist? in
+            guard item.`Type` == nil || item.`Type` == "MusicArtist",
+                  let identity = item.validatedIdentity else { return nil }
+            return Artist(id: identity.id, name: identity.name, imageTag: item.ImageTags?["Primary"],
+                          sortName: item.SortName?.nonEmpty)
+        }
+        return ArtistPage(
+            artists: artists,
+            hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
             nextStartIndex: startIndex + response.receivedItemCount
         )
     }
@@ -213,7 +258,8 @@ struct JellyfinAPI: Sendable {
             artists: response.Items.compactMap { item in
                 guard item.isFavourite, item.`Type` == "MusicArtist",
                       let identity = item.validatedIdentity else { return nil }
-                return Artist(id: identity.id, name: identity.name, imageTag: item.ImageTags?["Primary"])
+                return Artist(id: identity.id, name: identity.name, imageTag: item.ImageTags?["Primary"],
+                              sortName: item.SortName?.nonEmpty)
             },
             hasMore: hasMore(response: response, startIndex: startIndex, limit: limit),
             nextStartIndex: startIndex + response.receivedItemCount
@@ -1123,6 +1169,7 @@ private struct Item: Decodable {
     }
     let Id: String?
     let Name: String?
+    let SortName: String?
     let `Type`: String?
     let CollectionType: String?
     let AlbumArtist: String?
@@ -1157,6 +1204,7 @@ private struct Item: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         Id = container.lossy(String.self, forKey: .Id)
         Name = container.lossy(String.self, forKey: .Name)
+        SortName = container.lossy(String.self, forKey: .SortName)
         Type = container.lossy(String.self, forKey: .Type)
         CollectionType = container.lossy(String.self, forKey: .CollectionType)
         AlbumArtist = container.lossy(String.self, forKey: .AlbumArtist)
@@ -1178,7 +1226,7 @@ private struct Item: Decodable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case Id, Name, `Type`, CollectionType, AlbumArtist, Artists, ArtistIds, Album, AlbumId
+        case Id, Name, SortName, `Type`, CollectionType, AlbumArtist, Artists, ArtistIds, Album, AlbumId
         case ProductionYear, ImageTags, IndexNumber, ParentIndexNumber, RunTimeTicks
         case ChildCount, RecursiveItemCount, SongCount, AlbumCount, PlaylistItemId, UserData
     }

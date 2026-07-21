@@ -38,6 +38,11 @@ enum PlaylistRenameValidation {
 protocol LibraryStoring: Sendable {
     func cachedAlbums(scope: LibraryScope, libraryID: String?) async throws -> [Album]
     func replaceAlbums(_ albums: [Album], scope: LibraryScope, libraryID: String?) async throws
+    /// Write-through cache for the Artists browse list, preserving the
+    /// server-received SortName order so the next visit paints instantly.
+    func cachedArtists(scope: LibraryScope, libraryID: String?) async throws -> [Artist]
+    func replaceArtists(_ artists: [Artist], scope: LibraryScope, libraryID: String?) async throws
+    func appendArtists(_ artists: [Artist], scope: LibraryScope, libraryID: String?) async throws
     /// Appends a further album page received while paginating, preserving the
     /// server-received order after the cached tail. Already-cached albums keep
     /// their position; only their payload refreshes.
@@ -91,6 +96,9 @@ protocol LibraryStoring: Sendable {
 
 extension LibraryStoring {
     func appendAlbums(_ albums: [Album], scope: LibraryScope, libraryID: String?) async throws {}
+    func cachedArtists(scope: LibraryScope, libraryID: String?) async throws -> [Artist] { [] }
+    func replaceArtists(_ artists: [Artist], scope: LibraryScope, libraryID: String?) async throws {}
+    func appendArtists(_ artists: [Artist], scope: LibraryScope, libraryID: String?) async throws {}
     func cachedAlbumTracks(albumID: String, scope: LibraryScope, libraryID: String?) async throws -> [Track]? { nil }
     func replaceAlbumTracks(_ tracks: [Track], albumID: String, scope: LibraryScope, libraryID: String?) async throws {}
     func cachedPlaylistEntries(playlistID: String, scope: LibraryScope, libraryID: String?) async throws -> [PlaylistEntry]? { nil }

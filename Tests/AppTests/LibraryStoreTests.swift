@@ -48,7 +48,7 @@ final class LibraryStoreTests: XCTestCase {
         let appliedMigrations = try await inspectionQueue.read { database in
             try Int.fetchOne(database, sql: "SELECT COUNT(*) FROM grdb_migrations")
         }
-        XCTAssertEqual(appliedMigrations, 8)
+        XCTAssertEqual(appliedMigrations, 9)
         let foreignKeyViolationCount = try await inspectionQueue.read { database in
             try Row.fetchAll(database, sql: "PRAGMA foreign_key_check").count
         }
@@ -94,7 +94,7 @@ final class LibraryStoreTests: XCTestCase {
         }
         XCTAssertEqual(
             appliedMigrations,
-                ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots", "003_create_track_catalog", "004_create_track_favourite_outbox", "005_create_playlist_rename_outbox", "006_add_album_sort_index", "007_create_detail_track_snapshots", "008_create_downloaded_tracks"]
+                ["001_create_library_metadata_cache", "002_create_home_shelf_snapshots", "003_create_track_catalog", "004_create_track_favourite_outbox", "005_create_playlist_rename_outbox", "006_add_album_sort_index", "007_create_detail_track_snapshots", "008_create_downloaded_tracks", "009_add_artist_sort_index"]
         )
     }
 
@@ -707,5 +707,54 @@ final class LibraryStoreTests: XCTestCase {
         artist: String = "Synthetic Artist"
     ) -> Album {
         Album(id: id, name: name, artist: artist, productionYear: 2024, imageTag: nil)
+    }
+
+    private func artist(_ id: String, _ name: String, sortName: String? = nil) -> Artist {
+        Artist(id: id, name: name, imageTag: nil, sortName: sortName)
+    }
+}
+
+extension LibraryStoreTests {
+    func testArtistBrowseCacheRoundTripsInServerOrderAcrossLaunches() async throws {
+        let databaseURL = temporaryDatabaseURL()
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+        let page = [artist("b", "The Beatles", sortName: "Beatles"), artist("a", "ABBA")]
+
+        let store = try SQLiteLibraryStore(databaseURL: databaseURL)
+        try await store.replaceArtists(page, scope: scope, libraryID: "library-a")
+        try await store.appendArtists([artist("m", "Mogwai")], scope: scope, libraryID: "library-a")
+
+        // A second launch reads the persisted snapshot in the received order,
+        // preserving the SortName collation and the appended page tail.
+        let reopened = try SQLiteLibraryStore(databaseURL: databaseURL)
+        let cached = try await reopened.cachedArtists(scope: scope, libraryID: "library-a")
+        XCTAssertEqual(cached.map(\.id), ["b", "a", "m"])
+        XCTAssertEqual(cached[0].sortName, "Beatles")
+    }
+
+    func testReplaceArtistsClearsTheSnapshotAndDropsInvalidEntries() async throws {
+        let store = try SQLiteLibraryStore(databaseURL: temporaryDatabaseURL())
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+
+        try await store.replaceArtists([artist("a", "ABBA"), artist("b", "Bowie")], scope: scope, libraryID: nil)
+        try await store.replaceArtists([artist("c", "Cave"), artist("", "Malformed")], scope: scope, libraryID: nil)
+
+        let cached = try await store.cachedArtists(scope: scope, libraryID: nil)
+        XCTAssertEqual(cached.map(\.id), ["c"], "Replace overwrites the prior snapshot and skips invalid rows")
+    }
+
+    func testSearchMetadataDoesNotHoistArtistsAboveTheBrowseOrder() async throws {
+        let store = try SQLiteLibraryStore(databaseURL: temporaryDatabaseURL())
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+
+        try await store.replaceArtists([artist("a", "ABBA"), artist("b", "Bowie")], scope: scope, libraryID: nil)
+        // A search caches an artist not yet in the browse snapshot; it must land
+        // after the browse tail, never at the top of the list.
+        try await store.storeSearchMetadata(
+            artists: [artist("z", "ZZ Top")], albums: [], scope: scope, libraryID: nil
+        )
+
+        let cached = try await store.cachedArtists(scope: scope, libraryID: nil)
+        XCTAssertEqual(cached.map(\.id), ["a", "b", "z"])
     }
 }

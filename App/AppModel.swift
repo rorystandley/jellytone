@@ -541,6 +541,63 @@ final class AppModel: ObservableObject {
         )
     }
 
+    func artistPage(startIndex: Int = 0) async throws -> ArtistPage {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing-artists-loading") {
+            try await Task.sleep(for: .seconds(5))
+        }
+        if arguments.contains("--ui-testing-artists-error") { throw APIError.httpStatus(503) }
+        if arguments.contains("--ui-testing-artists-pagination-error"), startIndex > 0 {
+            throw APIError.httpStatus(503)
+        }
+        if arguments.contains("--ui-testing-artists-empty") {
+            return ArtistPage(artists: [], hasMore: false, nextStartIndex: 0)
+        }
+        if arguments.contains("--ui-testing-artists") {
+            let artists = [
+                Artist(id: "artist-artwork", name: "Aurora Ensemble", imageTag: "synthetic-art"),
+                Artist(id: "artist-duplicate-name", name: "Aurora Ensemble", imageTag: nil),
+                Artist(id: "artist-unicode", name: "Björk Guðmundsdóttir & The Synthetic Orchestra",
+                       imageTag: nil),
+            ]
+            if arguments.contains("--ui-testing-artists-pagination-error") {
+                return ArtistPage(artists: startIndex == 0 ? [artists[0]] : [], hasMore: startIndex == 0,
+                                  nextStartIndex: startIndex == 0 ? 1 : startIndex)
+            }
+            return ArtistPage(artists: startIndex == 0 ? artists : [], hasMore: false,
+                              nextStartIndex: artists.count)
+        }
+#endif
+        guard let session, let api else { throw APIError.notAuthenticated }
+        let page = try await api.artists(
+            userID: session.userID,
+            libraryID: selectedLibraryID,
+            startIndex: startIndex
+        )
+        // Write-through browse cache: page 0 replaces the snapshot, later
+        // pages append as they resolve, so the next visit paints instantly.
+        if startIndex == 0 {
+            try? await libraryStore?.replaceArtists(
+                page.artists, scope: libraryScope(for: session), libraryID: selectedLibraryID
+            )
+        } else {
+            try? await libraryStore?.appendArtists(
+                page.artists, scope: libraryScope(for: session), libraryID: selectedLibraryID
+            )
+        }
+        return page
+    }
+
+    /// Persisted artist browse snapshot for cache-first paint; empty when the
+    /// account has never opened the Artists screen.
+    func cachedArtists() async -> [Artist] {
+        guard let session else { return [] }
+        return (try? await libraryStore?.cachedArtists(
+            scope: libraryScope(for: session), libraryID: selectedLibraryID
+        )) ?? []
+    }
+
     func playlistPage(startIndex: Int = 0) async throws -> PlaylistPage {
 #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments

@@ -34,11 +34,29 @@ struct Artist: Identifiable, Codable, Hashable, Sendable {
     let id: String
     let name: String
     let imageTag: String?
+    /// Server SortName collation key, used by the Artists browse index so
+    /// section jumps match the server's ordering rather than a local guess.
+    /// Optional and absent from older cache payloads, which decode to `nil`.
+    let sortName: String?
+
+    init(id: String, name: String, imageTag: String?, sortName: String? = nil) {
+        self.id = id
+        self.name = name
+        self.imageTag = imageTag
+        self.sortName = sortName
+    }
 }
 
 struct MusicSearchPage: Equatable, Sendable {
     let artists: [Artist]
     let albums: [Album]
+    let hasMore: Bool
+    let nextStartIndex: Int
+}
+
+/// A page of the full Artists browse list (album artists, SortName order).
+struct ArtistPage: Equatable, Sendable {
+    let artists: [Artist]
     let hasMore: Bool
     let nextStartIndex: Int
 }
