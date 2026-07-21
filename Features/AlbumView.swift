@@ -38,6 +38,7 @@ struct AlbumView: View {
             let fresh = await model.tracks(for: album)
             if !fresh.isEmpty || tracks.isEmpty { tracks = fresh }
             isLoading = false
+            await model.refreshFavouriteStatus(ids: [album.id] + tracks.map(\.id))
         }
     }
 
@@ -66,40 +67,45 @@ struct AlbumView: View {
             // circle sits apart. The tighter inner gap compensates for the
             // glyphs' frame padding so every optical gap reads even.
             HStack(spacing: JellytoneTheme.Space.xl) {
+                // The album like persists independently of playback, so it stays
+                // enabled while tracks are still loading.
+                FavouriteHeartButton(itemID: album.id, identifierPrefix: "album")
                 Spacer()
-                HStack(spacing: JellytoneTheme.Space.md) {
-                    DownloadStatusButton(
-                        downloads: model.downloads,
-                        tracks: tracks,
-                        container: albumContainer,
-                        identifierPrefix: "album"
-                    )
-                    Button { model.shuffle(tracks) } label: {
-                        Image(systemName: "shuffle")
-                            .font(.jtSubsectionHeader)
-                            .foregroundStyle(Color.jtTextPrimary)
-                            .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
-                            .contentShape(Rectangle())
+                Group {
+                    HStack(spacing: JellytoneTheme.Space.md) {
+                        DownloadStatusButton(
+                            downloads: model.downloads,
+                            tracks: tracks,
+                            container: albumContainer,
+                            identifierPrefix: "album"
+                        )
+                        Button { model.shuffle(tracks) } label: {
+                            Image(systemName: "shuffle")
+                                .font(.jtSubsectionHeader)
+                                .foregroundStyle(Color.jtTextPrimary)
+                                .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                        .accessibilityIdentifier("album-shuffle")
+                        .accessibilityLabel("Shuffle")
+                    }
+                    Button {
+                        if let first = tracks.first { model.play(first, in: tracks) }
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: DetailMetrics.playDiameter / 3, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: DetailMetrics.playDiameter, height: DetailMetrics.playDiameter)
+                            .background(Circle().fill(Color.jtAccent))
                     }
                     .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
-                    .accessibilityIdentifier("album-shuffle")
-                    .accessibilityLabel("Shuffle")
+                    .accessibilityIdentifier("album-play-all")
+                    .accessibilityLabel("Play All")
                 }
-                Button {
-                    if let first = tracks.first { model.play(first, in: tracks) }
-                } label: {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: DetailMetrics.playDiameter / 3, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: DetailMetrics.playDiameter, height: DetailMetrics.playDiameter)
-                        .background(Circle().fill(Color.jtAccent))
-                }
-                .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
-                .accessibilityIdentifier("album-play-all")
-                .accessibilityLabel("Play All")
+                .disabled(tracks.isEmpty)
+                .opacity(tracks.isEmpty ? 0.4 : 1)
             }
-            .disabled(tracks.isEmpty)
-            .opacity(tracks.isEmpty ? 0.4 : 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -131,6 +137,11 @@ struct AlbumView: View {
                         .accessibilityLabel("Track \(track.index.map(String.init) ?? "unknown"), \(track.name), by \(track.artist)")
                         .accessibilityHint("Starts playback from this album track")
                         .contextMenu {
+                            let liked = model.isFavourite(track.id)
+                            Button(liked ? "Unfavourite" : "Favourite",
+                                   systemImage: liked ? "heart.slash" : "heart") {
+                                model.toggleFavourite(id: track.id)
+                            }
                             Button("Play Next", systemImage: "text.insert") { model.playNext(track) }
                                 .disabled(model.playback.currentTrack == nil)
                             Button("Add to Queue", systemImage: "text.badge.plus") { model.addToQueue(track) }
@@ -369,6 +380,9 @@ struct NowPlayingView: View {
                     HStack {
                         Label(playback.qualityLabel, systemImage: "waveform")
                         Spacer()
+                        if let trackID = playback.currentTrack?.id {
+                            FavouriteHeartButton(itemID: trackID, font: .jtBody, identifierPrefix: "now-playing")
+                        }
                         if lyrics != nil {
                             Button {
                                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
@@ -396,6 +410,7 @@ struct NowPlayingView: View {
                 showingLyrics = false
                 lyrics = nil
                 guard let track = playback.currentTrack else { return }
+                await model.refreshFavouriteStatus(ids: [track.id])
                 lyrics = await model.lyrics(for: track)
             }
             // Artwork-derived wash, kept dark always (design-system.md §4.5).

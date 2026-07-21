@@ -29,10 +29,19 @@ final class AppModel: ObservableObject {
     private var nextAlbumStartIndex = 0
     private var homeRefreshGeneration = 0
     private var trackCatalogGeneration = 0
+    /// Effective favourite ("like") state for songs, albums, and artists, driven
+    /// by the registry so views can observe it. See [[FavouriteRegistry]].
+    @Published private(set) var favouriteItemIDs: Set<String> = []
+    private let favouriteReconciler: FavouriteReconciler?
+    private var favouriteRegistry = FavouriteRegistry() {
+        didSet { favouriteItemIDs = favouriteRegistry.favourites }
+    }
+    private var favouriteSequence: Int64 = 0
 
     init(defaults: UserDefaults = .standard, libraryStore: (any LibraryStoring)? = nil) {
         self.defaults = defaults
         self.libraryStore = libraryStore ?? Self.makeDefaultLibraryStore()
+        self.favouriteReconciler = self.libraryStore.map { FavouriteReconciler(store: $0) }
         self.playback = PlaybackController(defaults: defaults)
         self.downloads = DownloadManager(store: self.libraryStore)
         downloads.scopeProvider = { [weak self] in
@@ -165,6 +174,8 @@ final class AppModel: ObservableObject {
             trackCatalogState.clear(for: TrackCatalogScope(serverID: info.id, accountID: authentication.userID, libraryID: nil))
             self.session = session
             persistProfile(session)
+            await loadPendingFavourites()
+            Task { await runFavouriteReconciliation() }
             try await refreshLibraries()
         } catch {
             let failure = error as NSError
@@ -879,6 +890,62 @@ final class AppModel: ObservableObject {
         playback.toggleShuffle()
     }
 
+    // MARK: - Favourites ("likes")
+
+    /// Effective favourite state for any item ID — song, album, or artist.
+    func isFavourite(_ id: String) -> Bool { favouriteRegistry.isFavourite(id) }
+
+    /// Optimistically flip an item's favourite state, durably enqueue the change,
+    /// and kick reconciliation so it persists to the Jellyfin server. Safe to call
+    /// offline: the outbox retries until the write lands.
+    func toggleFavourite(id: String) {
+        guard let session, let store = libraryStore, !id.isEmpty else { return }
+        let desired = favouriteRegistry.toggle(id)
+        favouriteSequence += 1
+        let sequence = favouriteSequence
+        let scope = libraryScope(for: session)
+        Diagnostics.event("favourite_toggle", ["desired": desired ? "1" : "0"])
+        Task {
+            _ = try? await store.enqueueFavourite(scope: scope, itemID: id, desired: desired, sequence: sequence)
+            await runFavouriteReconciliation()
+        }
+    }
+
+    /// Fetch current server favourite truth for the given items and merge it in,
+    /// used when a detail screen appears so its heart reflects the server without
+    /// clobbering an unsynced local toggle.
+    func refreshFavouriteStatus(ids: [String]) async {
+        let observed = ids.filter { !$0.isEmpty }
+        guard let session, let api, !observed.isEmpty else { return }
+        guard let favourited = try? await api.favouriteStatus(userID: session.userID, itemIDs: observed) else { return }
+        favouriteRegistry.applyServerTruth(favourited: favourited, observed: Set(observed))
+    }
+
+    /// Seed optimistic state from the durable outbox at session start so pending
+    /// likes survive relaunch even before they reconcile.
+    func loadPendingFavourites() async {
+        guard let session, let store = libraryStore else { return }
+        guard let rows = try? await store.pendingFavourites(scope: libraryScope(for: session)) else { return }
+        var desired: [String: Bool] = [:]
+        for row in rows where row.state != .completed { desired[row.itemID] = row.desired }
+        favouriteRegistry.applyPending(desired)
+        favouriteSequence = max(favouriteSequence, rows.map(\.sequence).max() ?? 0)
+    }
+
+    /// Drain the favourite outbox against the server, then drop reconciled intents
+    /// from the pending overlay so later loads reflect authoritative truth.
+    func runFavouriteReconciliation() async {
+        guard let session, let api, let reconciler = favouriteReconciler, let store = libraryStore else { return }
+        let scope = libraryScope(for: session)
+        let now = Int64(Date().timeIntervalSince1970)
+        await reconciler.reconcile(scope: scope, gateway: api, now: now)
+        if let rows = try? await store.pendingFavourites(scope: scope) {
+            var stillPending: [String: Bool] = [:]
+            for row in rows where row.state != .completed { stillPending[row.itemID] = row.desired }
+            favouriteRegistry.replacePending(stillPending)
+        }
+    }
+
     func playNext(_ track: Track) {
         playback.playNext(track)
     }
@@ -904,6 +971,8 @@ final class AppModel: ObservableObject {
         nextAlbumStartIndex = 0
         tracksByAlbum = [:]
         selectedLibraryID = nil
+        favouriteRegistry = FavouriteRegistry()
+        favouriteSequence = 0
     }
 
     private var installationDeviceID: String {
@@ -965,6 +1034,8 @@ final class AppModel: ObservableObject {
             if let session {
                 await loadCachedAlbums(for: session, libraryID: selectedLibraryID)
                 await loadCachedHomeShelves(for: session, libraryID: selectedLibraryID)
+                await loadPendingFavourites()
+                await runFavouriteReconciliation()
             }
             do { try await refreshLibraries() }
             catch {

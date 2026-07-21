@@ -6,7 +6,7 @@ struct LibraryScope: Hashable, Sendable {
 }
 
 enum FavouriteMutationState: String, Codable, Sendable { case pending, pausedAuth, terminal, completed }
-struct TrackFavouriteMutation: Codable, Hashable, Sendable, Identifiable {
+struct FavouriteMutation: Codable, Hashable, Sendable, Identifiable {
     let id: String
     let serverID: String
     let accountID: String
@@ -80,10 +80,10 @@ protocol LibraryStoring: Sendable {
     func cachedTrackCatalogPage(scope: LibraryScope, libraryID: String?, limit: Int) async throws -> TrackCatalogPage?
     func replaceTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws
     func appendTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws
-    func enqueueTrackFavourite(scope: LibraryScope, itemID: String, desired: Bool, sequence: Int64) async throws -> TrackFavouriteMutation
-    func pendingTrackFavourites(scope: LibraryScope) async throws -> [TrackFavouriteMutation]
-    func completeTrackFavourite(_ mutation: TrackFavouriteMutation) async throws
-    func updateTrackFavourite(_ mutation: TrackFavouriteMutation) async throws
+    func enqueueFavourite(scope: LibraryScope, itemID: String, desired: Bool, sequence: Int64) async throws -> FavouriteMutation
+    func pendingFavourites(scope: LibraryScope) async throws -> [FavouriteMutation]
+    func completeFavourite(_ mutation: FavouriteMutation) async throws
+    func updateFavourite(_ mutation: FavouriteMutation) async throws
     func enqueuePlaylistRename(scope: LibraryScope, playlistID: String, baseRevision: String, baseName: String, desiredName: String, sequence: Int64) async throws -> PlaylistRenameMutation
     func pendingPlaylistRenames(scope: LibraryScope) async throws -> [PlaylistRenameMutation]
     func updatePlaylistRename(_ mutation: PlaylistRenameMutation) async throws
@@ -105,10 +105,10 @@ extension LibraryStoring {
     func cachedTrackCatalogPage(scope: LibraryScope, libraryID: String?, limit: Int) async throws -> TrackCatalogPage? { nil }
     func replaceTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws {}
     func appendTrackCatalogPage(_ page: TrackCatalogPage, generation: String, scope: LibraryScope, libraryID: String?) async throws {}
-    func enqueueTrackFavourite(scope: LibraryScope, itemID: String, desired: Bool, sequence: Int64) async throws -> TrackFavouriteMutation { fatalError("Store does not support mutations") }
-    func pendingTrackFavourites(scope: LibraryScope) async throws -> [TrackFavouriteMutation] { [] }
-    func completeTrackFavourite(_ mutation: TrackFavouriteMutation) async throws {}
-    func updateTrackFavourite(_ mutation: TrackFavouriteMutation) async throws {}
+    func enqueueFavourite(scope: LibraryScope, itemID: String, desired: Bool, sequence: Int64) async throws -> FavouriteMutation { fatalError("Store does not support mutations") }
+    func pendingFavourites(scope: LibraryScope) async throws -> [FavouriteMutation] { [] }
+    func completeFavourite(_ mutation: FavouriteMutation) async throws {}
+    func updateFavourite(_ mutation: FavouriteMutation) async throws {}
     func enqueuePlaylistRename(scope: LibraryScope, playlistID: String, baseRevision: String, baseName: String, desiredName: String, sequence: Int64) async throws -> PlaylistRenameMutation { fatalError("Store does not support playlist renames") }
     func pendingPlaylistRenames(scope: LibraryScope) async throws -> [PlaylistRenameMutation] { [] }
     func updatePlaylistRename(_ mutation: PlaylistRenameMutation) async throws {}

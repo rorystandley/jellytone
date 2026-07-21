@@ -55,6 +55,8 @@ enum Diagnostics {
         "authentication_succeeded",
         "connect_failed",
         "connect_started",
+        "favourite_mutation",
+        "favourite_toggle",
         "library_refresh_started",
         "music_search_loaded",
         "music_views_loaded",
@@ -102,9 +104,9 @@ enum Diagnostics {
         "playlists",
         "public_info",
         "tracks",
-        "track_favourite_mutation",
-        "track_favourite_set",
-        "track_favourite_clear",
+        "favourite_set",
+        "favourite_clear",
+        "favourite_status",
         "playlist_rename_read",
         "playlist_rename_write",
     ]
@@ -154,7 +156,7 @@ enum Diagnostics {
 
     private static func sanitizedValue(_ value: String, for key: String) -> String? {
         switch key {
-        case "active", "allowed", "has_more", "paused", "resumed", "scoped", "was_playing":
+        case "active", "allowed", "desired", "has_more", "paused", "resumed", "scoped", "was_playing":
             return sanitizedBoolean(value)
         case "album_count", "artist_count", "bytes", "count", "field_count", "queue_count", "total":
             return sanitizedInteger(value, range: 0...1_000_000_000)

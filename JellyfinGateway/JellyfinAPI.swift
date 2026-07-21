@@ -271,13 +271,13 @@ struct JellyfinAPI: Sendable {
         )
     }
 
-    func setTrackFavourite(userID: String, itemID: String, desired: Bool) async -> TrackFavouriteGatewayOutcome {
+    func setFavourite(userID: String, itemID: String, desired: Bool) async -> FavouriteMutationOutcome {
         do {
             var request = URLRequest(url: try makeURL(path: ["Users", userID, "FavoriteItems", itemID]))
             request.httpMethod = desired ? "POST" : "DELETE"
             addAuthorization(to: &request)
-            _ = try await executeNoContent(request, operation: desired ? "track_favourite_set" : "track_favourite_clear")
-            Diagnostics.event("track_favourite_mutation", ["operation": desired ? "track_favourite_set" : "track_favourite_clear", "outcome": "success", "retry_class": "none"])
+            _ = try await executeNoContent(request, operation: desired ? "favourite_set" : "favourite_clear")
+            Diagnostics.event("favourite_mutation", ["operation": desired ? "favourite_set" : "favourite_clear", "outcome": "success", "retry_class": "none"])
             return .succeeded
         } catch is CancellationError { return .cancelled
         } catch let error as APIError {
@@ -288,6 +288,27 @@ struct JellyfinAPI: Sendable {
             default: return .transient
             }
         } catch { return .transient }
+    }
+
+    /// Current server-side favourite truth for a specific set of items, used to
+    /// seed heart state on detail screens without paging a whole favourites list.
+    /// Returns the subset of `itemIDs` the account has favourited.
+    func favouriteStatus(userID: String, itemIDs: [String]) async throws -> Set<String> {
+        let ids = itemIDs.filter { !$0.isEmpty }
+        guard !ids.isEmpty else { return [] }
+        let response = try await send(
+            operation: "favourite_status",
+            path: ["Users", userID, "Items"],
+            query: [
+                URLQueryItem(name: "Ids", value: ids.joined(separator: ",")),
+                URLQueryItem(name: "Fields", value: "UserData"),
+            ],
+            as: ItemsResponse<Item>.self
+        )
+        return Set(response.Items.compactMap { item in
+            guard item.isExplicitlyFavourite, let id = item.Id?.nonEmpty else { return nil }
+            return id
+        })
     }
 
     func playlists(
@@ -1148,6 +1169,12 @@ private struct Item: Decodable {
         userData?.IsFavorite != false
     }
 
+    /// Strict favourite truth for status reads over an unfiltered item set,
+    /// where a missing or false UserData flag means "not favourited".
+    var isExplicitlyFavourite: Bool {
+        userData?.IsFavorite == true
+    }
+
     var validatedIdentity: (id: String, name: String)? {
         guard let id = Id?.nonEmpty, let name = Name?.nonEmpty else { return nil }
         return (id, name)
@@ -1323,4 +1350,4 @@ enum APIError: LocalizedError, Equatable {
     }
 }
 
-extension JellyfinAPI: TrackFavouriteGateway {}
+extension JellyfinAPI: FavouriteWriteGateway {}
