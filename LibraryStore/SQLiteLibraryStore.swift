@@ -124,6 +124,22 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
         try await replaceDetailSnapshot(entries, containerID: "playlist:\(playlistID)", scope: scope, libraryID: libraryID)
     }
 
+    func cachedArtistAlbums(artistID: String, scope: LibraryScope, libraryID: String?) async throws -> [Album]? {
+        try await detailSnapshot(containerID: "artist-albums:\(artistID)", scope: scope, libraryID: libraryID)
+    }
+
+    func replaceArtistAlbums(_ albums: [Album], artistID: String, scope: LibraryScope, libraryID: String?) async throws {
+        try await replaceDetailSnapshot(albums, containerID: "artist-albums:\(artistID)", scope: scope, libraryID: libraryID)
+    }
+
+    func cachedArtistTopTracks(artistID: String, scope: LibraryScope, libraryID: String?) async throws -> [Track]? {
+        try await detailSnapshot(containerID: "artist-top-tracks:\(artistID)", scope: scope, libraryID: libraryID)
+    }
+
+    func replaceArtistTopTracks(_ tracks: [Track], artistID: String, scope: LibraryScope, libraryID: String?) async throws {
+        try await replaceDetailSnapshot(tracks, containerID: "artist-top-tracks:\(artistID)", scope: scope, libraryID: libraryID)
+    }
+
     private func detailSnapshot<Value: Decodable & Sendable>(
         containerID: String,
         scope: LibraryScope,

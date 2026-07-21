@@ -48,6 +48,10 @@ protocol LibraryStoring: Sendable {
     func replaceAlbumTracks(_ tracks: [Track], albumID: String, scope: LibraryScope, libraryID: String?) async throws
     func cachedPlaylistEntries(playlistID: String, scope: LibraryScope, libraryID: String?) async throws -> [PlaylistEntry]?
     func replacePlaylistEntries(_ entries: [PlaylistEntry], playlistID: String, scope: LibraryScope, libraryID: String?) async throws
+    func cachedArtistAlbums(artistID: String, scope: LibraryScope, libraryID: String?) async throws -> [Album]?
+    func replaceArtistAlbums(_ albums: [Album], artistID: String, scope: LibraryScope, libraryID: String?) async throws
+    func cachedArtistTopTracks(artistID: String, scope: LibraryScope, libraryID: String?) async throws -> [Track]?
+    func replaceArtistTopTracks(_ tracks: [Track], artistID: String, scope: LibraryScope, libraryID: String?) async throws
     /// Offline download manifest (ADR 0009). Records are authoritative for
     /// source resolution; a file without a record is an orphan.
     func downloadedTracks(scope: LibraryScope) async throws -> [DownloadedTrack]
@@ -91,6 +95,10 @@ extension LibraryStoring {
     func replaceAlbumTracks(_ tracks: [Track], albumID: String, scope: LibraryScope, libraryID: String?) async throws {}
     func cachedPlaylistEntries(playlistID: String, scope: LibraryScope, libraryID: String?) async throws -> [PlaylistEntry]? { nil }
     func replacePlaylistEntries(_ entries: [PlaylistEntry], playlistID: String, scope: LibraryScope, libraryID: String?) async throws {}
+    func cachedArtistAlbums(artistID: String, scope: LibraryScope, libraryID: String?) async throws -> [Album]? { nil }
+    func replaceArtistAlbums(_ albums: [Album], artistID: String, scope: LibraryScope, libraryID: String?) async throws {}
+    func cachedArtistTopTracks(artistID: String, scope: LibraryScope, libraryID: String?) async throws -> [Track]? { nil }
+    func replaceArtistTopTracks(_ tracks: [Track], artistID: String, scope: LibraryScope, libraryID: String?) async throws {}
     func downloadedTracks(scope: LibraryScope) async throws -> [DownloadedTrack] { [] }
     func recordDownloadedTrack(_ record: DownloadedTrack, scope: LibraryScope) async throws {}
     func removeDownloadedTrack(itemID: String, scope: LibraryScope) async throws {}

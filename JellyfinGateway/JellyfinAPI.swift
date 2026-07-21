@@ -559,6 +559,40 @@ struct JellyfinAPI: Sendable {
         )
     }
 
+    /// The artist's most-played tracks, for the artist detail "Top Songs"
+    /// shelf. Play-count order comes from the server's own user data.
+    func artistTopTracks(
+        userID: String,
+        artistID: String,
+        libraryID: String?,
+        limit: Int = 5
+    ) async throws -> [Track] {
+        var query = [
+            URLQueryItem(name: "userId", value: userID),
+            URLQueryItem(name: "ArtistIds", value: artistID),
+            URLQueryItem(name: "IncludeItemTypes", value: "Audio"),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists"),
+            URLQueryItem(name: "StartIndex", value: "0"),
+            URLQueryItem(name: "Limit", value: String(min(max(limit, 1), 25))),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
+            URLQueryItem(name: "SortBy", value: "PlayCount,SortName"),
+            URLQueryItem(name: "SortOrder", value: "Descending"),
+        ]
+        if let libraryID {
+            query.append(URLQueryItem(name: "ParentId", value: libraryID))
+        }
+        let response = try await send(
+            operation: "artist_top_tracks",
+            path: ["Items"],
+            query: query,
+            as: ItemsResponse<Item>.self
+        )
+        return uniqueByID(response.Items.compactMap { item in
+            item.`Type` == nil || item.`Type` == "Audio" ? mapTrack(item) : nil
+        })
+    }
+
     /// Time-synced or plain lyrics for a track, or nil when the server has
     /// none (404). Jellyfin returns per-line timing at most — there is no
     /// per-word timing available.

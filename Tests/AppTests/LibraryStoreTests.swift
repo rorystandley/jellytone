@@ -619,6 +619,41 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertEqual(replaced, [])
     }
 
+    func testArtistDetailSnapshotsRoundTripPerArtistAndScope() async throws {
+        let store = try SQLiteLibraryStore(databaseURL: temporaryDatabaseURL())
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+        let otherScope = LibraryScope(serverID: "server-a", accountID: "account-b")
+        let album = Album(id: "album-a", name: "Synthetic Album", artist: "Synthetic Artist",
+                          productionYear: 2026, imageTag: nil)
+        let track = Track(id: "track-a", name: "Synthetic Track", artist: "Synthetic Artist",
+                          album: "Synthetic Album", index: 1, disc: 1, durationTicks: 1_200_000_000)
+
+        // Empty cache reads as unavailable, never as an empty list.
+        let missingAlbums = try await store.cachedArtistAlbums(artistID: "artist-a", scope: scope, libraryID: "library-a")
+        XCTAssertNil(missingAlbums)
+        let missingTracks = try await store.cachedArtistTopTracks(artistID: "artist-a", scope: scope, libraryID: "library-a")
+        XCTAssertNil(missingTracks)
+
+        try await store.replaceArtistAlbums([album], artistID: "artist-a", scope: scope, libraryID: "library-a")
+        try await store.replaceArtistTopTracks([track], artistID: "artist-a", scope: scope, libraryID: "library-a")
+
+        let cachedAlbums = try await store.cachedArtistAlbums(artistID: "artist-a", scope: scope, libraryID: "library-a")
+        XCTAssertEqual(cachedAlbums, [album])
+        let cachedTracks = try await store.cachedArtistTopTracks(artistID: "artist-a", scope: scope, libraryID: "library-a")
+        XCTAssertEqual(cachedTracks, [track])
+
+        // Artists, snapshot kinds, and account scopes stay isolated.
+        let otherArtist = try await store.cachedArtistAlbums(artistID: "artist-b", scope: scope, libraryID: "library-a")
+        XCTAssertNil(otherArtist)
+        let otherAccount = try await store.cachedArtistAlbums(artistID: "artist-a", scope: otherScope, libraryID: "library-a")
+        XCTAssertNil(otherAccount)
+
+        // A refresh replaces each snapshot wholesale.
+        try await store.replaceArtistAlbums([], artistID: "artist-a", scope: scope, libraryID: "library-a")
+        let replaced = try await store.cachedArtistAlbums(artistID: "artist-a", scope: scope, libraryID: "library-a")
+        XCTAssertEqual(replaced, [])
+    }
+
     func testCachedAlbumsPreserveReceivedOrderAndAppendExtendsTheTail() async throws {
         let databaseURL = temporaryDatabaseURL()
         let scope = LibraryScope(serverID: "server-a", accountID: "account-a")

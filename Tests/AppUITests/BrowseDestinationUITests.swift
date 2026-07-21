@@ -40,10 +40,15 @@ final class BrowseDestinationUITests: XCTestCase {
 
         artist.tap()
         XCTAssertTrue(app.navigationBars["Björk Guðmundsdóttir & The Synthetic Orchestra"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Top Songs"].waitForExistence(timeout: 4))
         let artistAlbum = element("artist-album-album-artwork", in: app)
         scrollUntilHittable(artistAlbum, in: app)
         XCTAssertTrue(artistAlbum.isHittable)
         capture("artist-detail", app: app)
+        // Regression: an album tap must open the album, not re-push the artist.
+        artistAlbum.tap()
+        XCTAssertTrue(app.navigationBars["Aurora Lines"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["album-play-all"].waitForExistence(timeout: 4))
         app.terminate()
 
         app = launch(["--ui-testing-search"])

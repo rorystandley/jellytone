@@ -477,11 +477,67 @@ final class AppModel: ObservableObject {
         }
 #endif
         guard let session, let api else { throw APIError.notAuthenticated }
-        return try await api.albums(
+        let page = try await api.albums(
             userID: session.userID,
             artistID: artist.id,
             libraryID: selectedLibraryID,
             startIndex: startIndex
+        )
+        // Keep last visit's snapshot current as each page resolves: the first
+        // page replaces it, later pages extend it in received order.
+        if startIndex == 0 {
+            try? await libraryStore?.replaceArtistAlbums(
+                page.albums, artistID: artist.id,
+                scope: libraryScope(for: session), libraryID: selectedLibraryID
+            )
+        } else if !page.albums.isEmpty {
+            let cached = (try? await libraryStore?.cachedArtistAlbums(
+                artistID: artist.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
+            )) ?? []
+            let existing = Set(cached.map(\.id))
+            try? await libraryStore?.replaceArtistAlbums(
+                cached + page.albums.filter { !existing.contains($0.id) },
+                artistID: artist.id,
+                scope: libraryScope(for: session), libraryID: selectedLibraryID
+            )
+        }
+        return page
+    }
+
+    /// Persisted albums snapshot from the last visit to this artist, for
+    /// instant paint before the network refresh lands.
+    func cachedArtistAlbums(for artist: Artist) async -> [Album]? {
+        guard let session else { return nil }
+        return try? await libraryStore?.cachedArtistAlbums(
+            artistID: artist.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
+        )
+    }
+
+    /// The artist's most-played tracks, persisted as the refresh resolves.
+    func artistTopTracks(for artist: Artist) async throws -> [Track] {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing-search")
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-browse-details") {
+            return Self.syntheticAlbumTracks(albumID: "artist-top", albumName: "Aurora Lines", artist: artist.name)
+        }
+#endif
+        guard let session, let api else { throw APIError.notAuthenticated }
+        let tracks = try await api.artistTopTracks(
+            userID: session.userID,
+            artistID: artist.id,
+            libraryID: selectedLibraryID
+        )
+        try? await libraryStore?.replaceArtistTopTracks(
+            tracks, artistID: artist.id,
+            scope: libraryScope(for: session), libraryID: selectedLibraryID
+        )
+        return tracks
+    }
+
+    func cachedArtistTopTracks(for artist: Artist) async -> [Track]? {
+        guard let session else { return nil }
+        return try? await libraryStore?.cachedArtistTopTracks(
+            artistID: artist.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
         )
     }
 
