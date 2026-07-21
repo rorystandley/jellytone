@@ -226,6 +226,40 @@ final class GenreFeatureStateTests: XCTestCase {
         XCTAssertEqual(state.trackOccurrences.map(\.id), ["new-occurrence"])
     }
 
+    func testSeedPaintsCachedSnapshotAndDetailLoadSeedsCachedAlbumsAndTracks() async {
+        let state = GenreLibraryState()
+        let requestedScope = scope("account-a")
+
+        state.seed([genre("cached", "Cached")], scope: requestedScope)
+        XCTAssertEqual(state.genres.map(\.id), ["cached"])
+        XCTAssertFalse(state.isLoading, "A cached paint must not show as loading")
+
+        state.seed([genre("stale", "Stale")], scope: requestedScope)
+        XCTAssertEqual(state.genres.map(\.id), ["cached"],
+                       "A second seed must not clobber the painted snapshot")
+
+        // Detail: cached albums/tracks paint before the network replaces them.
+        let detail = GenreDetailState()
+        let selectedGenre = genre("rock", "Rock")
+        await detail.load(
+            genre: selectedGenre,
+            scope: requestedScope,
+            cachedAlbums: [album("cached-album")],
+            cachedTracks: [occurrence("cached-occurrence", trackID: "t1")]
+        ) { _ in
+            AlbumPage(albums: [album("fresh-album")], hasMore: false, nextStartIndex: 1)
+        } loadTracks: { _ in
+            GenreTrackPage(
+                occurrences: [occurrence("fresh-occurrence", trackID: "t2")],
+                hasMore: false,
+                nextStartIndex: 1
+            )
+        }
+        XCTAssertEqual(detail.albums.map(\.id), ["fresh-album"],
+                       "The network result replaces the cached paint silently")
+        XCTAssertEqual(detail.trackOccurrences.map(\.id), ["fresh-occurrence"])
+    }
+
     private func scope(_ account: String) -> GenreFeatureScope {
         GenreFeatureScope(serverID: "server", accountID: account, libraryID: "music")
     }

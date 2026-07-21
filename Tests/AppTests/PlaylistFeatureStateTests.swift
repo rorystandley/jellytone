@@ -199,6 +199,25 @@ final class PlaylistFeatureStateTests: XCTestCase {
         XCTAssertEqual(state.entries.map(\.id), ["second-entry"])
     }
 
+    func testSeedPaintsCachedSnapshotWithoutLoadingAndNeverClobbersLiveContent() async {
+        let state = PlaylistLibraryState()
+        let requestedScope = scope("account-a")
+
+        state.seed([playlist("cached", "Cached")], scope: requestedScope)
+        XCTAssertEqual(state.playlists.map(\.id), ["cached"])
+        XCTAssertFalse(state.isLoading, "A cached paint must not show as loading")
+        XCTAssertFalse(state.hasLoaded, "Seeding is not a completed network load")
+
+        await state.refresh(scope: requestedScope) { _ in
+            PlaylistPage(playlists: [self.playlist("fresh", "Fresh")], hasMore: false, nextStartIndex: 1)
+        }
+        XCTAssertEqual(state.playlists.map(\.id), ["fresh"])
+
+        state.seed([playlist("stale", "Stale")], scope: requestedScope)
+        XCTAssertEqual(state.playlists.map(\.id), ["fresh"],
+                       "A stale cache read must not replace live results")
+    }
+
     private func scope(_ account: String) -> PlaylistFeatureScope {
         PlaylistFeatureScope(serverID: "server", accountID: account, libraryID: "music")
     }

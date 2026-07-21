@@ -140,6 +140,126 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
         try await replaceDetailSnapshot(tracks, containerID: "artist-top-tracks:\(artistID)", scope: scope, libraryID: libraryID)
     }
 
+    // MARK: Playlist / genre browse caches
+
+    func cachedPlaylists(scope: LibraryScope, libraryID: String?) async throws -> [Playlist] {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        return try await databaseQueue.read { database in
+            let rows = try Row.fetchAll(
+                database,
+                sql: """
+                    SELECT item_id, payload
+                    FROM cached_playlists
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    ORDER BY sort_index, item_id
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            )
+            return rows.compactMap(Self.playlist(from:))
+        }
+    }
+
+    func replacePlaylists(_ playlists: [Playlist], scope: LibraryScope, libraryID: String?) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        let valid = playlists.filter(Self.isValid)
+        try await databaseQueue.write { database in
+            try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            try database.execute(
+                sql: "DELETE FROM cached_playlists WHERE server_id = ? AND account_id = ? AND library_scope = ?",
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            )
+            for (position, playlist) in valid.enumerated() {
+                try Self.upsert(playlist, sortIndex: position, scope: scope, libraryScope: libraryScope, in: database)
+            }
+        }
+    }
+
+    func appendPlaylists(_ playlists: [Playlist], scope: LibraryScope, libraryID: String?) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        let valid = playlists.filter(Self.isValid)
+        guard !valid.isEmpty else { return }
+        try await databaseQueue.write { database in
+            try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            var nextIndex = try Int.fetchOne(
+                database,
+                sql: "SELECT COALESCE(MAX(sort_index) + 1, 0) FROM cached_playlists WHERE server_id = ? AND account_id = ? AND library_scope = ?",
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            ) ?? 0
+            for playlist in valid {
+                try Self.upsert(playlist, sortIndex: nextIndex, scope: scope, libraryScope: libraryScope, in: database)
+                nextIndex += 1
+            }
+        }
+    }
+
+    func cachedGenres(scope: LibraryScope, libraryID: String?) async throws -> [Genre] {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        return try await databaseQueue.read { database in
+            let rows = try Row.fetchAll(
+                database,
+                sql: """
+                    SELECT item_id, payload
+                    FROM cached_genres
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    ORDER BY sort_index, item_id
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            )
+            return rows.compactMap(Self.genre(from:))
+        }
+    }
+
+    func replaceGenres(_ genres: [Genre], scope: LibraryScope, libraryID: String?) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        let valid = genres.filter(Self.isValid)
+        try await databaseQueue.write { database in
+            try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            try database.execute(
+                sql: "DELETE FROM cached_genres WHERE server_id = ? AND account_id = ? AND library_scope = ?",
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            )
+            for (position, genre) in valid.enumerated() {
+                try Self.upsert(genre, sortIndex: position, scope: scope, libraryScope: libraryScope, in: database)
+            }
+        }
+    }
+
+    func appendGenres(_ genres: [Genre], scope: LibraryScope, libraryID: String?) async throws {
+        let libraryScope = Self.libraryScope(for: libraryID)
+        let valid = genres.filter(Self.isValid)
+        guard !valid.isEmpty else { return }
+        try await databaseQueue.write { database in
+            try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
+            var nextIndex = try Int.fetchOne(
+                database,
+                sql: "SELECT COALESCE(MAX(sort_index) + 1, 0) FROM cached_genres WHERE server_id = ? AND account_id = ? AND library_scope = ?",
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            ) ?? 0
+            for genre in valid {
+                try Self.upsert(genre, sortIndex: nextIndex, scope: scope, libraryScope: libraryScope, in: database)
+                nextIndex += 1
+            }
+        }
+    }
+
+    func cachedGenreAlbums(genreID: String, scope: LibraryScope, libraryID: String?) async throws -> [Album]? {
+        try await detailSnapshot(containerID: "genre-albums:\(genreID)", scope: scope, libraryID: libraryID)
+    }
+
+    func replaceGenreAlbums(_ albums: [Album], genreID: String, scope: LibraryScope, libraryID: String?) async throws {
+        try await replaceDetailSnapshot(albums.filter(Self.isValid), containerID: "genre-albums:\(genreID)",
+                                        scope: scope, libraryID: libraryID)
+    }
+
+    func cachedGenreTracks(genreID: String, scope: LibraryScope, libraryID: String?) async throws -> [GenreTrackOccurrence]? {
+        try await detailSnapshot(containerID: "genre-tracks:\(genreID)", scope: scope, libraryID: libraryID)
+    }
+
+    func replaceGenreTracks(_ occurrences: [GenreTrackOccurrence], genreID: String, scope: LibraryScope, libraryID: String?) async throws {
+        try await replaceDetailSnapshot(occurrences, containerID: "genre-tracks:\(genreID)",
+                                        scope: scope, libraryID: libraryID)
+    }
+
     private func detailSnapshot<Value: Decodable & Sendable>(
         containerID: String,
         scope: LibraryScope,
@@ -518,6 +638,41 @@ private extension SQLiteLibraryStore {
                 ) WITHOUT ROWID
                 """)
         }
+        // NOTE: numbered 010 to slot after the artist-browse migration (009)
+        // from the artists-menu fix. If this branch merges into main first,
+        // renumber to 009.
+        migrator.registerMigration("010_create_playlist_and_genre_caches") { database in
+            // Browse caches for the remaining Library surfaces, shaped like
+            // cached_albums: server-received order preserved via sort_index,
+            // payload replaced in place on re-receipt.
+            try database.execute(sql: """
+                CREATE TABLE cached_playlists (
+                    server_id TEXT NOT NULL,
+                    account_id TEXT NOT NULL,
+                    library_scope TEXT NOT NULL,
+                    item_id TEXT NOT NULL,
+                    payload BLOB NOT NULL,
+                    sort_index INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (server_id, account_id, library_scope, item_id),
+                    FOREIGN KEY (server_id, account_id, library_scope)
+                        REFERENCES library_scopes (server_id, account_id, library_scope)
+                        ON DELETE CASCADE
+                ) WITHOUT ROWID;
+
+                CREATE TABLE cached_genres (
+                    server_id TEXT NOT NULL,
+                    account_id TEXT NOT NULL,
+                    library_scope TEXT NOT NULL,
+                    item_id TEXT NOT NULL,
+                    payload BLOB NOT NULL,
+                    sort_index INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (server_id, account_id, library_scope, item_id),
+                    FOREIGN KEY (server_id, account_id, library_scope)
+                        REFERENCES library_scopes (server_id, account_id, library_scope)
+                        ON DELETE CASCADE
+                ) WITHOUT ROWID;
+                """)
+        }
         return migrator
     }
 
@@ -562,6 +717,32 @@ private extension SQLiteLibraryStore {
         )
     }
 
+    static func upsert(_ playlist: Playlist, sortIndex: Int, scope: LibraryScope, libraryScope: String, in database: Database) throws {
+        let payload = try JSONEncoder().encode(playlist)
+        try database.execute(
+            sql: """
+                INSERT INTO cached_playlists (server_id, account_id, library_scope, item_id, payload, sort_index)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (server_id, account_id, library_scope, item_id)
+                DO UPDATE SET payload = excluded.payload
+                """,
+            arguments: [scope.serverID, scope.accountID, libraryScope, playlist.id, payload, sortIndex]
+        )
+    }
+
+    static func upsert(_ genre: Genre, sortIndex: Int, scope: LibraryScope, libraryScope: String, in database: Database) throws {
+        let payload = try JSONEncoder().encode(genre)
+        try database.execute(
+            sql: """
+                INSERT INTO cached_genres (server_id, account_id, library_scope, item_id, payload, sort_index)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (server_id, account_id, library_scope, item_id)
+                DO UPDATE SET payload = excluded.payload
+                """,
+            arguments: [scope.serverID, scope.accountID, libraryScope, genre.id, payload, sortIndex]
+        )
+    }
+
     static func artist(from row: Row) -> Artist? {
         guard let itemID: String = row["item_id"],
               let payload: Data = row["payload"],
@@ -570,6 +751,36 @@ private extension SQLiteLibraryStore {
               isValid(artist)
         else { return nil }
         return artist
+    }
+
+    static func playlist(from row: Row) -> Playlist? {
+        guard let itemID: String = row["item_id"],
+              let payload: Data = row["payload"],
+              let playlist = try? JSONDecoder().decode(Playlist.self, from: payload),
+              playlist.id == itemID,
+              isValid(playlist)
+        else { return nil }
+        return playlist
+    }
+
+    static func genre(from row: Row) -> Genre? {
+        guard let itemID: String = row["item_id"],
+              let payload: Data = row["payload"],
+              let genre = try? JSONDecoder().decode(Genre.self, from: payload),
+              genre.id == itemID,
+              isValid(genre)
+        else { return nil }
+        return genre
+    }
+
+    static func isValid(_ playlist: Playlist) -> Bool {
+        !playlist.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !playlist.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    static func isValid(_ genre: Genre) -> Bool {
+        !genre.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !genre.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     static func album(from row: Row) -> Album? {

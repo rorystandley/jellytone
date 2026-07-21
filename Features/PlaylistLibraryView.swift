@@ -23,7 +23,11 @@ struct PlaylistLibraryView: View {
         .accessibilityIdentifier("playlists-screen")
         .navigationTitle("Playlists")
         .audioCanvas()
-        .task(id: scope) { await load() }
+        .task(id: scope) {
+            // Cache-first: paint the persisted snapshot, then refresh silently.
+            state.seed(await model.cachedPlaylists(), scope: scope)
+            if state.playlists.isEmpty { await load() } else { await refresh() }
+        }
     }
 
     private var scope: PlaylistFeatureScope {

@@ -559,11 +559,25 @@ final class AppModel: ObservableObject {
         }
 #endif
         guard let session, let api else { throw APIError.notAuthenticated }
-        return try await api.playlists(
+        let page = try await api.playlists(
             userID: session.userID,
             libraryID: selectedLibraryID,
             startIndex: startIndex
         )
+        // Playlists are user-global in Jellyfin (see cachedPlaylistEntries),
+        // so the browse cache lives under the global library scope too.
+        if startIndex == 0 {
+            try? await libraryStore?.replacePlaylists(page.playlists, scope: libraryScope(for: session), libraryID: nil)
+        } else {
+            try? await libraryStore?.appendPlaylists(page.playlists, scope: libraryScope(for: session), libraryID: nil)
+        }
+        return page
+    }
+
+    /// Persisted playlist browse snapshot for cache-first paint.
+    func cachedPlaylists() async -> [Playlist] {
+        guard let session else { return [] }
+        return (try? await libraryStore?.cachedPlaylists(scope: libraryScope(for: session), libraryID: nil)) ?? []
     }
 
     /// Most recently created playlists, for Home's "Made For You" shelf. The
@@ -640,11 +654,23 @@ final class AppModel: ObservableObject {
         }
 #endif
         guard let session, let api else { throw APIError.notAuthenticated }
-        return try await api.genres(
+        let page = try await api.genres(
             userID: session.userID,
             libraryID: selectedLibraryID,
             startIndex: startIndex
         )
+        if startIndex == 0 {
+            try? await libraryStore?.replaceGenres(page.genres, scope: libraryScope(for: session), libraryID: selectedLibraryID)
+        } else {
+            try? await libraryStore?.appendGenres(page.genres, scope: libraryScope(for: session), libraryID: selectedLibraryID)
+        }
+        return page
+    }
+
+    /// Persisted genre browse snapshot for cache-first paint.
+    func cachedGenres() async -> [Genre] {
+        guard let session else { return [] }
+        return (try? await libraryStore?.cachedGenres(scope: libraryScope(for: session), libraryID: selectedLibraryID)) ?? []
     }
 
     func genreAlbums(for genre: Genre, startIndex: Int = 0) async throws -> AlbumPage {
@@ -662,11 +688,29 @@ final class AppModel: ObservableObject {
         }
 #endif
         guard let session, let api else { throw APIError.notAuthenticated }
-        return try await api.genreAlbums(
+        let page = try await api.genreAlbums(
             userID: session.userID,
             genreID: genre.id,
             libraryID: selectedLibraryID,
             startIndex: startIndex
+        )
+        if let store = libraryStore {
+            let scope = libraryScope(for: session)
+            let libraryID = selectedLibraryID
+            await Self.persistPagedSnapshot(
+                page.albums, startIndex: startIndex,
+                read: { try await store.cachedGenreAlbums(genreID: genre.id, scope: scope, libraryID: libraryID) },
+                write: { try await store.replaceGenreAlbums($0, genreID: genre.id, scope: scope, libraryID: libraryID) }
+            )
+        }
+        return page
+    }
+
+    /// Persisted genre-albums snapshot for instant paint.
+    func cachedGenreAlbums(for genre: Genre) async -> [Album]? {
+        guard let session else { return nil }
+        return try? await libraryStore?.cachedGenreAlbums(
+            genreID: genre.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
         )
     }
 
@@ -690,12 +734,51 @@ final class AppModel: ObservableObject {
         }
 #endif
         guard let session, let api else { throw APIError.notAuthenticated }
-        return try await api.genreTracks(
+        let page = try await api.genreTracks(
             userID: session.userID,
             genreID: genre.id,
             libraryID: selectedLibraryID,
             startIndex: startIndex
         )
+        if let store = libraryStore {
+            let scope = libraryScope(for: session)
+            let libraryID = selectedLibraryID
+            // Occurrence IDs encode the wire offset, so identity dedupe keeps
+            // genuinely repeated tracks while dropping re-received pages.
+            await Self.persistPagedSnapshot(
+                page.occurrences, startIndex: startIndex,
+                read: { try await store.cachedGenreTracks(genreID: genre.id, scope: scope, libraryID: libraryID) },
+                write: { try await store.replaceGenreTracks($0, genreID: genre.id, scope: scope, libraryID: libraryID) }
+            )
+        }
+        return page
+    }
+
+    /// Persisted genre-tracks snapshot for instant paint.
+    func cachedGenreTracks(for genre: Genre) async -> [GenreTrackOccurrence]? {
+        guard let session else { return nil }
+        return try? await libraryStore?.cachedGenreTracks(
+            genreID: genre.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
+        )
+    }
+
+    /// Write-through for paginated detail snapshots: page 0 replaces the cache;
+    /// later pages merge in received order, deduped by identity so re-received
+    /// pages never duplicate rows.
+    private static func persistPagedSnapshot<Item: Identifiable & Sendable>(
+        _ items: [Item],
+        startIndex: Int,
+        read: () async throws -> [Item]?,
+        write: ([Item]) async throws -> Void
+    ) async {
+        if startIndex == 0 {
+            try? await write(items)
+            return
+        }
+        let existing = (try? await read()) ?? []
+        var seen = Set(existing.map(\.id))
+        let merged = existing + items.filter { seen.insert($0.id).inserted }
+        try? await write(merged)
     }
 
     func favouriteArtistsPage(startIndex: Int = 0) async throws -> FavouriteArtistPage {
