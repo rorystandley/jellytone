@@ -316,9 +316,11 @@ final class AppModel: ObservableObject {
         async let added = homeAlbumsResult(api: api, userID: session.userID, libraryID: libraryID)
         async let played = homeTracksResult(api: api, userID: session.userID, libraryID: libraryID)
         async let playlists = homePlaylistsResult()
+        async let artists = homeFavouriteArtistsResult(api: api, userID: session.userID, libraryID: libraryID)
         let addedResult = await added
         let playedResult = await played
         let playlistsResult = await playlists
+        let artistsResult = await artists
         guard ownsHomeRefresh(generation, scope: requestScope) else { return }
 
         var replacement = homeSnapshot ?? .empty
@@ -327,24 +329,38 @@ final class AppModel: ObservableObject {
         case let .success(albums):
             replacement = HomeShelfSnapshot(recentlyAddedAlbums: albums,
                                             recentlyPlayedTracks: replacement.recentlyPlayedTracks,
-                                            madeForYouPlaylists: replacement.madeForYouPlaylists)
+                                            madeForYouPlaylists: replacement.madeForYouPlaylists,
+                                            favouriteArtists: replacement.favouriteArtists)
         case .failure: errors.append("Recently added albums couldn’t be refreshed.")
         }
         switch playedResult {
         case let .success(tracks):
             replacement = HomeShelfSnapshot(recentlyAddedAlbums: replacement.recentlyAddedAlbums,
                                             recentlyPlayedTracks: tracks,
-                                            madeForYouPlaylists: replacement.madeForYouPlaylists)
+                                            madeForYouPlaylists: replacement.madeForYouPlaylists,
+                                            favouriteArtists: replacement.favouriteArtists)
         case .failure: errors.append("Recently played music couldn’t be refreshed.")
         }
         switch playlistsResult {
         case let .success(list):
             replacement = HomeShelfSnapshot(recentlyAddedAlbums: replacement.recentlyAddedAlbums,
                                             recentlyPlayedTracks: replacement.recentlyPlayedTracks,
-                                            madeForYouPlaylists: list)
+                                            madeForYouPlaylists: list,
+                                            favouriteArtists: replacement.favouriteArtists)
         case .failure:
             // Made For You quietly keeps its last snapshot — the primary
             // shelves carry Home's error surface.
+            break
+        }
+        switch artistsResult {
+        case let .success(list):
+            replacement = HomeShelfSnapshot(recentlyAddedAlbums: replacement.recentlyAddedAlbums,
+                                            recentlyPlayedTracks: replacement.recentlyPlayedTracks,
+                                            madeForYouPlaylists: replacement.madeForYouPlaylists,
+                                            favouriteArtists: list)
+        case .failure:
+            // Favourite Artists quietly keeps its last snapshot, like Made
+            // For You — the primary shelves carry Home's error surface.
             break
         }
         homeSnapshot = replacement
@@ -352,16 +368,28 @@ final class AppModel: ObservableObject {
         if case .success = addedResult { anySuccess = true }
         if case .success = playedResult { anySuccess = true }
         if case .success = playlistsResult { anySuccess = true }
+        if case .success = artistsResult { anySuccess = true }
         if anySuccess { try? await libraryStore?.replaceHomeShelfSnapshot(replacement, scope: scope, libraryID: libraryID) }
         homeRefreshError = errors.isEmpty ? nil : errors.joined(separator: " ")
         isRefreshingHome = false
     }
 
     private static let madeForYouShelfLimit = 10
+    private static let favouriteArtistsShelfLimit = 20
 
     private func homePlaylistsResult() async -> Result<[Playlist], Error> {
         do { return .success(try await recentPlaylists(limit: Self.madeForYouShelfLimit)) }
         catch { return .failure(error) }
+    }
+
+    private func homeFavouriteArtistsResult(api: JellyfinAPI, userID: String, libraryID: String) async -> HomeQueryResult<[Artist]> {
+        do {
+            let page = try await api.favouriteArtists(
+                userID: userID, libraryID: libraryID,
+                startIndex: 0, limit: Self.favouriteArtistsShelfLimit
+            )
+            return .success(page.artists)
+        } catch { return .failure }
     }
 
     func tracks(for album: Album) async -> [Track] {
@@ -479,7 +507,8 @@ final class AppModel: ObservableObject {
     func albums(for artist: Artist, startIndex: Int = 0) async throws -> AlbumPage {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-testing-search")
-            || ProcessInfo.processInfo.arguments.contains("--ui-testing-browse-details") {
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-browse-details")
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-home") {
             let albums = [
                 Album(id: "album-artwork", name: "Aurora Lines", artist: artist.name, productionYear: 2026, imageTag: "synthetic-art"),
                 Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title", artist: artist.name, productionYear: 2025, imageTag: nil),
@@ -1340,7 +1369,8 @@ final class AppModel: ObservableObject {
     private static func syntheticHomeSnapshot(albumID: String) -> HomeShelfSnapshot {
         HomeShelfSnapshot(
             recentlyAddedAlbums: [Album(id: albumID, name: "New Album", artist: "Synthetic Artist", productionYear: 2026, imageTag: nil)],
-            recentlyPlayedTracks: [Track(id: "home-track-1", name: "Recently Played", artist: "Synthetic Artist", album: "New Album", albumID: albumID, index: 1, disc: 1, durationTicks: 1_800_000_000)]
+            recentlyPlayedTracks: [Track(id: "home-track-1", name: "Recently Played", artist: "Synthetic Artist", album: "New Album", albumID: albumID, index: 1, disc: 1, durationTicks: 1_800_000_000)],
+            favouriteArtists: [Artist(id: "home-artist-1", name: "Synthetic Artist", imageTag: nil)]
         )
     }
 

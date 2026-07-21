@@ -7,7 +7,12 @@ final class HomeShelfPersistenceTests: XCTestCase {
     func testSnapshotRoundTripsAcrossLaunchesWithOrderingAndOptionalMetadata() async throws {
         let databaseURL = temporaryDatabaseURL()
         let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
-        let snapshot = fixture(version: 1, suffix: "first")
+        let snapshot = HomeShelfSnapshot(
+            version: 1,
+            recentlyAddedAlbums: [Album(id: "album-first", name: "Unicode Café first", artist: "Artist", productionYear: nil, imageTag: nil)],
+            recentlyPlayedTracks: [Track(id: "track-first", name: "Track first", artist: "Artist", album: "Album", index: nil, disc: nil, durationTicks: nil)],
+            favouriteArtists: [Artist(id: "artist-first", name: "Favourite Artist", imageTag: "tag-first")]
+        )
 
         let firstLaunch = try SQLiteLibraryStore(databaseURL: databaseURL)
         try await firstLaunch.replaceHomeShelfSnapshot(snapshot, scope: scope, libraryID: "library-a")
@@ -18,8 +23,9 @@ final class HomeShelfPersistenceTests: XCTestCase {
     }
 
     func testSnapshotsPersistedBeforeMadeForYouShelfStillDecode() throws {
-        // Payload shape from before the madeForYouPlaylists shelf existed —
-        // older caches must stay valid, decoding to an empty shelf.
+        // Payload shape from before the madeForYouPlaylists and
+        // favouriteArtists shelves existed — older caches must stay valid,
+        // decoding to empty shelves.
         let legacyPayload = Data("""
             {"version":1,
              "recentlyAddedAlbums":[{"id":"album-a","name":"Synthetic Album","artist":"Synthetic Artist"}],
@@ -28,6 +34,7 @@ final class HomeShelfPersistenceTests: XCTestCase {
         let decoded = try JSONDecoder().decode(HomeShelfSnapshot.self, from: legacyPayload)
         XCTAssertEqual(decoded.recentlyAddedAlbums.first?.id, "album-a")
         XCTAssertEqual(decoded.madeForYouPlaylists, [])
+        XCTAssertEqual(decoded.favouriteArtists, [])
     }
 
     func testReplacementIsAtomicAndScopedByServerAccountAndLibrary() async throws {

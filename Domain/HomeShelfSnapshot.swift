@@ -11,17 +11,20 @@ struct HomeShelfSnapshot: Codable, Hashable, Sendable {
     let recentlyAddedAlbums: [Album]
     let recentlyPlayedTracks: [Track]
     let madeForYouPlaylists: [Playlist]
+    let favouriteArtists: [Artist]
 
     init(
         version: Int = currentVersion,
         recentlyAddedAlbums: [Album],
         recentlyPlayedTracks: [Track],
-        madeForYouPlaylists: [Playlist] = []
+        madeForYouPlaylists: [Playlist] = [],
+        favouriteArtists: [Artist] = []
     ) {
         self.version = version
         self.recentlyAddedAlbums = recentlyAddedAlbums
         self.recentlyPlayedTracks = recentlyPlayedTracks
         self.madeForYouPlaylists = madeForYouPlaylists
+        self.favouriteArtists = favouriteArtists
     }
 
     init(from decoder: Decoder) throws {
@@ -29,8 +32,9 @@ struct HomeShelfSnapshot: Codable, Hashable, Sendable {
         version = try container.decode(Int.self, forKey: .version)
         recentlyAddedAlbums = try container.decode([Album].self, forKey: .recentlyAddedAlbums)
         recentlyPlayedTracks = try container.decode([Track].self, forKey: .recentlyPlayedTracks)
-        // Shelf added after the first shipped payloads — older cached
-        // snapshots without the key stay valid rather than being discarded.
+        // Shelves added after the first shipped payloads — older cached
+        // snapshots without the keys stay valid rather than being discarded.
         madeForYouPlaylists = try container.decodeIfPresent([Playlist].self, forKey: .madeForYouPlaylists) ?? []
+        favouriteArtists = try container.decodeIfPresent([Artist].self, forKey: .favouriteArtists) ?? []
     }
 }
