@@ -78,7 +78,12 @@ final class GenreUITests: XCTestCase {
         genreRow.tap()
         XCTAssertTrue(app.buttons["genre-play-all"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["genre-shuffle"].isHittable)
-        XCTAssertTrue(element(in: app, identifier: "genre-track-genre-occurrence-1").isHittable)
+        // At accessibility XXXL the header and album shelf legitimately push the
+        // track list below the fold, so scroll it into view before asserting —
+        // matching the sibling favourites/browse layout tests.
+        let firstTrack = element(in: app, identifier: "genre-track-genre-occurrence-1")
+        scrollUntilHittable(firstTrack, in: app)
+        XCTAssertTrue(firstTrack.isHittable)
     }
 
     func testGenreLoadingStateIsAccessible() {
@@ -175,6 +180,10 @@ final class GenreUITests: XCTestCase {
         app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH %@", identifierPrefix)
         ).firstMatch
+    }
+
+    private func scrollUntilHittable(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<4 where !element.isHittable { app.swipeUp() }
     }
 
     private func assertNoPrivateConnectionData(in app: XCUIApplication) {
