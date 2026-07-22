@@ -23,7 +23,18 @@ struct LibraryView: View {
             }
             .background(Color.jtBackground.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
+            // Every push in this stack is value-based and resolves through the
+            // destinations registered here at the root. The category rows and the
+            // Artists/Genres lists all live inside lazy containers, where a
+            // view-based NavigationLink re-activates whenever the path changes —
+            // e.g. opening an album from an artist re-pushed the artist, and then
+            // the Artists list, on top of it. Value-based links don't self-fire.
+            .navigationDestination(for: LibrarySection.self) { section in
+                sectionDestination(section)
+            }
             .navigationDestination(for: Album.self) { AlbumView(album: $0) }
+            .navigationDestination(for: Artist.self) { ArtistView(artist: $0) }
+            .navigationDestination(for: Genre.self) { GenreDetailView(genre: $0) }
             .refreshable { try? await model.refreshAlbums(libraryID: model.selectedLibraryID) }
         }
     }
@@ -65,35 +76,41 @@ struct LibraryView: View {
 
     private var categoryRows: some View {
         VStack(spacing: 0) {
-            categoryRow("Playlists", systemImage: "music.note.list", identifier: "library-playlists-link") {
-                PlaylistLibraryView()
-            }
+            categoryRow("Playlists", systemImage: "music.note.list",
+                        identifier: "library-playlists-link", section: .playlists)
             rowDivider
-            categoryRow("Artists", systemImage: "music.mic", identifier: "library-artists-link") {
-                ArtistLibraryView()
-            }
+            categoryRow("Artists", systemImage: "music.mic",
+                        identifier: "library-artists-link", section: .artists)
             rowDivider
-            categoryRow("Songs", systemImage: "music.note", identifier: "library-tracks-link") {
-                TrackCatalogView()
-            }
+            categoryRow("Songs", systemImage: "music.note",
+                        identifier: "library-tracks-link", section: .songs)
             rowDivider
-            categoryRow("Genres", systemImage: "guitars", identifier: "library-genres-link") {
-                GenreLibraryView()
-            }
+            categoryRow("Genres", systemImage: "guitars",
+                        identifier: "library-genres-link", section: .genres)
             rowDivider
-            categoryRow("Favourites", systemImage: "heart.fill", identifier: "library-favourites-link") {
-                favouritesDestination
-            }
+            categoryRow("Favourites", systemImage: "heart.fill",
+                        identifier: "library-favourites-link", section: .favourites)
         }
     }
 
-    private func categoryRow<Destination: View>(
+    @ViewBuilder
+    private func sectionDestination(_ section: LibrarySection) -> some View {
+        switch section {
+        case .playlists: PlaylistLibraryView()
+        case .artists: ArtistLibraryView()
+        case .songs: TrackCatalogView()
+        case .genres: GenreLibraryView()
+        case .favourites: favouritesDestination
+        }
+    }
+
+    private func categoryRow(
         _ title: String,
         systemImage: String,
         identifier: String,
-        @ViewBuilder destination: @escaping () -> Destination
+        section: LibrarySection
     ) -> some View {
-        NavigationLink { destination() } label: {
+        NavigationLink(value: section) {
             HStack(spacing: JellytoneTheme.Space.mdPlus) {
                 Image(systemName: systemImage)
                     .font(.jtSubsectionHeader.weight(.medium))
@@ -192,10 +209,16 @@ struct LibraryView: View {
             loadArtists: { try await model.favouriteArtistsPage(startIndex: $0) },
             loadAlbums: { try await model.favouriteAlbumsPage(startIndex: $0) },
             loadTracks: { try await model.favouriteTracksPage(startIndex: $0) },
-            artistDestination: { ArtistView(artist: $0) }, albumDestination: { AlbumView(album: $0) },
             play: { model.play($0, in: $1) }, playAll: { model.playAll($0) }, shuffle: { model.shuffle($0) }
         )
     }
+}
+
+/// Value-based routing for the Library category rows, so their links resolve
+/// through a `navigationDestination` at the stack root rather than a view-based
+/// `NavigationLink` that re-activates inside the lazy list.
+enum LibrarySection: Hashable {
+    case playlists, artists, songs, genres, favourites
 }
 
 private enum LibraryMetrics {

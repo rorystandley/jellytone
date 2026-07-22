@@ -30,6 +30,24 @@ final class GenreUITests: XCTestCase {
         assertNoPrivateConnectionData(in: app)
     }
 
+    func testGenreAlbumTapOpensAlbumNotGenre() {
+        let app = launchGenres(extraArguments: ["--ui-testing-browse-details"])
+        openGenres(in: app)
+
+        element(in: app, identifier: "genre-row-genre-rock").tap()
+        XCTAssertTrue(element(in: app, identifier: "genre-detail-screen").waitForExistence(timeout: 3))
+
+        let album = element(in: app, identifier: "genre-album-genre-album-1")
+        XCTAssertTrue(album.waitForExistence(timeout: 3))
+        // Regression: opening an album from a genre must not re-push the genre —
+        // the genre list link is value-based so it no longer re-fires on a child
+        // push, and the album resolves through the Library stack's root.
+        album.tap()
+        XCTAssertTrue(app.navigationBars["Synthetic Compilation"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["album-play-all"].waitForExistence(timeout: 4))
+        capture("genre-album", app: app)
+    }
+
     func testGenreLayoutSupportsCompactAndRegularWidthConventions() {
         for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
             XCUIDevice.shared.orientation = orientation

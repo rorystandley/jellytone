@@ -65,6 +65,31 @@ final class BrowseDestinationUITests: XCTestCase {
         capture("album-artwork-multidisc", app: app)
     }
 
+    func testLibraryArtistAlbumTapOpensAlbumNotArtist() {
+        let app = launch(["--ui-testing-library", "--ui-testing-artists", "--ui-testing-browse-details"])
+        openTab("Library", in: app)
+
+        let artistsLink = app.buttons["library-artists-link"]
+        XCTAssertTrue(artistsLink.waitForExistence(timeout: 4))
+        artistsLink.tap()
+
+        let artistRow = element("artist-row-artist-artwork", in: app)
+        XCTAssertTrue(artistRow.waitForExistence(timeout: 4))
+        artistRow.tap()
+        XCTAssertTrue(app.staticTexts["Top Songs"].waitForExistence(timeout: 4))
+
+        let artistAlbum = element("artist-album-album-artwork", in: app)
+        scrollUntilHittable(artistAlbum, in: app)
+        XCTAssertTrue(artistAlbum.isHittable)
+        // Regression: an album tap must open the album, not re-push the artist —
+        // the Library stack registers the Album destination at its root and the
+        // Artists list pushes artists by value.
+        artistAlbum.tap()
+        XCTAssertTrue(app.navigationBars["Aurora Lines"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["album-play-all"].waitForExistence(timeout: 4))
+        capture("library-artist-album", app: app)
+    }
+
     func testSearchIdleLoadingNoResultsAndErrorRemainActionable() {
         var app = launch(["--ui-testing-search"])
         openTab("Search", in: app)

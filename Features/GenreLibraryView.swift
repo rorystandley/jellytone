@@ -43,9 +43,7 @@ struct GenreLibraryView: View {
             AudioSectionHeading(title: "Explore Genres", detail: "Browse the library without invented cover art")
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
                 ForEach(state.genres) { genre in
-                    NavigationLink {
-                        GenreDetailView(genre: genre)
-                    } label: {
+                    NavigationLink(value: genre) {
                         GenreCard(genre: genre)
                     }
                     .accessibilityIdentifier("genre-row-\(genre.id)")
