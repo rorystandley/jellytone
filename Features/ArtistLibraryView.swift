@@ -58,7 +58,7 @@ struct ArtistLibraryView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(state.artists) { artist in
-                        NavigationLink { ArtistView(artist: artist) } label: {
+                        NavigationLink(value: artist) {
                             ArtistRow(artist: artist)
                         }
                         .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))

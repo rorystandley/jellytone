@@ -59,6 +59,25 @@ final class HomeUITests: XCTestCase {
         XCTAssertTrue(landscapeAlbum.isHittable)
     }
 
+    func testFavouriteArtistAlbumTapOpensAlbumNotArtist() {
+        let app = launchHome()
+        let artist = element(in: app, identifier: "home-favourite-artist-home-artist-1")
+        XCTAssertTrue(artist.waitForExistence(timeout: 4))
+        artist.tap()
+        XCTAssertTrue(app.navigationBars["Synthetic Artist"].waitForExistence(timeout: 3))
+
+        let artistAlbum = element(in: app, identifier: "artist-album-album-artwork")
+        for _ in 0..<6 where !artistAlbum.isHittable { app.swipeUp() }
+        XCTAssertTrue(artistAlbum.isHittable)
+        capture("home-artist-detail", app: app)
+        // Regression: an album tap must open the album, not re-push the artist —
+        // the Home stack must register the Album destination like Search/Library.
+        artistAlbum.tap()
+        XCTAssertTrue(app.navigationBars["Aurora Lines"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["album-play-all"].waitForExistence(timeout: 4))
+        capture("home-artist-album", app: app)
+    }
+
     func testHomeLoadingEmptyFailureAndRetryAreHonestAndPrivate() {
         var app = launchHome(extraArguments: ["--ui-testing-home-loading"])
         XCTAssertTrue(element(in: app, identifier: "home-loading-skeleton").waitForExistence(timeout: 3))

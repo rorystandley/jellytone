@@ -31,8 +31,16 @@ struct MusicShellView: View {
         TabView {
             Tab("Home", systemImage: "house.fill") {
                 NavigationStack {
-                    HomeLibraryView(albumDestination: { AlbumView(album: $0) },
-                                    artistDestination: { ArtistView(artist: $0) })
+                    HomeLibraryView()
+                        // All Home navigation is value-based and resolves through
+                        // the destinations registered here at the stack root, so a
+                        // value-based link inside a pushed screen (ArtistView's
+                        // album grid) resolves cleanly — mixing view-based
+                        // NavigationLinks in the shelves re-pushed the artist when
+                        // the lazy shelves re-rendered on a child push.
+                        .navigationDestination(for: Album.self) { AlbumView(album: $0) }
+                        .navigationDestination(for: Artist.self) { ArtistView(artist: $0) }
+                        .navigationDestination(for: Playlist.self) { PlaylistDetailView(playlist: $0) }
                 }
             }
             Tab("Library", systemImage: "square.stack.fill") {

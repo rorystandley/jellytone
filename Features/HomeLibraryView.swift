@@ -5,11 +5,8 @@ import SwiftUI
 ///
 /// First screen migrated to `JellytoneTheme` (docs/design/design-system.md);
 /// no raw colours, system-default fonts, or magic spacing belong here.
-struct HomeLibraryView<AlbumDestination: View, ArtistDestination: View>: View {
+struct HomeLibraryView: View {
     @EnvironmentObject private var model: AppModel
-
-    let albumDestination: (Album) -> AlbumDestination
-    let artistDestination: (Artist) -> ArtistDestination
 
     /// 0 at the top (header bar transparent over the hero), 1 once scrolled past
     /// the fade window (header bar's blur fully materialised, Spotify-style).
@@ -104,7 +101,7 @@ struct HomeLibraryView<AlbumDestination: View, ArtistDestination: View>: View {
             } else {
                 let albums = model.homeSnapshot?.recentlyAddedAlbums ?? []
                 if let hero = albums.first {
-                    NavigationLink { albumDestination(hero) } label: { HomeHeroAlbumCard(album: hero) }
+                    NavigationLink(value: hero) { HomeHeroAlbumCard(album: hero) }
                         .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
                         .accessibilityIdentifier("home-recently-added-album-\(hero.id)")
                         .padding(.horizontal, JellytoneTheme.Space.screenMargin)
@@ -113,7 +110,7 @@ struct HomeLibraryView<AlbumDestination: View, ArtistDestination: View>: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(alignment: .top, spacing: JellytoneTheme.Space.lg) {
                             ForEach(albums.dropFirst()) { album in
-                                NavigationLink { albumDestination(album) } label: { HomeAlbumCard(album: album) }
+                                NavigationLink(value: album) { HomeAlbumCard(album: album) }
                                     .buttonStyle(.jtPressScale())
                                     .accessibilityIdentifier("home-recently-added-album-\(album.id)")
                             }
@@ -143,7 +140,7 @@ struct HomeLibraryView<AlbumDestination: View, ArtistDestination: View>: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: JellytoneTheme.Space.lg) {
                         ForEach(favouriteArtists) { artist in
-                            NavigationLink { artistDestination(artist) } label: {
+                            NavigationLink(value: artist) {
                                 HomeArtistCircle(artist: artist)
                             }
                             .buttonStyle(.jtPressScale())
@@ -177,7 +174,7 @@ struct HomeLibraryView<AlbumDestination: View, ArtistDestination: View>: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: JellytoneTheme.Space.md) {
                         ForEach(madeForYouPlaylists) { playlist in
-                            NavigationLink { PlaylistDetailView(playlist: playlist) } label: {
+                            NavigationLink(value: playlist) {
                                 HomeShelfTile(
                                     itemID: playlist.id,
                                     imageTag: playlist.imageTag,

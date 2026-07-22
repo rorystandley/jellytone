@@ -83,6 +83,7 @@ struct GenreDetailView: View {
                                 GenreAlbumCard(album: album)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("genre-album-\(album.id)")
                             .task {
                                 if album.id == state.albums.last?.id { await loadMoreAlbums() }
                             }

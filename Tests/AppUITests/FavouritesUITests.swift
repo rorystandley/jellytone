@@ -50,6 +50,25 @@ final class FavouritesUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Favourite Album"].waitForExistence(timeout: 3))
     }
 
+    func testFavouriteArtistAlbumTapOpensAlbumNotArtist() {
+        let app = launchFavourites(extraArguments: ["--ui-testing-browse-details"])
+        openFavourites(in: app)
+
+        element(in: app, identifier: "favourites-artist-artist-favourite").tap()
+        XCTAssertTrue(app.navigationBars["Favourite Artist"].waitForExistence(timeout: 3))
+
+        let artistAlbum = element(in: app, identifier: "artist-album-album-artwork")
+        for _ in 0..<6 where !artistAlbum.isHittable { app.swipeUp() }
+        XCTAssertTrue(artistAlbum.isHittable)
+        // Regression: opening an album from a favourite artist must not re-push
+        // the artist — the favourite-artist link is value-based so it no longer
+        // re-fires when the album pushes onto the Library stack.
+        artistAlbum.tap()
+        XCTAssertTrue(app.navigationBars["Aurora Lines"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["album-play-all"].waitForExistence(timeout: 4))
+        capture("favourites-artist-album", app: app)
+    }
+
     func testFavouriteLayoutSupportsCompactAndRegularWidthConventions() {
         for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
             XCUIDevice.shared.orientation = orientation

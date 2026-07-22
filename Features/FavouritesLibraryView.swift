@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Read-only favourites browsing. Data loading and navigation are injected so this
-/// surface stays independent of `AppModel` and can be reused by another coordinator.
-struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: View {
+/// Read-only favourites browsing. Data loading is injected so this surface stays
+/// independent of `AppModel`; navigation is value-based (artists and albums push
+/// through the destinations the host stack registers at its root).
+struct FavouritesLibraryView: View {
     @EnvironmentObject private var model: AppModel
     @StateObject private var state = FavouritesState()
 
@@ -10,8 +11,6 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
     let loadArtists: (Int) async throws -> FavouriteArtistPage
     let loadAlbums: (Int) async throws -> FavouriteAlbumPage
     let loadTracks: (Int) async throws -> FavouriteTrackPage
-    let artistDestination: (Artist) -> ArtistDestination
-    let albumDestination: (Album) -> AlbumDestination
     let play: (FavouriteTrackOccurrence, [FavouriteTrackOccurrence]) -> Void
     let playAll: ([FavouriteTrackOccurrence]) -> Void
     let shuffle: ([FavouriteTrackOccurrence]) -> Void
@@ -97,7 +96,7 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: AudioDesign.Space.md) {
                     ForEach(state.artists) { artist in
-                        NavigationLink { artistDestination(artist) } label: { FavouriteArtistCard(artist: artist) }
+                        NavigationLink(value: artist) { FavouriteArtistCard(artist: artist) }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("favourites-artist-\(artist.id)")
                             .task { if artist.id == state.artists.last?.id { await loadMoreArtists() } }
@@ -128,7 +127,7 @@ struct FavouritesLibraryView<ArtistDestination: View, AlbumDestination: View>: V
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: AudioDesign.Space.md) {
                     ForEach(state.albums) { album in
-                        NavigationLink { albumDestination(album) } label: { FavouriteAlbumCard(album: album) }
+                        NavigationLink(value: album) { FavouriteAlbumCard(album: album) }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("favourites-album-\(album.id)")
                             .task { if album.id == state.albums.last?.id { await loadMoreAlbums() } }
