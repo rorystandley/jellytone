@@ -104,7 +104,9 @@ final class FavouritesUITests: XCTestCase {
     func testFavouriteLoadingAndEmptyStatesAreAccessible() {
         var app = launchFavourites(extraArguments: ["--ui-testing-favourites-loading"])
         openFavourites(in: app)
-        XCTAssertTrue(app.staticTexts["Loading favourite artists…"].waitForExistence(timeout: 8))
+        // Priority 5: cold load uses skeleton placeholders, not ProgressView cards.
+        XCTAssertTrue(element(in: app, identifier: "favourites-loading-skeleton").waitForExistence(timeout: 8)
+            || app.staticTexts["Loading favourites"].waitForExistence(timeout: 2))
         assertNoPrivateConnectionData(in: app)
         app.terminate()
 

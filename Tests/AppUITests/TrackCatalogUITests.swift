@@ -28,7 +28,11 @@ final class TrackCatalogUITests: XCTestCase {
     func testTrackCatalogueLoadingEmptyAndPaginationFailureStates() {
         var app = launchTracks(["--ui-testing-tracks-loading"])
         openTracks(in: app)
-        XCTAssertTrue(app.staticTexts["Loading tracks"].waitForExistence(timeout: 4))
+        let skeleton = app.descendants(matching: .any)["track-catalog-loading-skeleton"]
+        XCTAssertTrue(
+            skeleton.waitForExistence(timeout: 4)
+                || app.staticTexts["Loading tracks"].waitForExistence(timeout: 2)
+        )
         app.terminate()
 
         app = launchTracks(["--ui-testing-tracks-empty"])

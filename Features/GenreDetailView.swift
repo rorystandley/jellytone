@@ -9,10 +9,13 @@ struct GenreDetailView: View {
 
     var body: some View {
         Group {
-            if state.isLoading && state.albums.isEmpty && state.trackOccurrences.isEmpty {
-                AudioStateView(kind: .loading, title: "Loading genre", detail: "Collecting albums and playable tracks…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
-            } else if let message = initialError, state.albums.isEmpty, state.trackOccurrences.isEmpty {
+            // Priority 5: never block the whole screen with a spinner. Header +
+            // skeletons paint immediately; cache-first load replaces them silently.
+            // Terminal empty/error still use compact state cards (partial legacy OK).
+            if let message = initialError,
+               state.hasLoaded,
+               state.albums.isEmpty,
+               state.trackOccurrences.isEmpty {
                 unavailable(message)
             } else if state.hasLoaded && state.albums.isEmpty && state.trackOccurrences.isEmpty {
                 emptyState
@@ -54,22 +57,17 @@ struct GenreDetailView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Color.clear)
+        // Background refreshes stay silent (Apple Music-style); the system
+        // pull spinner is the only refresh indicator.
         .refreshable { await refresh() }
-        .overlay(alignment: .top) {
-            if state.isLoading && (!state.albums.isEmpty || !state.trackOccurrences.isEmpty) {
-                ProgressView("Refreshing genre…")
-                    .padding(10)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(.top, 8)
-            }
-        }
     }
 
     @ViewBuilder
     private var albumSection: some View {
         Section {
             if state.isLoadingAlbums && state.albums.isEmpty {
-                centeredProgress("Loading albums…")
+                JellytoneSkeletonGrid(columns: 2, rows: 1, label: "Loading albums")
+                    .accessibilityIdentifier("genre-albums-loading-skeleton")
             } else if let message = state.albumErrorMessage, state.albums.isEmpty {
                 retryStatus(message, title: "Retry Albums") { await refresh() }
             } else if state.hasLoadedAlbums && state.albums.isEmpty {
@@ -113,7 +111,8 @@ struct GenreDetailView: View {
     private var trackSection: some View {
         Section {
             if state.isLoadingTracks && state.trackOccurrences.isEmpty {
-                centeredProgress("Loading tracks…")
+                JellytoneSkeletonRows(rows: 6, label: "Loading tracks")
+                    .accessibilityIdentifier("genre-tracks-loading-skeleton")
             } else if let message = state.trackErrorMessage, state.trackOccurrences.isEmpty {
                 retryStatus(message, title: "Retry Tracks") { await refresh() }
             } else if state.hasLoadedTracks && state.trackOccurrences.isEmpty {
@@ -205,6 +204,9 @@ struct GenreDetailView: View {
     }
 
     private var trackCountLabel: String {
+        if state.isLoadingTracks && state.trackOccurrences.isEmpty {
+            return "Loading…"
+        }
         let count = state.trackOccurrences.count
         return count == 1 ? "1 playable track" : "\(count) playable tracks"
     }

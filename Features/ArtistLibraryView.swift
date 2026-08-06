@@ -16,7 +16,9 @@ struct ArtistLibraryView: View {
                     JellytoneSkeletonRows(rows: 12, label: "Loading artists")
                         .padding(.horizontal, JellytoneTheme.Space.screenMargin)
                         .padding(.top, JellytoneTheme.Space.md)
+                        .padding(.bottom, JellytoneTheme.Space.xxxl)
                 }
+                .accessibilityIdentifier("artists-loading-skeleton")
             } else if let message = state.errorMessage, state.artists.isEmpty {
                 stateCard(title: "Couldn’t load artists", detail: message, retry: true)
             } else if state.hasLoaded && state.artists.isEmpty {

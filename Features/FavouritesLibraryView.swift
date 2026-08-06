@@ -39,11 +39,12 @@ struct FavouritesLibraryView: View {
         } else if isInitialLoading {
             ScrollView {
                 VStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
-                    JellytoneSkeletonRows(rows: 6, label: "Loading favourites")
+                    JellytoneSkeletonRows(rows: 8, label: "Loading favourites")
                 }
                 .padding(.horizontal, JellytoneTheme.Space.screenMargin)
                 .padding(.top, JellytoneTheme.Space.md)
             }
+            .accessibilityIdentifier("favourites-loading-skeleton")
         } else if state.hasLoaded && hasNoContent && allErrorsAreNil {
             stateCard(
                 title: "No favourites found",
@@ -117,7 +118,8 @@ struct FavouritesLibraryView: View {
     private var artistsSection: some View {
         sectionHeading("Artists")
         if state.isLoadingArtists && state.artists.isEmpty {
-            loadingRow("Loading favourite artists…")
+            JellytoneSkeletonRows(rows: 2, label: "Loading favourite artists")
+                .accessibilityIdentifier("favourites-artists-loading-skeleton")
         } else if let message = state.artistErrorMessage, state.artists.isEmpty {
             sectionFailure("Couldn’t load favourite artists", message: message, retry: refresh)
         } else if state.hasLoadedArtists && state.artists.isEmpty {
@@ -150,7 +152,8 @@ struct FavouritesLibraryView: View {
     private var albumsSection: some View {
         sectionHeading("Albums")
         if state.isLoadingAlbums && state.albums.isEmpty {
-            loadingRow("Loading favourite albums…")
+            JellytoneSkeletonRows(rows: 2, label: "Loading favourite albums")
+                .accessibilityIdentifier("favourites-albums-loading-skeleton")
         } else if let message = state.albumErrorMessage, state.albums.isEmpty {
             sectionFailure("Couldn’t load favourite albums", message: message, retry: refresh)
         } else if state.hasLoadedAlbums && state.albums.isEmpty {
@@ -183,7 +186,8 @@ struct FavouritesLibraryView: View {
     private var tracksSection: some View {
         sectionHeading("Songs")
         if state.isLoadingTracks && state.trackOccurrences.isEmpty {
-            loadingRow("Loading favourite tracks…")
+            JellytoneSkeletonRows(rows: 4, label: "Loading favourite tracks")
+                .accessibilityIdentifier("favourites-tracks-loading-skeleton")
         } else if let message = state.trackErrorMessage, state.trackOccurrences.isEmpty {
             sectionFailure("Couldn’t load favourite tracks", message: message, retry: refresh)
         } else if state.hasLoadedTracks && state.trackOccurrences.isEmpty {
@@ -224,13 +228,6 @@ struct FavouritesLibraryView: View {
             .foregroundStyle(Color.jtTextPrimary)
             .accessibilityAddTraits(.isHeader)
             .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func loadingRow(_ title: String) -> some View {
-        ProgressView(title)
-            .font(.jtBody)
-            .foregroundStyle(Color.jtTextSecondary)
-            .frame(maxWidth: .infinity, minHeight: 72)
     }
 
     private func emptySection(_ title: String, description: String) -> some View {

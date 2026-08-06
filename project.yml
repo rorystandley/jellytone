@@ -4,14 +4,21 @@ options:
   deploymentTarget:
     iOS: "18.4"
   xcodeVersion: "26.6"
+# APP_BUNDLE_ID / APP_TEAM_ID must be real build settings (not bare unset
+# env vars). Defaults live in Config/*.xcconfig so Xcode always resolves a
+# bundle ID; Config/Local.xcconfig (gitignored) supplies a personal team for
+# device installs. CLI scripts may still override both on the xcodebuild line.
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
 settings:
   base:
     SWIFT_VERSION: "6.0"
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
     GENERATE_INFOPLIST_FILE: YES
-    PRODUCT_BUNDLE_IDENTIFIER: "$(APP_BUNDLE_ID)"
-    DEVELOPMENT_TEAM: "$(APP_TEAM_ID)"
+    PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
+    DEVELOPMENT_TEAM: $(APP_TEAM_ID)
     CODE_SIGN_STYLE: Automatic
 packages:
   GRDB:
@@ -36,6 +43,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: Jellytone
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: App/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -51,7 +59,7 @@ targets:
       - package: GRDB
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: "$(APP_BUNDLE_ID).tests"
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).tests
   JellytoneUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -61,7 +69,7 @@ targets:
       - target: Jellytone
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: "$(APP_BUNDLE_ID).uitests"
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).uitests
 schemes:
   Jellytone:
     build:

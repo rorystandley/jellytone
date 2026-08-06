@@ -26,14 +26,10 @@ struct TrackCatalogView: View {
         let state = model.trackCatalogState
         if state.isLoading && state.occurrences.isEmpty {
             ScrollView {
-                VStack(alignment: .leading, spacing: JellytoneTheme.Space.lg) {
-                    Text("Loading tracks")
-                        .font(.jtRowTitle)
-                        .foregroundStyle(Color.jtTextSecondary)
-                    JellytoneSkeletonRows(rows: 12, label: "Loading tracks")
-                }
-                .padding(.horizontal, JellytoneTheme.Space.screenMargin)
-                .padding(.top, JellytoneTheme.Space.md)
+                JellytoneSkeletonRows(rows: 12, label: "Loading tracks")
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                    .padding(.top, JellytoneTheme.Space.md)
+                    .padding(.bottom, JellytoneTheme.Space.xxxl)
             }
             .accessibilityIdentifier("track-catalog-loading-skeleton")
         } else if let error = state.errorMessage, state.occurrences.isEmpty {

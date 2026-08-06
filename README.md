@@ -30,7 +30,23 @@ Use `./scripts/next-work.sh` to select work without loading the full repository.
 ./scripts/build-release.sh
 ```
 
-For a paired device:
+### Xcode / physical iPhone
+
+The generated project resolves `PRODUCT_BUNDLE_IDENTIFIER` from `APP_BUNDLE_ID`
+(defined in `Config/Debug.xcconfig` / `Config/Release.xcconfig`). For device
+signing, copy the personal override and set your Team ID:
+
+```sh
+cp Config/Local.xcconfig.example Config/Local.xcconfig
+# edit APP_TEAM_ID and optionally APP_BUNDLE_ID, then:
+./scripts/bootstrap.sh
+```
+
+Open `Jellytone.xcodeproj`, select the **Jellytone** target → **Signing &
+Capabilities**, confirm Team and Bundle Identifier are filled, then run on your
+iPhone.
+
+For a paired device from the CLI (auto-picks a local wildcard profile):
 
 ```sh
 ./scripts/deploy-app.sh --launch

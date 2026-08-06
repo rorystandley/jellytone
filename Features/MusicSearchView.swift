@@ -533,12 +533,8 @@ struct SearchView: View {
             .padding(.top, JellytoneTheme.Space.md)
             .padding(.bottom, JellytoneTheme.Space.xxxl)
         }
-        .overlay(alignment: .top) {
-            if search.isLoading && !search.isEmpty {
-                ProgressView()
-                    .padding(.top, JellytoneTheme.Space.sm)
-            }
-        }
+        // Cache/interim results stay on screen while the network merge lands —
+        // no spinner overlay over painted rows (Priority 5 silent refresh).
         .animation(JellytoneTheme.Motion.crossfade, value: search.artists.map(\.id))
         .animation(JellytoneTheme.Motion.crossfade, value: search.albums.map(\.id))
         .animation(JellytoneTheme.Motion.crossfade, value: search.tracks.map(\.id))

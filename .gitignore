@@ -44,3 +44,5 @@ TestResults/
 .env.*
 !.env.example
 *.xcconfig.local
+# Personal Apple team / reverse-DNS for Xcode device installs
+/Config/Local.xcconfig

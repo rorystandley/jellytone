@@ -54,6 +54,7 @@ struct PlaylistLibraryView: View {
                 .padding(.top, JellytoneTheme.Space.md)
                 .padding(.bottom, JellytoneTheme.Space.xxxl)
         }
+        .accessibilityIdentifier("playlists-loading-skeleton")
     }
 
     private var playlistGrid: some View {

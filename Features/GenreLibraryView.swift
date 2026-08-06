@@ -54,6 +54,7 @@ struct GenreLibraryView: View {
                 .padding(.top, JellytoneTheme.Space.md)
                 .padding(.bottom, JellytoneTheme.Space.xxxl)
         }
+        .accessibilityIdentifier("genres-loading-skeleton")
     }
 
     private var genreGrid: some View {
