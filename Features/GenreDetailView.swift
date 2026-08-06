@@ -1,8 +1,13 @@
 import SwiftUI
 
+/// Genre detail aligned with Album / Artist / Playlist: blurred artwork
+/// backdrop, centred artwork card, left-aligned identity with shuffle + solid
+/// accent play, themed album shelf and track rows. Cache-first: header +
+/// skeletons paint immediately; network refresh is silent. Themed per
+/// docs/design/design-system.md and AGENTS.md Priority 1 (finish design-system
+/// migration). Presentation only — same play / push / refresh behaviour.
 struct GenreDetailView: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var state = GenreDetailState()
 
     let genre: Genre
@@ -11,7 +16,6 @@ struct GenreDetailView: View {
         Group {
             // Priority 5: never block the whole screen with a spinner. Header +
             // skeletons paint immediately; cache-first load replaces them silently.
-            // Terminal empty/error still use compact state cards (partial legacy OK).
             if let message = initialError,
                state.hasLoaded,
                state.albums.isEmpty,
@@ -26,7 +30,10 @@ struct GenreDetailView: View {
         .accessibilityIdentifier("genre-detail-screen")
         .navigationTitle(genre.name)
         .navigationBarTitleDisplayMode(.inline)
-        .audioCanvas()
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .background(
+            JellytoneDetailBackdrop { GenreArtwork(genre: genre) }
+        )
         .task(id: requestIdentity) { await load() }
     }
 
@@ -47,160 +54,77 @@ struct GenreDetailView: View {
     }
 
     private var detailList: some View {
-        List {
-            Section { header.padding(.vertical, 8) }
-                .listRowSeparator(.hidden)
-
-            albumSection
-            trackSection
+        ScrollView {
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
+                artworkCard
+                identity
+                albumSection
+                trackSection
+            }
+            .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+            .padding(.top, JellytoneTheme.Space.lg)
+            .padding(.bottom, JellytoneTheme.Space.xxxl)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(Color.clear)
         // Background refreshes stay silent (Apple Music-style); the system
         // pull spinner is the only refresh indicator.
         .refreshable { await refresh() }
     }
 
-    @ViewBuilder
-    private var albumSection: some View {
-        Section {
-            if state.isLoadingAlbums && state.albums.isEmpty {
-                JellytoneSkeletonGrid(columns: 2, rows: 1, label: "Loading albums")
-                    .accessibilityIdentifier("genre-albums-loading-skeleton")
-            } else if let message = state.albumErrorMessage, state.albums.isEmpty {
-                retryStatus(message, title: "Retry Albums") { await refresh() }
-            } else if state.hasLoadedAlbums && state.albums.isEmpty {
-                Text("No albums found for this genre.")
-                    .foregroundStyle(.secondary)
-            } else {
-                ScrollView(.horizontal) {
-                    LazyHStack(alignment: .top, spacing: 16) {
-                        ForEach(state.albums) { album in
-                            NavigationLink(value: album) {
-                                GenreAlbumCard(album: album)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("genre-album-\(album.id)")
-                            .task {
-                                if album.id == state.albums.last?.id { await loadMoreAlbums() }
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                .scrollIndicators(.hidden)
+    // MARK: Header
 
-                if state.isLoadingMoreAlbums {
-                    centeredProgress("Loading more albums…")
-                        .accessibilityIdentifier("genre-load-more")
-                } else if let message = state.albumPaginationError {
-                    retryStatus(message, title: "Retry More Albums", identifier: "genre-retry-more-albums") {
-                        await loadMoreAlbums()
-                    }
-                }
-            }
-        } header: {
-            Text("Albums")
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
-        }
-    }
-
-    @ViewBuilder
-    private var trackSection: some View {
-        Section {
-            if state.isLoadingTracks && state.trackOccurrences.isEmpty {
-                JellytoneSkeletonRows(rows: 6, label: "Loading tracks")
-                    .accessibilityIdentifier("genre-tracks-loading-skeleton")
-            } else if let message = state.trackErrorMessage, state.trackOccurrences.isEmpty {
-                retryStatus(message, title: "Retry Tracks") { await refresh() }
-            } else if state.hasLoadedTracks && state.trackOccurrences.isEmpty {
-                Text("No playable tracks found for this genre.")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(Array(state.trackOccurrences.enumerated()), id: \.offset) { offset, occurrence in
-                    Button { model.play(occurrence, in: state.trackOccurrences) } label: {
-                        GenreTrackRow(position: offset + 1, occurrence: occurrence)
-                    }
-                    .accessibilityIdentifier("genre-track-\(occurrence.id)")
-                    .buttonStyle(.plain)
-                    .frame(minHeight: 44)
-                    .accessibilityLabel(trackAccessibilityLabel(occurrence, position: offset + 1))
-                    .accessibilityHint("Starts playback from this genre occurrence")
-                    .contextMenu {
-                        let liked = model.isFavourite(occurrence.track.id)
-                        Button(liked ? "Unfavourite" : "Favourite",
-                               systemImage: liked ? "heart.slash" : "heart") {
-                            model.toggleFavourite(id: occurrence.track.id)
-                        }
-                    }
-                    .task {
-                        if offset == state.trackOccurrences.indices.last { await loadMoreTracks() }
-                    }
-                }
-
-                if state.isLoadingMoreTracks {
-                    centeredProgress("Loading more tracks…")
-                        .accessibilityIdentifier("genre-load-more")
-                } else if let message = state.trackPaginationError {
-                    retryStatus(message, title: "Retry More Tracks", identifier: "genre-retry-more-tracks") {
-                        await loadMoreTracks()
-                    }
-                }
-            }
-        } header: {
-            Text("Tracks")
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
-        }
-    }
-
-    private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 20) {
-                artwork.frame(width: horizontalSizeClass == .regular ? 180 : 132,
-                              height: horizontalSizeClass == .regular ? 180 : 132)
-                identityAndActions
-                Spacer(minLength: 0)
-            }
-            VStack(spacing: 16) {
-                artwork.frame(width: 180, height: 180)
-                identityAndActions
-            }
-        }
-    }
-
-    private var artwork: some View {
+    private var artworkCard: some View {
         GenreArtwork(genre: genre)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .frame(width: DetailMetrics.artworkSide, height: DetailMetrics.artworkSide)
+            .clipShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.largeArtwork, style: .continuous))
+            .shadow(color: .black.opacity(0.5), radius: 30, y: 15)
+            .frame(maxWidth: .infinity)
     }
 
-    private var identityAndActions: some View {
-        VStack(alignment: horizontalSizeClass == .regular ? .leading : .center, spacing: 10) {
-            VStack(alignment: horizontalSizeClass == .regular ? .leading : .center, spacing: 4) {
-                Text("Genre")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(genre.name)
-                    .font(.title2.bold())
-                    .multilineTextAlignment(horizontalSizeClass == .regular ? .leading : .center)
-                Text(trackCountLabel)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-
+    private var identity: some View {
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.xs) {
+            Text("Genre")
+                .jtEyebrowStyle()
+                .foregroundStyle(Color.jtTextTertiary)
+            Text(genre.name)
+                .font(.jtDetailTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text(trackCountLabel)
+                .font(.jtCaption)
+                .foregroundStyle(Color.jtTextTertiary)
+            // Secondary bare-glyph actions grouped tightly; the filled play
+            // circle sits apart — same language as Album / Artist / Playlist.
             HStack(spacing: JellytoneTheme.Space.xl) {
                 FavouriteHeartButton(itemID: genre.id, identifierPrefix: "genre")
-                AudioPlayActions(isDisabled: state.trackOccurrences.isEmpty,
-                                 play: { model.playAll(state.trackOccurrences) },
-                                 shuffle: { model.shuffle(state.trackOccurrences) },
-                                 playIdentifier: "genre-play-all", shuffleIdentifier: "genre-shuffle")
+                Spacer()
+                HStack(spacing: JellytoneTheme.Space.xl) {
+                    Button { model.shuffle(state.trackOccurrences) } label: {
+                        Image(systemName: "shuffle")
+                            .font(.jtSubsectionHeader)
+                            .foregroundStyle(Color.jtTextPrimary)
+                            .frame(width: DetailMetrics.secondaryActionSide, height: DetailMetrics.secondaryActionSide)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                    .accessibilityIdentifier("genre-shuffle")
+                    .accessibilityLabel("Shuffle")
+                    Button { model.playAll(state.trackOccurrences) } label: {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: DetailMetrics.playDiameter / 3, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: DetailMetrics.playDiameter, height: DetailMetrics.playDiameter)
+                            .background(Circle().fill(Color.jtAccent))
+                    }
+                    .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                    .accessibilityIdentifier("genre-play-all")
+                    .accessibilityLabel("Play All")
+                }
+                .disabled(state.trackOccurrences.isEmpty)
+                .opacity(state.trackOccurrences.isEmpty ? 0.4 : 1)
             }
         }
-        .frame(maxWidth: .infinity, alignment: horizontalSizeClass == .regular ? .leading : .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var trackCountLabel: String {
@@ -211,10 +135,128 @@ struct GenreDetailView: View {
         return count == 1 ? "1 playable track" : "\(count) playable tracks"
     }
 
+    // MARK: Sections
+
+    @ViewBuilder
+    private var albumSection: some View {
+        if state.isLoadingAlbums && state.albums.isEmpty {
+            sectionHeader("Albums")
+            JellytoneSkeletonGrid(columns: 2, rows: 1, label: "Loading albums")
+                .accessibilityIdentifier("genre-albums-loading-skeleton")
+        } else if let message = state.albumErrorMessage, state.albums.isEmpty {
+            sectionHeader("Albums")
+            retryStatus(message, title: "Retry Albums") { await refresh() }
+        } else if state.hasLoadedAlbums && state.albums.isEmpty {
+            sectionHeader("Albums")
+            Text("No albums found for this genre.")
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+        } else if !state.albums.isEmpty {
+            sectionHeader("Albums")
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: JellytoneTheme.Space.lg) {
+                    ForEach(state.albums) { album in
+                        NavigationLink(value: album) {
+                            GenreAlbumCard(album: album)
+                        }
+                        .buttonStyle(.jtPressScale())
+                        .accessibilityIdentifier("genre-album-\(album.id)")
+                        .accessibilityLabel("Album, \(album.name), by \(album.artist)")
+                        .accessibilityHint("Opens album")
+                        .task {
+                            if album.id == state.albums.last?.id { await loadMoreAlbums() }
+                        }
+                    }
+                }
+                .padding(.vertical, JellytoneTheme.Space.xxs)
+            }
+
+            if state.isLoadingMoreAlbums {
+                centeredProgress("Loading more albums…")
+                    .accessibilityIdentifier("genre-load-more")
+            } else if let message = state.albumPaginationError {
+                retryStatus(message, title: "Retry More Albums", identifier: "genre-retry-more-albums") {
+                    await loadMoreAlbums()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var trackSection: some View {
+        if state.isLoadingTracks && state.trackOccurrences.isEmpty {
+            sectionHeader("Tracks")
+            JellytoneSkeletonRows(rows: 6, label: "Loading tracks")
+                .accessibilityIdentifier("genre-tracks-loading-skeleton")
+        } else if let message = state.trackErrorMessage, state.trackOccurrences.isEmpty {
+            sectionHeader("Tracks")
+            retryStatus(message, title: "Retry Tracks") { await refresh() }
+        } else if state.hasLoadedTracks && state.trackOccurrences.isEmpty {
+            sectionHeader("Tracks")
+            Text("No playable tracks found for this genre.")
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+        } else if !state.trackOccurrences.isEmpty {
+            sectionHeader("Tracks")
+            LazyVStack(spacing: 0) {
+                ForEach(Array(state.trackOccurrences.enumerated()), id: \.offset) { offset, occurrence in
+                    Button { model.play(occurrence, in: state.trackOccurrences) } label: {
+                        GenreTrackRow(
+                            position: offset + 1,
+                            occurrence: occurrence,
+                            isLast: offset == state.trackOccurrences.indices.last
+                        )
+                    }
+                    .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("genre-track-\(occurrence.id)")
+                    .accessibilityLabel(trackAccessibilityLabel(occurrence, position: offset + 1))
+                    .accessibilityHint("Starts playback from this genre occurrence")
+                    .contextMenu {
+                        let liked = model.isFavourite(occurrence.track.id)
+                        Button(liked ? "Unfavourite" : "Favourite",
+                               systemImage: liked ? "heart.slash" : "heart") {
+                            model.toggleFavourite(id: occurrence.track.id)
+                        }
+                        Button("Play Next", systemImage: "text.insert") { model.playNext(occurrence.track) }
+                            .disabled(model.playback.currentTrack == nil)
+                        Button("Add to Queue", systemImage: "text.badge.plus") { model.addToQueue(occurrence.track) }
+                            .disabled(model.playback.currentTrack == nil)
+                    }
+                    .task {
+                        if offset == state.trackOccurrences.indices.last { await loadMoreTracks() }
+                    }
+                }
+            }
+
+            if state.isLoadingMoreTracks {
+                centeredProgress("Loading more tracks…")
+                    .accessibilityIdentifier("genre-load-more")
+            } else if let message = state.trackPaginationError {
+                retryStatus(message, title: "Retry More Tracks", identifier: "genre-retry-more-tracks") {
+                    await loadMoreTracks()
+                }
+            }
+        }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.jtSectionHeader)
+            .foregroundStyle(Color.jtTextPrimary)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    // MARK: Empty / error
+
     private var emptyState: some View {
-        AudioStateView(kind: .empty, title: emptyTitle, detail: emptyDescription,
-                       actionTitle: "Refresh") { Task { await refresh() } }
-            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.md) {
+            detailStateCard(title: emptyTitle, detail: emptyDescription)
+            Button("Refresh") { Task { await refresh() } }
+                .buttonStyle(.jtCapsule(.secondaryFlat))
+        }
+        .padding(JellytoneTheme.Space.screenMargin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var emptyTitle: String {
@@ -229,15 +271,21 @@ struct GenreDetailView: View {
     }
 
     private func unavailable(_ message: String) -> some View {
-        AudioStateView(kind: .error, title: "Genre unavailable", detail: message,
-                       actionTitle: "Try Again") { Task { await load() } }
-            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.md) {
+            detailStateCard(title: "Genre unavailable", detail: message)
+            Button("Try Again") { Task { await load() } }
+                .buttonStyle(.jtCapsule(.primaryFlat))
+        }
+        .padding(JellytoneTheme.Space.screenMargin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func centeredProgress(_ title: String) -> some View {
         HStack {
             Spacer()
             ProgressView(title)
+                .font(.jtBody)
+                .foregroundStyle(Color.jtTextSecondary)
             Spacer()
         }
     }
@@ -248,10 +296,13 @@ struct GenreDetailView: View {
         identifier: String? = nil,
         action: @escaping () async -> Void
     ) -> some View {
-        VStack(spacing: 8) {
-            Text(message).font(.footnote).foregroundStyle(.secondary)
+        VStack(spacing: JellytoneTheme.Space.sm) {
+            Text(message)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+                .multilineTextAlignment(.center)
             Button(title) { Task { await action() } }
-                .buttonStyle(.bordered)
+                .buttonStyle(.jtCapsule(.secondaryFlat))
                 .frame(minHeight: 44)
                 .accessibilityIdentifier(identifier ?? "")
         }
@@ -264,6 +315,8 @@ struct GenreDetailView: View {
         guard track.durationTicks != nil else { return "\(identity), duration unavailable" }
         return "\(identity), \(track.durationLabel)"
     }
+
+    // MARK: Data
 
     private func load() async {
         let requestScope = scope
@@ -308,34 +361,78 @@ struct GenreDetailView: View {
     }
 }
 
+// MARK: - Rows / cards
+
+private enum GenreDetailMetrics {
+    /// Horizontal album shelf card — matches prior density, themed materials.
+    static let albumCardSide: CGFloat = 132
+}
+
 private struct GenreAlbumCard: View {
     let album: Album
 
     var body: some View {
-        AudioMusicCard(title: album.name, subtitle: album.artist) {
-            Group {
-                if album.imageTag != nil {
-                    AuthenticatedArtworkView(itemID: album.id, accessibilityLabel: "Artwork for \(album.name)")
-                } else {
-                    AudioMissingArtwork(label: album.name)
-                }
-            }.frame(width: 132, height: 132)
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.sm) {
+            JellytoneItemArtwork(itemID: album.id, imageTag: album.imageTag, name: album.name)
+                .frame(width: GenreDetailMetrics.albumCardSide, height: GenreDetailMetrics.albumCardSide)
+                .clipShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.gridArtwork, style: .continuous))
+            Text(album.name)
+                .font(.jtRowSubtitle.weight(.bold))
+                .foregroundStyle(Color.jtTextPrimary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+            Text(album.artist)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+                .lineLimit(1)
         }
-        .frame(width: 132, alignment: .leading)
+        .frame(width: GenreDetailMetrics.albumCardSide, alignment: .leading)
         .frame(minHeight: 44)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(album.name), by \(album.artist)")
-        .accessibilityHint("Opens album")
     }
 }
 
 private struct GenreTrackRow: View {
     let position: Int
     let occurrence: GenreTrackOccurrence
+    let isLast: Bool
 
     var body: some View {
-        AudioTrackRow(position: position, title: occurrence.track.name, artist: occurrence.track.artist,
-                      album: occurrence.track.album,
-                      duration: occurrence.track.durationTicks == nil ? nil : occurrence.track.durationLabel)
+        HStack(spacing: JellytoneTheme.Space.md) {
+            Text(String(position))
+                .font(.jtCaption.monospacedDigit())
+                .foregroundStyle(Color.jtTextTertiary)
+                .frame(width: DetailMetrics.trackNumberWidth)
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
+                Text(occurrence.track.name)
+                    .font(.jtRowTitle)
+                    .foregroundStyle(Color.jtTextPrimary)
+                    .lineLimit(1)
+                Text(occurrence.track.artist)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
+                    .lineLimit(1)
+                if !occurrence.track.album.isEmpty {
+                    Text(occurrence.track.album)
+                        .font(.jtCaption)
+                        .foregroundStyle(Color.jtTextTertiary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: JellytoneTheme.Space.sm)
+            if occurrence.track.durationTicks != nil {
+                Text(occurrence.track.durationLabel)
+                    .font(.jtCaption.monospacedDigit())
+                    .foregroundStyle(Color.jtTextTertiary)
+            }
+        }
+        .padding(.vertical, JellytoneTheme.Space.smPlus)
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Rectangle().fill(Color.jtBorder).frame(height: 1)
+            }
+        }
+        .contentShape(Rectangle())
     }
 }
