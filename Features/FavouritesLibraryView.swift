@@ -3,6 +3,7 @@ import SwiftUI
 /// Read-only favourites browsing. Data loading is injected so this surface stays
 /// independent of `AppModel`; navigation is value-based (artists and albums push
 /// through the destinations the host stack registers at its root).
+/// Themed per design-system.md and AGENTS.md Priority 4.
 struct FavouritesLibraryView: View {
     @EnvironmentObject private var model: AppModel
     @StateObject private var state = FavouritesState()
@@ -17,45 +18,46 @@ struct FavouritesLibraryView: View {
 
     var body: some View {
         content
-        .navigationTitle("Favourites")
-        .audioCanvas()
-        .accessibilityIdentifier("favourites-screen")
-        .refreshable { await refresh() }
-        .overlay(alignment: .top) {
-            if isRefreshingWithContent {
-                ProgressView("Refreshing favourites…")
-                    .padding(10)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(.top, 8)
-            }
-        }
-        .task(id: scope) { await load() }
-    }
-
-    private var isRefreshingWithContent: Bool {
-        (state.isLoadingArtists || state.isLoadingAlbums || state.isLoadingTracks)
-            && (!state.artists.isEmpty || !state.albums.isEmpty || !state.trackOccurrences.isEmpty)
+            .background(Color.jtBackground.ignoresSafeArea())
+            .navigationTitle("Favourites")
+            .navigationBarTitleDisplayMode(.large)
+            .accessibilityIdentifier("favourites-screen")
+            .refreshable { await refresh() }
+            .task(id: scope) { await load() }
     }
 
     @ViewBuilder
     private var content: some View {
         if allSectionsFailedWithoutContent {
-            AudioStateView(kind: .error, title: "Couldn’t load favourites",
-                           detail: "Jellyfin could not load your favourite music right now.",
-                           actionTitle: "Try Again") { Task { await refresh() } }
-                .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
-        } else if state.hasLoaded && hasNoContent && allErrorsAreNil {
-            AudioStateView(kind: .empty, title: "No favourites found",
-                           detail: "Favourite artists, albums, and tracks will appear here.")
-                .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
-        } else {
-            AudioBrowseContainer(spacing: AudioDesign.Space.xl) {
-                trackActions
-                artistsSection
-                albumsSection
-                tracksSection
+            stateCard(
+                title: "Couldn’t load favourites",
+                detail: "Jellyfin could not load your favourite music right now.",
+                actionTitle: "Try Again"
+            ) {
+                Task { await refresh() }
             }
+        } else if isInitialLoading {
+            ScrollView {
+                VStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
+                    JellytoneSkeletonRows(rows: 6, label: "Loading favourites")
+                }
+                .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                .padding(.top, JellytoneTheme.Space.md)
+            }
+        } else if state.hasLoaded && hasNoContent && allErrorsAreNil {
+            stateCard(
+                title: "No favourites found",
+                detail: "Favourite artists, albums, and tracks will appear here."
+            )
+        } else {
+            favouritesScroll
         }
+    }
+
+    private var isInitialLoading: Bool {
+        !state.hasLoaded
+            && hasNoContent
+            && (state.isLoadingArtists || state.isLoadingAlbums || state.isLoadingTracks)
     }
 
     private var hasNoContent: Bool {
@@ -73,33 +75,63 @@ struct FavouritesLibraryView: View {
             && state.trackErrorMessage != nil
     }
 
+    private var favouritesScroll: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
+                trackActions
+                artistsSection
+                albumsSection
+                tracksSection
+            }
+            .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+            .padding(.top, JellytoneTheme.Space.sm)
+            .padding(.bottom, JellytoneTheme.Space.xxxl)
+        }
+    }
+
     @ViewBuilder
     private var trackActions: some View {
         if !state.trackOccurrences.isEmpty {
-            AudioPlayActions(isDisabled: false, play: { playAll(state.trackOccurrences) },
-                             shuffle: { shuffle(state.trackOccurrences) },
-                             playIdentifier: "favourites-play-all", shuffleIdentifier: "favourites-shuffle")
+            HStack(spacing: JellytoneTheme.Space.md) {
+                Button {
+                    playAll(state.trackOccurrences)
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                }
+                .buttonStyle(.jtCapsule(.primaryFlat))
+                .accessibilityIdentifier("favourites-play-all")
+
+                Button {
+                    shuffle(state.trackOccurrences)
+                } label: {
+                    Label("Shuffle", systemImage: "shuffle")
+                }
+                .buttonStyle(.jtCapsule(.secondaryFlat))
+                .accessibilityIdentifier("favourites-shuffle")
+            }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     @ViewBuilder
     private var artistsSection: some View {
-        sectionHeading("Artists", systemImage: "music.mic")
+        sectionHeading("Artists")
         if state.isLoadingArtists && state.artists.isEmpty {
-            loading("Loading favourite artists…")
+            loadingRow("Loading favourite artists…")
         } else if let message = state.artistErrorMessage, state.artists.isEmpty {
             sectionFailure("Couldn’t load favourite artists", message: message, retry: refresh)
         } else if state.hasLoadedArtists && state.artists.isEmpty {
             emptySection("No favourite artists", description: "Favourite artists will appear here.")
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: AudioDesign.Space.md) {
+                LazyHStack(alignment: .top, spacing: JellytoneTheme.Space.md) {
                     ForEach(state.artists) { artist in
-                        NavigationLink(value: artist) { FavouriteArtistCard(artist: artist) }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("favourites-artist-\(artist.id)")
-                            .task { if artist.id == state.artists.last?.id { await loadMoreArtists() } }
+                        NavigationLink(value: artist) {
+                            FavouriteArtistCard(artist: artist)
+                        }
+                        .buttonStyle(.jtPressScale())
+                        .accessibilityIdentifier("favourites-artist-\(artist.id)")
+                        .task { if artist.id == state.artists.last?.id { await loadMoreArtists() } }
                     }
                 }
             }
@@ -116,21 +148,23 @@ struct FavouritesLibraryView: View {
 
     @ViewBuilder
     private var albumsSection: some View {
-        sectionHeading("Albums", systemImage: "square.stack")
+        sectionHeading("Albums")
         if state.isLoadingAlbums && state.albums.isEmpty {
-            loading("Loading favourite albums…")
+            loadingRow("Loading favourite albums…")
         } else if let message = state.albumErrorMessage, state.albums.isEmpty {
             sectionFailure("Couldn’t load favourite albums", message: message, retry: refresh)
         } else if state.hasLoadedAlbums && state.albums.isEmpty {
             emptySection("No favourite albums", description: "Favourite albums will appear here.")
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: AudioDesign.Space.md) {
+                LazyHStack(alignment: .top, spacing: JellytoneTheme.Space.md) {
                     ForEach(state.albums) { album in
-                        NavigationLink(value: album) { FavouriteAlbumCard(album: album) }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("favourites-album-\(album.id)")
-                            .task { if album.id == state.albums.last?.id { await loadMoreAlbums() } }
+                        NavigationLink(value: album) {
+                            FavouriteAlbumCard(album: album)
+                        }
+                        .buttonStyle(.jtPressScale())
+                        .accessibilityIdentifier("favourites-album-\(album.id)")
+                        .task { if album.id == state.albums.last?.id { await loadMoreAlbums() } }
                     }
                 }
             }
@@ -147,9 +181,9 @@ struct FavouritesLibraryView: View {
 
     @ViewBuilder
     private var tracksSection: some View {
-        sectionHeading("Tracks", systemImage: "music.note")
+        sectionHeading("Songs")
         if state.isLoadingTracks && state.trackOccurrences.isEmpty {
-            loading("Loading favourite tracks…")
+            loadingRow("Loading favourite tracks…")
         } else if let message = state.trackErrorMessage, state.trackOccurrences.isEmpty {
             sectionFailure("Couldn’t load favourite tracks", message: message, retry: refresh)
         } else if state.hasLoadedTracks && state.trackOccurrences.isEmpty {
@@ -157,18 +191,20 @@ struct FavouritesLibraryView: View {
         } else {
             LazyVStack(spacing: 0) {
                 ForEach(Array(state.trackOccurrences.enumerated()), id: \.element.id) { offset, occurrence in
-                    Button { play(occurrence, state.trackOccurrences) } label: {
-                        HStack {
-                            FavouriteTrackRow(position: offset + 1, occurrence: occurrence)
-                        }
+                    Button {
+                        play(occurrence, state.trackOccurrences)
+                    } label: {
+                        FavouriteTrackRow(
+                            occurrence: occurrence,
+                            isLast: offset == state.trackOccurrences.count - 1
+                        )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("favourites-track-\(occurrence.id)")
                     .accessibilityLabel(trackLabel(occurrence, position: offset + 1))
                     .accessibilityHint("Starts playback from this favourite occurrence")
                     .task { if offset == state.trackOccurrences.indices.last { await loadMoreTracks() } }
-                    Divider()
                 }
             }
             sectionPagination(
@@ -182,18 +218,36 @@ struct FavouritesLibraryView: View {
         }
     }
 
-    private func sectionHeading(_ title: String, systemImage: String) -> some View {
-        AudioSectionHeading(title: title, systemImage: systemImage)
+    private func sectionHeading(_ title: String) -> some View {
+        Text(title)
+            .font(.jtSectionHeader)
+            .foregroundStyle(Color.jtTextPrimary)
+            .accessibilityAddTraits(.isHeader)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func loading(_ title: String) -> some View {
-        HStack { Spacer(); ProgressView(title); Spacer() }
-            .frame(minHeight: 72)
+    private func loadingRow(_ title: String) -> some View {
+        ProgressView(title)
+            .font(.jtBody)
+            .foregroundStyle(Color.jtTextSecondary)
+            .frame(maxWidth: .infinity, minHeight: 72)
     }
 
     private func emptySection(_ title: String, description: String) -> some View {
-        AudioStateView(kind: .empty, title: title, detail: description)
-            .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
+            Text(title)
+                .font(.jtRowTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+            Text(description)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+        }
+        .padding(JellytoneTheme.Space.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.jtSurface,
+            in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous)
+        )
     }
 
     private func sectionFailure(
@@ -201,9 +255,22 @@ struct FavouritesLibraryView: View {
         message: String,
         retry: @escaping () async -> Void
     ) -> some View {
-        AudioStateView(kind: .error, title: title, detail: message,
-                       actionTitle: "Try Again") { Task { await retry() } }
-        .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.sm) {
+            Text(title)
+                .font(.jtRowTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+            Text(message)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+            Button("Try Again") { Task { await retry() } }
+                .buttonStyle(.jtCapsule(.secondaryFlat))
+        }
+        .padding(JellytoneTheme.Space.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.jtSurface,
+            in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous)
+        )
     }
 
     @ViewBuilder
@@ -217,17 +284,51 @@ struct FavouritesLibraryView: View {
     ) -> some View {
         if isLoading {
             ProgressView(loadingTitle)
+                .font(.jtBody)
+                .foregroundStyle(Color.jtTextSecondary)
                 .frame(maxWidth: .infinity)
         } else if let error {
-            VStack(spacing: 8) {
-                Text(error).font(.footnote).foregroundStyle(.secondary)
+            VStack(spacing: JellytoneTheme.Space.sm) {
+                Text(error)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
+                    .multilineTextAlignment(.center)
                 Button(retryTitle) { Task { await retry() } }
-                    .buttonStyle(.bordered)
-                    .frame(minHeight: 44)
+                    .buttonStyle(.jtCapsule(.secondaryFlat))
                     .accessibilityIdentifier(identifier)
             }
             .frame(maxWidth: .infinity)
         }
+    }
+
+    private func stateCard(
+        title: String,
+        detail: String,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.sm) {
+            Text(title)
+                .font(.jtRowTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+            Text(detail)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.jtCapsule(.secondaryFlat))
+                    .padding(.top, JellytoneTheme.Space.xxs)
+            }
+        }
+        .padding(JellytoneTheme.Space.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.jtSurface,
+            in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous)
+        )
+        .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, JellytoneTheme.Space.md)
     }
 
     private func trackLabel(_ occurrence: FavouriteTrackOccurrence, position: Int) -> String {
@@ -259,15 +360,28 @@ struct FavouritesLibraryView: View {
     private func loadMoreTracks() async { await state.loadMoreTracks(scope: scope, loadPage: loadTracks) }
 }
 
+private enum FavouritesMetrics {
+    static let cardSide: CGFloat = 140
+    static let artworkSide: CGFloat = 48
+    static let artistCircle: CGFloat = 120
+}
+
 private struct FavouriteArtistCard: View {
     let artist: Artist
 
     var body: some View {
-        AudioMusicCard(title: artist.name, subtitle: "Artist", circular: true) {
-            favouriteArtwork(itemID: artist.id, imageTag: artist.imageTag, name: artist.name, symbol: "music.mic")
+        VStack(spacing: JellytoneTheme.Space.sm) {
+            JellytoneItemArtwork(itemID: artist.id, imageTag: artist.imageTag, name: artist.name)
+                .frame(width: FavouritesMetrics.artistCircle, height: FavouritesMetrics.artistCircle)
+                .clipShape(Circle())
+            Text(artist.name)
+                .font(.jtRowSubtitle.weight(.bold))
+                .foregroundStyle(Color.jtTextPrimary)
+                .lineLimit(1)
+                .multilineTextAlignment(.center)
         }
-        .frame(width: 156)
-        .frame(minHeight: 44)
+        .frame(width: FavouritesMetrics.artistCircle)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(artist.name)
         .accessibilityHint("Opens artist")
@@ -278,12 +392,23 @@ private struct FavouriteAlbumCard: View {
     let album: Album
 
     var body: some View {
-        AudioMusicCard(title: album.name, subtitle: album.artist,
-                       detail: album.productionYear.map(String.init)) {
-            favouriteArtwork(itemID: album.id, imageTag: album.imageTag, name: album.name, symbol: "square.stack")
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.sm) {
+            JellytoneItemArtwork(itemID: album.id, imageTag: album.imageTag, name: album.name)
+                .frame(width: FavouritesMetrics.cardSide, height: FavouritesMetrics.cardSide)
+                .clipShape(
+                    RoundedRectangle(cornerRadius: JellytoneTheme.Radius.gridArtwork, style: .continuous)
+                )
+            Text(album.name)
+                .font(.jtRowSubtitle.weight(.bold))
+                .foregroundStyle(Color.jtTextPrimary)
+                .lineLimit(1)
+            Text(album.artist)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+                .lineLimit(1)
         }
-        .frame(width: 156)
-        .frame(minHeight: 44)
+        .frame(width: FavouritesMetrics.cardSide, alignment: .leading)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(album.name), by \(album.artist)\(album.productionYear.map { ", \($0)" } ?? "")")
         .accessibilityHint("Opens album")
@@ -291,21 +416,46 @@ private struct FavouriteAlbumCard: View {
 }
 
 private struct FavouriteTrackRow: View {
-    let position: Int
     let occurrence: FavouriteTrackOccurrence
+    let isLast: Bool
 
     var body: some View {
-        AudioTrackRow(position: position, title: occurrence.track.name, artist: occurrence.track.artist,
-                      album: occurrence.track.album,
-                      duration: occurrence.track.durationTicks == nil ? nil : occurrence.track.durationLabel)
+        HStack(spacing: JellytoneTheme.Space.md) {
+            JellytoneTrackArtwork(track: occurrence.track)
+                .frame(width: FavouritesMetrics.artworkSide, height: FavouritesMetrics.artworkSide)
+                .clipShape(
+                    RoundedRectangle(cornerRadius: JellytoneTheme.Radius.rowArtwork, style: .continuous)
+                )
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
+                Text(occurrence.track.name)
+                    .font(.jtRowTitle)
+                    .foregroundStyle(Color.jtTextPrimary)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: JellytoneTheme.Space.sm)
+            if occurrence.track.durationTicks != nil {
+                Text(occurrence.track.durationLabel)
+                    .font(.jtCaption.monospacedDigit())
+                    .foregroundStyle(Color.jtTextTertiary)
+            }
+        }
+        .padding(.vertical, JellytoneTheme.Space.smPlus)
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Rectangle().fill(Color.jtBorder).frame(height: 1)
+            }
+        }
+        .contentShape(Rectangle())
     }
-}
 
-@MainActor @ViewBuilder
-private func favouriteArtwork(itemID: String, imageTag: String?, name: String, symbol: String) -> some View {
-    if imageTag != nil {
-        AuthenticatedArtworkView(itemID: itemID, accessibilityLabel: "Artwork for \(name)")
-    } else {
-        AudioMissingArtwork(label: name, systemImage: symbol)
+    private var subtitle: String {
+        var parts: [String] = []
+        if !occurrence.track.artist.isEmpty { parts.append(occurrence.track.artist) }
+        if !occurrence.track.album.isEmpty { parts.append(occurrence.track.album) }
+        return parts.joined(separator: " · ")
     }
 }

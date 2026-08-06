@@ -174,6 +174,6 @@ private actor HomeMemoryStore: LibraryStoring {
     }
     func cachedAlbums(scope: LibraryScope, libraryID: String?) async throws -> [Album] { [] }
     func replaceAlbums(_ albums: [Album], scope: LibraryScope, libraryID: String?) async throws {}
-    func storeSearchMetadata(artists: [Artist], albums: [Album], scope: LibraryScope, libraryID: String?) async throws {}
-    func searchMusic(query: String, scope: LibraryScope, libraryID: String?) async throws -> MusicSearchPage { .init(artists: [], albums: [], hasMore: false, nextStartIndex: 0) }
+    func storeSearchMetadata(artists: [Artist], albums: [Album], playlists: [Playlist], scope: LibraryScope, libraryID: String?) async throws {}
+    func searchMusic(query: String, scope: LibraryScope, libraryID: String?) async throws -> MusicSearchPage { .init() }
 }

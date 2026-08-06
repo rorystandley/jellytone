@@ -12,8 +12,11 @@ struct ArtistLibraryView: View {
     var body: some View {
         Group {
             if state.isLoading && state.artists.isEmpty {
-                stateCard(title: "Loading artists", detail: "Fetching this music library’s artists…",
-                          isLoading: true)
+                ScrollView {
+                    JellytoneSkeletonRows(rows: 12, label: "Loading artists")
+                        .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                        .padding(.top, JellytoneTheme.Space.md)
+                }
             } else if let message = state.errorMessage, state.artists.isEmpty {
                 stateCard(title: "Couldn’t load artists", detail: message, retry: true)
             } else if state.hasLoaded && state.artists.isEmpty {
@@ -26,6 +29,7 @@ struct ArtistLibraryView: View {
         .background(Color.jtBackground.ignoresSafeArea())
         .accessibilityIdentifier("artists-screen")
         .navigationTitle("Artists")
+        .navigationBarTitleDisplayMode(.large)
         .task(id: scope) {
             // Cache-first: paint the persisted snapshot instantly, then let
             // the network replace it silently (no loading chip over content).
@@ -121,13 +125,8 @@ struct ArtistLibraryView: View {
         }
     }
 
-    private func stateCard(title: String, detail: String, isLoading: Bool = false,
-                           retry: Bool = false) -> some View {
+    private func stateCard(title: String, detail: String, retry: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
-            if isLoading {
-                ProgressView()
-                    .padding(.bottom, JellytoneTheme.Space.xxs)
-            }
             Text(title)
                 .font(.jtRowTitle)
                 .foregroundStyle(Color.jtTextPrimary)

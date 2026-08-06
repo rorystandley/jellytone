@@ -154,14 +154,22 @@ struct JellyfinAPI: Sendable {
         startIndex: Int = 0,
         limit: Int = 40
     ) async throws -> MusicSearchPage {
-        var query = [
+        // Artists / albums / songs are library-scoped. Playlists are
+        // user-global in Jellyfin and are not children of a music view, so
+        // they are fetched without ParentId (first page only — mixed-type
+        // pagination continues from the music items response).
+        var musicQuery = [
             URLQueryItem(name: "userId", value: userID),
             URLQueryItem(name: "SearchTerm", value: searchTerm),
-            URLQueryItem(name: "IncludeItemTypes", value: "MusicArtist,MusicAlbum"),
+            URLQueryItem(name: "IncludeItemTypes", value: "MusicArtist,MusicAlbum,Audio"),
             URLQueryItem(name: "Recursive", value: "true"),
             // SortName keeps search-driven cache writes from erasing the
-            // collation key the artist browse cache depends on.
-            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,SortName"),
+            // collation key the artist browse cache depends on. Track/album
+            // fields power rich search rows (duration, artist, album art).
+            URLQueryItem(
+                name: "Fields",
+                value: "PrimaryImageAspectRatio,SortName,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists,ArtistIds"
+            ),
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
@@ -169,14 +177,24 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "SortOrder", value: "Ascending"),
         ]
         if let libraryID {
-            query.append(URLQueryItem(name: "ParentId", value: libraryID))
+            musicQuery.append(URLQueryItem(name: "ParentId", value: libraryID))
         }
-        let response = try await send(
+
+        async let musicResponse = send(
             operation: "music_search",
             path: ["Items"],
-            query: query,
+            query: musicQuery,
             as: ItemsResponse<Item>.self
         )
+
+        let playlists: [Playlist]
+        if startIndex == 0 {
+            playlists = try await searchPlaylists(userID: userID, searchTerm: searchTerm, limit: min(limit, 20))
+        } else {
+            playlists = []
+        }
+
+        let response = try await musicResponse
         let artists = response.Items.compactMap { item -> Artist? in
             guard item.`Type` == "MusicArtist" else { return nil }
             guard let identity = item.validatedIdentity else { return nil }
@@ -187,15 +205,58 @@ struct JellyfinAPI: Sendable {
             guard item.`Type` == "MusicAlbum" else { return nil }
             return mapAlbum(item)
         }
+        let tracks = response.Items.compactMap { item -> Track? in
+            guard item.`Type` == "Audio" else { return nil }
+            return mapTrack(item)
+        }
         let hasMore = response.receivedItemCount > 0
             && (response.TotalRecordCount.map { startIndex + response.receivedItemCount < $0 }
                 ?? (response.receivedItemCount == limit))
         return MusicSearchPage(
             artists: artists,
             albums: albums,
+            tracks: tracks,
+            playlists: playlists,
             hasMore: hasMore,
             nextStartIndex: startIndex + response.receivedItemCount
         )
+    }
+
+    /// Playlists are not scoped under a music library ParentId, so search
+    /// hits them with a dedicated unscoped request.
+    private func searchPlaylists(
+        userID: String,
+        searchTerm: String,
+        limit: Int
+    ) async throws -> [Playlist] {
+        let query = [
+            URLQueryItem(name: "userId", value: userID),
+            URLQueryItem(name: "SearchTerm", value: searchTerm),
+            URLQueryItem(name: "IncludeItemTypes", value: "Playlist"),
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,ChildCount"),
+            URLQueryItem(name: "StartIndex", value: "0"),
+            URLQueryItem(name: "Limit", value: String(limit)),
+            URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
+            URLQueryItem(name: "SortBy", value: "SortName"),
+            URLQueryItem(name: "SortOrder", value: "Ascending"),
+        ]
+        let response = try await send(
+            operation: "music_search_playlists",
+            path: ["Items"],
+            query: query,
+            as: ItemsResponse<Item>.self
+        )
+        return response.Items.compactMap { item -> Playlist? in
+            guard item.`Type` == nil || item.`Type` == "Playlist",
+                  let identity = item.validatedIdentity else { return nil }
+            return Playlist(
+                id: identity.id,
+                name: identity.name,
+                imageTag: item.ImageTags?["Primary"],
+                itemCount: item.ChildCount
+            )
+        }
     }
 
     /// The full album-artist browse list, SortName-collated, for the Library

@@ -38,7 +38,11 @@ private struct DownloadsContent: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
-                header
+                if !downloads.records.isEmpty {
+                    Text(summary)
+                        .font(.jtCaption)
+                        .foregroundStyle(Color.jtTextTertiary)
+                }
                 if downloads.records.isEmpty {
                     detailStateCard(
                         title: "No downloads yet",
@@ -55,22 +59,10 @@ private struct DownloadsContent: View {
             .padding(.bottom, JellytoneTheme.Space.xxxl)
         }
         .background(Color.jtBackground.ignoresSafeArea())
+        .navigationTitle("Downloads")
+        .navigationBarTitleDisplayMode(.large)
         .accessibilityIdentifier("downloads-screen")
         .task { await downloads.refreshRecords() }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: JellytoneTheme.Space.xs) {
-            Text("Downloads")
-                .font(.jtLargeTitle)
-                .foregroundStyle(Color.jtTextPrimary)
-                .accessibilityAddTraits(.isHeader)
-            if !downloads.records.isEmpty {
-                Text(summary)
-                    .font(.jtCaption)
-                    .foregroundStyle(Color.jtTextTertiary)
-            }
-        }
     }
 
     private var summary: String {

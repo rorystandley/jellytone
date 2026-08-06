@@ -116,14 +116,14 @@ final class MinimumWorkingAppTests: XCTestCase {
             XCTAssertEqual(query["userId"], "user")
             XCTAssertEqual(query["ParentId"], "music-library")
             XCTAssertEqual(query["SearchTerm"], "Björk & Friends")
-            XCTAssertEqual(query["IncludeItemTypes"], "MusicArtist,MusicAlbum")
+            XCTAssertEqual(query["IncludeItemTypes"], "MusicArtist,MusicAlbum,Audio")
             XCTAssertEqual(query["Recursive"], "true")
             XCTAssertEqual(query["StartIndex"], "40")
             XCTAssertEqual(query["Limit"], "40")
             XCTAssertEqual(query["EnableTotalRecordCount"], "true")
             return Self.response(
                 for: request,
-                json: #"{"Items":[{"Id":"artist","Name":"Björk","Type":"MusicArtist","ImageTags":{"Primary":"artist-tag"}},{"Id":"album","Name":"Debut","Type":"MusicAlbum","AlbumArtist":"Björk","ProductionYear":1993,"ImageTags":{"Primary":"album-tag"}},{"Id":"video","Name":"Private Music Video","Type":"Video"}],"TotalRecordCount":44}"#
+                json: #"{"Items":[{"Id":"artist","Name":"Björk","Type":"MusicArtist","ImageTags":{"Primary":"artist-tag"}},{"Id":"album","Name":"Debut","Type":"MusicAlbum","AlbumArtist":"Björk","ProductionYear":1993,"ImageTags":{"Primary":"album-tag"}},{"Id":"track","Name":"Venus as a Boy","Type":"Audio","Artists":["Björk"],"Album":"Debut","AlbumId":"album","RunTimeTicks":2100000000},{"Id":"video","Name":"Private Music Video","Type":"Video"}],"TotalRecordCount":50}"#
             )
         }
         let api = JellyfinAPI(
@@ -133,6 +133,7 @@ final class MinimumWorkingAppTests: XCTestCase {
             urlSession: makeSession()
         )
 
+        // startIndex > 0 skips the companion playlist request (first-page only).
         let page = try await api.searchMusic(
             userID: "user",
             libraryID: "music-library",
@@ -145,8 +146,11 @@ final class MinimumWorkingAppTests: XCTestCase {
             page.albums,
             [Album(id: "album", name: "Debut", artist: "Björk", productionYear: 1993, imageTag: "album-tag")]
         )
+        XCTAssertEqual(page.tracks.map(\.id), ["track"])
+        XCTAssertEqual(page.tracks.first?.name, "Venus as a Boy")
+        XCTAssertTrue(page.playlists.isEmpty)
         XCTAssertTrue(page.hasMore)
-        XCTAssertEqual(page.nextStartIndex, 43)
+        XCTAssertEqual(page.nextStartIndex, 44)
     }
 
     func testArtistAlbumsUseArtistIdentityAndMapOnlyMusicAlbums() async throws {
@@ -189,7 +193,7 @@ final class MinimumWorkingAppTests: XCTestCase {
     func testCancelledSearchDoesNotPublishResultsOrAnError() async {
         let controller = MusicSearchController()
         let task = Task {
-            await controller.search(query: "cancel me", debounceNanoseconds: 0) { _, _ in
+            await controller.search(query: "cancel me", debounceNanoseconds: 0) { _, _, _ in
                 do {
                     try await Task.sleep(nanoseconds: 5_000_000_000)
                 } catch {
@@ -214,13 +218,13 @@ final class MinimumWorkingAppTests: XCTestCase {
         let controller = MusicSearchController()
         let loader = ControlledSearchLoader()
         let oldSearch = Task {
-            await controller.search(query: "old", debounceNanoseconds: 0) { query, _ in
+            await controller.search(query: "old", debounceNanoseconds: 0) { query, _, _ in
                 await loader.load(query: query)
             }
         }
         await loader.waitUntilOldStarted()
 
-        await controller.search(query: "new", debounceNanoseconds: 0) { query, _ in
+        await controller.search(query: "new", debounceNanoseconds: 0) { query, _, _ in
             await loader.load(query: query)
         }
         await loader.releaseOld()

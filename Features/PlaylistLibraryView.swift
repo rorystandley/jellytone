@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Library → Playlists. Dense artwork grid, cache-first seed, silent refresh.
+/// Themed per design-system.md and AGENTS.md Priority 4.
 struct PlaylistLibraryView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -8,21 +10,28 @@ struct PlaylistLibraryView: View {
     var body: some View {
         Group {
             if state.isLoading && state.playlists.isEmpty {
-                AudioStateView(kind: .loading, title: "Loading playlists", detail: "Fetching your saved sequences…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+                skeleton
             } else if let message = state.errorMessage, state.playlists.isEmpty {
-                unavailable(message)
+                stateCard(
+                    title: "Couldn’t load playlists",
+                    detail: message,
+                    actionTitle: "Try Again"
+                ) {
+                    Task { await load() }
+                }
             } else if state.hasLoaded && state.playlists.isEmpty {
-                AudioStateView(kind: .empty, title: "No playlists found",
-                               detail: "This user has no music playlists available in Jellyfin.")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+                stateCard(
+                    title: "No playlists found",
+                    detail: "This user has no music playlists available in Jellyfin."
+                )
             } else {
                 playlistGrid
             }
         }
+        .background(Color.jtBackground.ignoresSafeArea())
         .accessibilityIdentifier("playlists-screen")
         .navigationTitle("Playlists")
-        .audioCanvas()
+        .navigationBarTitleDisplayMode(.large)
         .task(id: scope) {
             // Cache-first: paint the persisted snapshot, then refresh silently.
             state.seed(await model.cachedPlaylists(), scope: scope)
@@ -38,60 +47,114 @@ struct PlaylistLibraryView: View {
         )
     }
 
+    private var skeleton: some View {
+        ScrollView {
+            JellytoneSkeletonGrid(columns: columnCount, label: "Loading playlists")
+                .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                .padding(.top, JellytoneTheme.Space.md)
+                .padding(.bottom, JellytoneTheme.Space.xxxl)
+        }
+    }
+
     private var playlistGrid: some View {
-        AudioBrowseContainer(spacing: AudioDesign.Space.lg) {
-            AudioSectionHeading(title: "Your Playlists", detail: "Saved mixes in Jellyfin order")
-            LazyVGrid(columns: columns, alignment: .leading, spacing: AudioDesign.Space.lg) {
+        ScrollView {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: JellytoneTheme.Space.mdPlus) {
                 ForEach(state.playlists) { playlist in
-                    NavigationLink {
-                        PlaylistDetailView(playlist: playlist)
-                    } label: {
+                    NavigationLink(value: playlist) {
                         PlaylistCard(playlist: playlist)
                     }
+                    .buttonStyle(.jtPressScale())
                     .accessibilityIdentifier("playlist-row-\(playlist.id)")
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
                     .task {
                         if playlist.id == state.playlists.last?.id { await loadMore() }
                     }
                 }
             }
+            .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+            .padding(.top, JellytoneTheme.Space.sm)
+            .padding(.bottom, JellytoneTheme.Space.xxxl)
+
             paginationStatus
+                .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                .padding(.bottom, JellytoneTheme.Space.xl)
         }
         .refreshable { await refresh() }
-        .overlay(alignment: .top) {
-            if state.isLoading && !state.playlists.isEmpty {
-                ProgressView("Refreshing playlists…")
-                    .padding(10)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(.top, 8)
-            }
-        }
+    }
+
+    private var columnCount: Int {
+        horizontalSizeClass == .regular ? 4 : 2
     }
 
     private var columns: [GridItem] {
-        let minimum: CGFloat = horizontalSizeClass == .regular ? 210 : 145
-        return [GridItem(.adaptive(minimum: minimum, maximum: 280), spacing: 16)]
+        if horizontalSizeClass == .regular {
+            [GridItem(.adaptive(minimum: 160, maximum: 220), spacing: JellytoneTheme.Space.mdPlus)]
+        } else {
+            [
+                GridItem(.flexible(), spacing: JellytoneTheme.Space.mdPlus),
+                GridItem(.flexible()),
+            ]
+        }
     }
 
     @ViewBuilder
     private var paginationStatus: some View {
         if state.isLoadingMore {
             ProgressView("Loading more playlists…")
+                .font(.jtBody)
+                .foregroundStyle(Color.jtTextSecondary)
                 .frame(maxWidth: .infinity)
         } else if let message = state.paginationError {
-            AudioPaginationView(isLoading: false, message: message, loadingTitle: "",
-                                retryTitle: "Retry More Playlists") { Task { await loadMore() } }
+            VStack(spacing: JellytoneTheme.Space.sm) {
+                Text("Couldn’t load more playlists")
+                    .font(.jtSubsectionHeader)
+                    .foregroundStyle(Color.jtTextPrimary)
+                Text(message)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
+                Button("Retry More Playlists") { Task { await loadMore() } }
+                    .buttonStyle(.jtCapsule(.secondaryFlat))
+            }
+            .frame(maxWidth: .infinity)
         } else if let message = state.errorMessage {
-            AudioPaginationView(isLoading: false, message: message, loadingTitle: "",
-                                retryTitle: "Retry Refresh") { Task { await refresh() } }
+            VStack(spacing: JellytoneTheme.Space.sm) {
+                Text(message)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
+                Button("Retry Refresh") { Task { await refresh() } }
+                    .buttonStyle(.jtCapsule(.secondaryFlat))
+            }
+            .frame(maxWidth: .infinity)
         }
     }
 
-    private func unavailable(_ message: String) -> some View {
-        AudioStateView(kind: .error, title: "Couldn’t load playlists", detail: message,
-                       actionTitle: "Try Again") { Task { await load() } }
-            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+    private func stateCard(
+        title: String,
+        detail: String,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.sm) {
+            Text(title)
+                .font(.jtRowTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+            Text(detail)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.jtCapsule(.secondaryFlat))
+                    .padding(.top, JellytoneTheme.Space.xxs)
+            }
+        }
+        .padding(JellytoneTheme.Space.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.jtSurface,
+            in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous)
+        )
+        .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, JellytoneTheme.Space.md)
     }
 
     private func load() async {
@@ -120,10 +183,25 @@ private struct PlaylistCard: View {
     let playlist: Playlist
 
     var body: some View {
-        AudioMusicCard(title: playlist.name, subtitle: countLabel) {
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.sm) {
             PlaylistArtwork(playlist: playlist)
+                .aspectRatio(1, contentMode: .fit)
+                .clipShape(
+                    RoundedRectangle(cornerRadius: JellytoneTheme.Radius.gridArtwork, style: .continuous)
+                )
+            Text(playlist.name)
+                .font(.jtRowSubtitle.weight(.bold))
+                .foregroundStyle(Color.jtTextPrimary)
+                .lineLimit(1)
+            if let countLabel {
+                Text(countLabel)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
+                    .lineLimit(1)
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("Opens playlist")

@@ -306,6 +306,46 @@ struct JellytoneSkeletonRows: View {
     }
 }
 
+/// Pulsing placeholder grid for album/playlist cold loads. Prefer cached
+/// content; only show this when the grid has nothing to paint yet.
+struct JellytoneSkeletonGrid: View {
+    var columns = 2
+    var rows = 3
+    var label = "Loading"
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dimmed = false
+
+    private static var dimOpacity: Double { 0.55 }
+
+    var body: some View {
+        let items = Array(0..<(columns * rows))
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: JellytoneTheme.Space.mdPlus), count: columns),
+            spacing: JellytoneTheme.Space.mdPlus
+        ) {
+            ForEach(items, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: JellytoneTheme.Space.sm) {
+                    RoundedRectangle(cornerRadius: JellytoneTheme.Radius.gridArtwork, style: .continuous)
+                        .fill(Color.jtSurface)
+                        .aspectRatio(1, contentMode: .fit)
+                    Capsule().fill(Color.jtSurface)
+                        .frame(width: 96, height: 10)
+                    Capsule().fill(Color.jtSurface)
+                        .frame(width: 64, height: 9)
+                }
+            }
+        }
+        .opacity(dimmed ? Self.dimOpacity : 1)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(JellytoneTheme.Motion.skeletonPulse) { dimmed = true }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+    }
+}
+
 // MARK: - Press-scale (the only pressed-state affordance in the app)
 
 struct JellytonePressScaleStyle: ButtonStyle {

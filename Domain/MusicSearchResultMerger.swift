@@ -16,6 +16,8 @@ enum MusicSearchResultMerger {
         MusicSearchPage(
             artists: merge(cached: cached.artists, server: server.artists),
             albums: merge(cached: cached.albums, server: server.albums),
+            tracks: merge(cached: cached.tracks, server: server.tracks),
+            playlists: merge(cached: cached.playlists, server: server.playlists),
             hasMore: server.hasMore,
             nextStartIndex: server.nextStartIndex
         )

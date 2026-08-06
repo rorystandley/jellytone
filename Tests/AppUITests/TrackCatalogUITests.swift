@@ -15,7 +15,7 @@ final class TrackCatalogUITests: XCTestCase {
         XCTAssertTrue(library.waitForExistence(timeout: 5)); library.tap()
         let link = app.buttons["library-tracks-link"]
         XCTAssertTrue(link.waitForExistence(timeout: 3)); XCTAssertTrue(link.isHittable); link.tap()
-        XCTAssertTrue(app.navigationBars["Tracks"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["Songs"].waitForExistence(timeout: 3))
         let first = app.descendants(matching: .any)["track-catalog-row-track-catalog:0:track-1"]
         XCTAssertTrue(first.waitForExistence(timeout: 3)); XCTAssertTrue(first.isHittable)
         XCTAssertTrue(first.label.contains("A First Song"))

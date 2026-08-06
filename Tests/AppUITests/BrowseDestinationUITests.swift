@@ -12,7 +12,14 @@ final class BrowseDestinationUITests: XCTestCase {
         openTab("Library", in: app)
 
         XCTAssertTrue(app.buttons["library-playlists-link"].waitForExistence(timeout: 4))
-        for identifier in ["library-tracks-link", "library-genres-link", "library-favourites-link"] {
+        for identifier in [
+            "library-artists-link",
+            "library-albums-link",
+            "library-tracks-link",
+            "library-genres-link",
+            "library-favourites-link",
+            "library-downloads-link",
+        ] {
             scrollUntilHittable(app.buttons[identifier], in: app)
             XCTAssertTrue(app.buttons[identifier].isHittable)
         }

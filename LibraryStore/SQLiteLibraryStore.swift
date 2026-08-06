@@ -459,18 +459,21 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
     func storeSearchMetadata(
         artists: [Artist],
         albums: [Album],
+        playlists: [Playlist],
         scope: LibraryScope,
         libraryID: String?
     ) async throws {
         let libraryScope = Self.libraryScope(for: libraryID)
         let validArtists = artists.filter(Self.isValid)
         let validAlbums = albums.filter(Self.isValid)
+        let validPlaylists = playlists.filter(Self.isValid)
 
         try await databaseQueue.write { database in
             try Self.ensureScope(scope, libraryScope: libraryScope, in: database)
             // Search metadata must not disturb the browse order: already-cached
-            // artists/albums keep their sort_index on conflict; genuinely new
-            // ones land after the current tail rather than at the top.
+            // artists/albums/playlists keep their sort_index on conflict;
+            // genuinely new ones land after the current tail rather than at
+            // the top.
             var nextArtistIndex = try Int.fetchOne(
                 database,
                 sql: """
@@ -497,16 +500,32 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
                 try Self.upsert(album, sortIndex: nextIndex, scope: scope, libraryScope: libraryScope, in: database)
                 nextIndex += 1
             }
+            var nextPlaylistIndex = try Int.fetchOne(
+                database,
+                sql: """
+                    SELECT COALESCE(MAX(sort_index) + 1, 0)
+                    FROM cached_playlists
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            ) ?? 0
+            for playlist in validPlaylists {
+                try Self.upsert(playlist, sortIndex: nextPlaylistIndex, scope: scope, libraryScope: libraryScope, in: database)
+                nextPlaylistIndex += 1
+            }
         }
     }
 
     func searchMusic(query: String, scope: LibraryScope, libraryID: String?) async throws -> MusicSearchPage {
         let normalizedQuery = Self.normalized(query.trimmingCharacters(in: .whitespacesAndNewlines))
         guard !normalizedQuery.isEmpty else {
-            return MusicSearchPage(artists: [], albums: [], hasMore: false, nextStartIndex: 0)
+            return MusicSearchPage()
         }
 
         let libraryScope = Self.libraryScope(for: libraryID)
+        // Cap local matches so a huge catalogue never dumps thousands of rows
+        // into the search UI before the server merge arrives.
+        let localLimit = 40
         return try await databaseQueue.read { database in
             let artistRows = try Row.fetchAll(
                 database,
@@ -526,24 +545,72 @@ final class SQLiteLibraryStore: LibraryStoring, @unchecked Sendable {
                     """,
                 arguments: [scope.serverID, scope.accountID, libraryScope]
             )
+            let playlistRows = try Row.fetchAll(
+                database,
+                sql: """
+                    SELECT item_id, payload
+                    FROM cached_playlists
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            )
+            // Track catalogue payloads are occurrences; search unique tracks.
+            let trackRows = try Row.fetchAll(
+                database,
+                sql: """
+                    SELECT occurrence_id, ordinal, payload
+                    FROM track_catalog_entries
+                    WHERE server_id = ? AND account_id = ? AND library_scope = ?
+                    ORDER BY ordinal
+                    """,
+                arguments: [scope.serverID, scope.accountID, libraryScope]
+            )
 
-            let artists = artistRows
-                .compactMap(Self.artist(from:))
-                .filter { Self.normalized($0.name).contains(normalizedQuery) }
-                .sorted(by: Self.artistPrecedes)
-            let albums = albumRows
-                .compactMap(Self.album(from:))
-                .filter {
-                    Self.normalized($0.name).contains(normalizedQuery)
-                        || Self.normalized($0.artist).contains(normalizedQuery)
-                }
-                .sorted(by: Self.albumPrecedes)
+            let artists = Array(
+                artistRows
+                    .compactMap(Self.artist(from:))
+                    .filter { Self.normalized($0.name).contains(normalizedQuery) }
+                    .sorted(by: Self.artistPrecedes)
+                    .prefix(localLimit)
+            )
+            let albums = Array(
+                albumRows
+                    .compactMap(Self.album(from:))
+                    .filter {
+                        Self.normalized($0.name).contains(normalizedQuery)
+                            || Self.normalized($0.artist).contains(normalizedQuery)
+                    }
+                    .sorted(by: Self.albumPrecedes)
+                    .prefix(localLimit)
+            )
+            let playlists = Array(
+                playlistRows
+                    .compactMap(Self.playlist(from:))
+                    .filter { Self.normalized($0.name).contains(normalizedQuery) }
+                    .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+                    .prefix(localLimit)
+            )
+
+            var seenTrackIDs = Set<String>()
+            var tracks: [Track] = []
+            for occurrence in trackRows.compactMap(Self.trackOccurrence(from:)) {
+                let track = occurrence.track
+                guard seenTrackIDs.insert(track.id).inserted else { continue }
+                let matches = Self.normalized(track.name).contains(normalizedQuery)
+                    || Self.normalized(track.artist).contains(normalizedQuery)
+                    || Self.normalized(track.album).contains(normalizedQuery)
+                guard matches else { continue }
+                tracks.append(track)
+                if tracks.count >= localLimit { break }
+            }
 
             return MusicSearchPage(
                 artists: artists,
                 albums: albums,
+                tracks: tracks,
+                playlists: playlists,
                 hasMore: false,
-                nextStartIndex: artists.count + albums.count
+                nextStartIndex: artists.count + albums.count + tracks.count + playlists.count
             )
         }
     }

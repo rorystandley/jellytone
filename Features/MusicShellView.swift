@@ -63,7 +63,11 @@ struct MusicShellView: View {
                 LibraryView()
             }
             Tab("Downloads", systemImage: "arrow.down.circle") {
-                DownloadsView()
+                // NavigationStack so the system large title matches Library
+                // children and the same view can push cleanly from Library → Downloads.
+                NavigationStack {
+                    DownloadsView()
+                }
             }
             Tab("Search", systemImage: "magnifyingglass", role: .search) {
                 SearchView()

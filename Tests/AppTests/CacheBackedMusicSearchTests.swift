@@ -43,6 +43,29 @@ final class CacheBackedMusicSearchTests: XCTestCase {
         XCTAssertEqual(searchCount, 1)
     }
 
+    func testPresentsCacheBeforeServerRefresh() async throws {
+        let store = SearchStore(cached: page(prefix: "cached"))
+        var presented: [MusicSearchPage] = []
+        let server = MusicSearchPage(
+            artists: [Artist(id: "server-artist", name: "Server", imageTag: nil)],
+            albums: [Album(id: "server-album", name: "Server", artist: "Synthetic",
+                           productionYear: nil, imageTag: nil)],
+            hasMore: false,
+            nextStartIndex: 2
+        )
+
+        let result = try await CacheBackedMusicSearch.execute(
+            query: "synthetic", startIndex: 0,
+            scope: LibraryScope(serverID: "server-a", accountID: "account-a"),
+            libraryID: "library-a", store: store,
+            present: { presented.append($0) }
+        ) { server }
+
+        XCTAssertEqual(presented, [page(prefix: "cached")])
+        XCTAssertEqual(result.artists.map(\.id), ["cached-artist", "server-artist"])
+        XCTAssertEqual(result.albums.map(\.id), ["cached-album", "server-album"])
+    }
+
     func testServerRefreshMergesAndPersistsDomainMetadata() async throws {
         let store = SearchStore(cached: page(prefix: "cached"))
         let server = MusicSearchPage(
@@ -128,7 +151,8 @@ private actor SearchStore: LibraryStoring {
     ) async throws {}
 
     func storeSearchMetadata(
-        artists: [Artist], albums: [Album], scope: LibraryScope, libraryID: String?
+        artists: [Artist], albums: [Album], playlists: [Playlist],
+        scope: LibraryScope, libraryID: String?
     ) async throws {
         storedArtists = artists
         storedAlbums = albums

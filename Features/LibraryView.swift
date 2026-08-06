@@ -2,9 +2,10 @@ import SwiftUI
 import UIKit
 
 /// Apple Music-style Library: large title, plain category rows with hairline
-/// separators, then a newest-first "Recently Added" album grid that paginates
-/// (and caches each page) as the user scrolls. Themed per
-/// docs/design/design-system.md.
+/// separators (Playlists, Artists, Albums, Songs, Genres, Favourites, Downloads),
+/// then a newest-first "Recently Added" album grid that paginates (and caches
+/// each page) as the user scrolls. Themed per docs/design/design-system.md and
+/// AGENTS.md Priority 4.
 struct LibraryView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -35,6 +36,7 @@ struct LibraryView: View {
             .navigationDestination(for: Album.self) { AlbumView(album: $0) }
             .navigationDestination(for: Artist.self) { ArtistView(artist: $0) }
             .navigationDestination(for: Genre.self) { GenreDetailView(genre: $0) }
+            .navigationDestination(for: Playlist.self) { PlaylistDetailView(playlist: $0) }
             .refreshable { try? await model.refreshAlbums(libraryID: model.selectedLibraryID) }
         }
     }
@@ -82,6 +84,9 @@ struct LibraryView: View {
             categoryRow("Artists", systemImage: "music.mic",
                         identifier: "library-artists-link", section: .artists)
             rowDivider
+            categoryRow("Albums", systemImage: "square.stack",
+                        identifier: "library-albums-link", section: .albums)
+            rowDivider
             categoryRow("Songs", systemImage: "music.note",
                         identifier: "library-tracks-link", section: .songs)
             rowDivider
@@ -90,6 +95,9 @@ struct LibraryView: View {
             rowDivider
             categoryRow("Favourites", systemImage: "heart.fill",
                         identifier: "library-favourites-link", section: .favourites)
+            rowDivider
+            categoryRow("Downloads", systemImage: "arrow.down.circle",
+                        identifier: "library-downloads-link", section: .downloads)
         }
     }
 
@@ -98,9 +106,11 @@ struct LibraryView: View {
         switch section {
         case .playlists: PlaylistLibraryView()
         case .artists: ArtistLibraryView()
+        case .albums: AlbumLibraryView()
         case .songs: TrackCatalogView()
         case .genres: GenreLibraryView()
         case .favourites: favouritesDestination
+        case .downloads: DownloadsView()
         }
     }
 
@@ -150,19 +160,28 @@ struct LibraryView: View {
 
     @ViewBuilder private var albumContent: some View {
         if model.isLoading && model.albums.isEmpty {
-            stateCard(title: "Loading albums", detail: "Fetching this music library…", isLoading: true)
+            JellytoneSkeletonGrid(
+                columns: horizontalSizeClass == .regular ? 4 : 2,
+                rows: 2,
+                label: "Loading albums"
+            )
+            .accessibilityIdentifier("library-albums-skeleton")
         } else if model.albums.isEmpty {
-            stateCard(title: "No albums found",
-                      detail: "Pull to refresh or check this account’s Jellyfin library access.")
+            detailStateCard(
+                title: "No albums found",
+                detail: "Pull to refresh or check this account’s Jellyfin library access."
+            )
         } else {
-            LazyVGrid(columns: albumColumns, spacing: JellytoneTheme.Space.lg) {
+            LazyVGrid(columns: albumColumns, spacing: JellytoneTheme.Space.mdPlus) {
                 ForEach(model.albums) { album in
-                    NavigationLink(value: album) { LibraryAlbumCard(album: album) }
-                        .buttonStyle(.jtPressScale())
-                        .accessibilityIdentifier("library-album-\(album.id)")
-                        .accessibilityLabel("Album, \(album.name), by \(album.artist)")
-                        .accessibilityHint("Opens album")
-                        .task { await model.loadMoreAlbumsIfNeeded(after: album) }
+                    NavigationLink(value: album) {
+                        LibraryGridAlbumCard(album: album)
+                    }
+                    .buttonStyle(.jtPressScale())
+                    .accessibilityIdentifier("library-album-\(album.id)")
+                    .accessibilityLabel("Album, \(album.name), by \(album.artist)")
+                    .accessibilityHint("Opens album")
+                    .task { await model.loadMoreAlbumsIfNeeded(after: album) }
                 }
             }
             if model.isLoadingMoreAlbums {
@@ -179,37 +198,28 @@ struct LibraryView: View {
 
     private var albumColumns: [GridItem] {
         if horizontalSizeClass == .regular {
-            [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: JellytoneTheme.Space.lg)]
+            [GridItem(.adaptive(minimum: 160, maximum: 220), spacing: JellytoneTheme.Space.mdPlus)]
         } else {
-            [GridItem(.flexible(), spacing: JellytoneTheme.Space.lg), GridItem(.flexible())]
+            [
+                GridItem(.flexible(), spacing: JellytoneTheme.Space.mdPlus),
+                GridItem(.flexible()),
+            ]
         }
-    }
-
-    private func stateCard(title: String, detail: String, isLoading: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
-            if isLoading {
-                ProgressView()
-                    .padding(.bottom, JellytoneTheme.Space.xxs)
-            }
-            Text(title)
-                .font(.jtRowTitle)
-                .foregroundStyle(Color.jtTextPrimary)
-            Text(detail)
-                .font(.jtRowSubtitle)
-                .foregroundStyle(Color.jtTextSecondary)
-        }
-        .padding(JellytoneTheme.Space.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.jtSurface, in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous))
     }
 
     private var favouritesDestination: some View {
         FavouritesLibraryView(
-            scope: FavouritesFeatureScope(serverID: model.session?.serverID ?? "", accountID: model.session?.userID ?? "", libraryID: model.selectedLibraryID),
+            scope: FavouritesFeatureScope(
+                serverID: model.session?.serverID ?? "",
+                accountID: model.session?.userID ?? "",
+                libraryID: model.selectedLibraryID
+            ),
             loadArtists: { try await model.favouriteArtistsPage(startIndex: $0) },
             loadAlbums: { try await model.favouriteAlbumsPage(startIndex: $0) },
             loadTracks: { try await model.favouriteTracksPage(startIndex: $0) },
-            play: { model.play($0, in: $1) }, playAll: { model.playAll($0) }, shuffle: { model.shuffle($0) }
+            play: { model.play($0, in: $1) },
+            playAll: { model.playAll($0) },
+            shuffle: { model.shuffle($0) }
         )
     }
 }
@@ -218,33 +228,12 @@ struct LibraryView: View {
 /// through a `navigationDestination` at the stack root rather than a view-based
 /// `NavigationLink` that re-activates inside the lazy list.
 enum LibrarySection: Hashable {
-    case playlists, artists, songs, genres, favourites
+    case playlists, artists, albums, songs, genres, favourites, downloads
 }
 
 private enum LibraryMetrics {
     static let optionsButtonDiameter: CGFloat = 34
     static let categoryIconWidth: CGFloat = 30
-}
-
-private struct LibraryAlbumCard: View {
-    let album: Album
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: JellytoneTheme.Space.sm) {
-            JellytoneItemArtwork(itemID: album.id, imageTag: album.imageTag, name: album.name)
-                .aspectRatio(1, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.gridArtwork, style: .continuous))
-            Text(album.name)
-                .font(.jtRowSubtitle.weight(.bold))
-                .foregroundStyle(Color.jtTextPrimary)
-                .lineLimit(1)
-            Text(album.artist)
-                .font(.jtRowSubtitle)
-                .foregroundStyle(Color.jtTextSecondary)
-                .lineLimit(1)
-        }
-        .accessibilityElement(children: .combine)
-    }
 }
 
 /// Full-screen blurred-artwork backdrop for detail screens (album/playlist):

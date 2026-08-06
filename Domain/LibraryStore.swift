@@ -93,6 +93,7 @@ protocol LibraryStoring: Sendable {
     func storeSearchMetadata(
         artists: [Artist],
         albums: [Album],
+        playlists: [Playlist],
         scope: LibraryScope,
         libraryID: String?
     ) async throws
@@ -110,6 +111,22 @@ protocol LibraryStoring: Sendable {
 }
 
 extension LibraryStoring {
+    /// Convenience for call sites that only write artist/album search metadata.
+    func storeSearchMetadata(
+        artists: [Artist],
+        albums: [Album],
+        scope: LibraryScope,
+        libraryID: String?
+    ) async throws {
+        try await storeSearchMetadata(
+            artists: artists,
+            albums: albums,
+            playlists: [],
+            scope: scope,
+            libraryID: libraryID
+        )
+    }
+
     func appendAlbums(_ albums: [Album], scope: LibraryScope, libraryID: String?) async throws {}
     func cachedArtists(scope: LibraryScope, libraryID: String?) async throws -> [Artist] { [] }
     func replaceArtists(_ artists: [Artist], scope: LibraryScope, libraryID: String?) async throws {}

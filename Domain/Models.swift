@@ -50,8 +50,30 @@ struct Artist: Identifiable, Codable, Hashable, Sendable {
 struct MusicSearchPage: Equatable, Sendable {
     let artists: [Artist]
     let albums: [Album]
+    let tracks: [Track]
+    let playlists: [Playlist]
     let hasMore: Bool
     let nextStartIndex: Int
+
+    init(
+        artists: [Artist] = [],
+        albums: [Album] = [],
+        tracks: [Track] = [],
+        playlists: [Playlist] = [],
+        hasMore: Bool = false,
+        nextStartIndex: Int = 0
+    ) {
+        self.artists = artists
+        self.albums = albums
+        self.tracks = tracks
+        self.playlists = playlists
+        self.hasMore = hasMore
+        self.nextStartIndex = nextStartIndex
+    }
+
+    var isEmpty: Bool {
+        artists.isEmpty && albums.isEmpty && tracks.isEmpty && playlists.isEmpty
+    }
 }
 
 /// A page of the full Artists browse list (album artists, SortName order).

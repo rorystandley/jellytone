@@ -466,7 +466,11 @@ final class AppModel: ObservableObject {
     private struct LyricsCacheEntry { let value: TrackLyrics? }
     private var lyricsByTrack: [String: LyricsCacheEntry] = [:]
 
-    func searchMusic(query: String, startIndex: Int = 0) async throws -> MusicSearchPage {
+    func searchMusic(
+        query: String,
+        startIndex: Int = 0,
+        present: (@MainActor (MusicSearchPage) -> Void)? = nil
+    ) async throws -> MusicSearchPage {
 #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--ui-testing-search-loading") {
@@ -474,7 +478,7 @@ final class AppModel: ObservableObject {
         }
         if arguments.contains("--ui-testing-search-error") { throw APIError.httpStatus(503) }
         if arguments.contains("--ui-testing-search-no-results") {
-            return MusicSearchPage(artists: [], albums: [], hasMore: false, nextStartIndex: 0)
+            return MusicSearchPage()
         }
         if arguments.contains("--ui-testing-search") {
             return MusicSearchPage(
@@ -482,7 +486,26 @@ final class AppModel: ObservableObject {
                 albums: [
                     Album(id: "album-artwork", name: "Aurora Lines", artist: "Björk Guðmundsdóttir", productionYear: 2026, imageTag: "synthetic-art"),
                     Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title", artist: "Synthetic Artist", productionYear: 2025, imageTag: nil),
-                ], hasMore: false, nextStartIndex: 3
+                ],
+                tracks: [
+                    Track(
+                        id: "track-aurora",
+                        name: "Aurora",
+                        artist: "Björk Guðmundsdóttir",
+                        album: "Aurora Lines",
+                        albumID: "album-artwork",
+                        index: 1,
+                        disc: 1,
+                        durationTicks: 2_100_000_000,
+                        artistID: "artist-unicode",
+                        imageTag: nil
+                    ),
+                ],
+                playlists: [
+                    Playlist(id: "playlist-aurora", name: "Aurora Mix", imageTag: nil, itemCount: 12),
+                ],
+                hasMore: false,
+                nextStartIndex: 5
             )
         }
 #endif
@@ -493,7 +516,8 @@ final class AppModel: ObservableObject {
             startIndex: startIndex,
             scope: scope,
             libraryID: selectedLibraryID,
-            store: libraryStore
+            store: libraryStore,
+            present: present
         ) {
             try await api.searchMusic(
                 userID: session.userID,

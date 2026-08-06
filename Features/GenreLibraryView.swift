@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Library → Genres. Dense card grid with cache-first seed and silent refresh.
+/// Themed per design-system.md and AGENTS.md Priority 4.
 struct GenreLibraryView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -8,21 +10,28 @@ struct GenreLibraryView: View {
     var body: some View {
         Group {
             if state.isLoading && state.genres.isEmpty {
-                AudioStateView(kind: .loading, title: "Loading genres", detail: "Organising your library by sound…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+                skeleton
             } else if let message = state.errorMessage, state.genres.isEmpty {
-                unavailable(message)
+                stateCard(
+                    title: "Couldn’t load genres",
+                    detail: message,
+                    actionTitle: "Try Again"
+                ) {
+                    Task { await load() }
+                }
             } else if state.hasLoaded && state.genres.isEmpty {
-                AudioStateView(kind: .empty, title: "No genres found",
-                               detail: "This music library has no genres available in Jellyfin.")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+                stateCard(
+                    title: "No genres found",
+                    detail: "This music library has no genres available in Jellyfin."
+                )
             } else {
                 genreGrid
             }
         }
+        .background(Color.jtBackground.ignoresSafeArea())
         .accessibilityIdentifier("genres-screen")
         .navigationTitle("Genres")
-        .audioCanvas()
+        .navigationBarTitleDisplayMode(.large)
         .task(id: scope) {
             // Cache-first: paint the persisted snapshot, then refresh silently.
             state.seed(await model.cachedGenres(), scope: scope)
@@ -38,71 +47,116 @@ struct GenreLibraryView: View {
         )
     }
 
+    private var skeleton: some View {
+        ScrollView {
+            JellytoneSkeletonGrid(columns: columnCount, label: "Loading genres")
+                .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                .padding(.top, JellytoneTheme.Space.md)
+                .padding(.bottom, JellytoneTheme.Space.xxxl)
+        }
+    }
+
     private var genreGrid: some View {
-        AudioBrowseContainer(spacing: AudioDesign.Space.lg) {
-            AudioSectionHeading(title: "Explore Genres", detail: "Browse the library without invented cover art")
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+        ScrollView {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: JellytoneTheme.Space.mdPlus) {
                 ForEach(state.genres) { genre in
                     NavigationLink(value: genre) {
                         GenreCard(genre: genre)
                     }
+                    .buttonStyle(.jtPressScale())
                     .accessibilityIdentifier("genre-row-\(genre.id)")
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
                     .task {
                         if genre.id == state.genres.last?.id { await loadMore() }
                     }
                 }
             }
+            .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+            .padding(.top, JellytoneTheme.Space.sm)
+            .padding(.bottom, JellytoneTheme.Space.xxxl)
+
             paginationStatus
+                .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                .padding(.bottom, JellytoneTheme.Space.xl)
         }
         .refreshable { await refresh() }
-        .overlay(alignment: .top) {
-            if state.isLoading && !state.genres.isEmpty {
-                ProgressView("Refreshing genres…")
-                    .padding(10)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(.top, 8)
-            }
-        }
+    }
+
+    private var columnCount: Int {
+        horizontalSizeClass == .regular ? 3 : 2
     }
 
     private var columns: [GridItem] {
-        let minimum: CGFloat = horizontalSizeClass == .regular ? 210 : 145
-        return [GridItem(.adaptive(minimum: minimum, maximum: 280), spacing: 16)]
+        if horizontalSizeClass == .regular {
+            [GridItem(.adaptive(minimum: 180, maximum: 260), spacing: JellytoneTheme.Space.mdPlus)]
+        } else {
+            [
+                GridItem(.flexible(), spacing: JellytoneTheme.Space.mdPlus),
+                GridItem(.flexible()),
+            ]
+        }
     }
 
     @ViewBuilder
     private var paginationStatus: some View {
         if state.isLoadingMore {
             ProgressView("Loading more genres…")
+                .font(.jtBody)
+                .foregroundStyle(Color.jtTextSecondary)
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("genre-load-more")
         } else if let message = state.paginationError {
-            VStack(spacing: 8) {
-                Text("Couldn’t load more genres").font(.headline)
-                Text(message).font(.footnote).foregroundStyle(.secondary)
+            VStack(spacing: JellytoneTheme.Space.sm) {
+                Text("Couldn’t load more genres")
+                    .font(.jtSubsectionHeader)
+                    .foregroundStyle(Color.jtTextPrimary)
+                Text(message)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
                 Button("Retry loading more genres") { Task { await loadMore() } }
-                    .buttonStyle(.bordered)
-                    .frame(minHeight: 44)
+                    .buttonStyle(.jtCapsule(.secondaryFlat))
                     .accessibilityIdentifier("genre-load-more")
             }
             .frame(maxWidth: .infinity)
         } else if let message = state.errorMessage {
-            VStack(spacing: 8) {
-                Text(message).font(.footnote).foregroundStyle(.secondary)
+            VStack(spacing: JellytoneTheme.Space.sm) {
+                Text(message)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
                 Button("Retry Refresh") { Task { await refresh() } }
-                    .buttonStyle(.bordered)
-                    .frame(minHeight: 44)
+                    .buttonStyle(.jtCapsule(.secondaryFlat))
             }
             .frame(maxWidth: .infinity)
         }
     }
 
-    private func unavailable(_ message: String) -> some View {
-        AudioStateView(kind: .error, title: "Couldn’t load genres", detail: message,
-                       actionTitle: "Try Again") { Task { await load() } }
-            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+    private func stateCard(
+        title: String,
+        detail: String,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.sm) {
+            Text(title)
+                .font(.jtRowTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+            Text(detail)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.jtCapsule(.secondaryFlat))
+                    .padding(.top, JellytoneTheme.Space.xxs)
+            }
+        }
+        .padding(JellytoneTheme.Space.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.jtSurface,
+            in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous)
+        )
+        .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, JellytoneTheme.Space.md)
     }
 
     private func load() async {
@@ -131,22 +185,39 @@ private struct GenreCard: View {
     let genre: Genre
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AudioDesign.Space.md) {
+        VStack(alignment: .leading, spacing: JellytoneTheme.Space.md) {
             HStack {
                 Image(systemName: "guitars")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(AudioDesign.accent)
-                    .frame(width: 52, height: 52)
-                    .background(AudioDesign.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: AudioDesign.Radius.compact))
-                Spacer()
-                Image(systemName: "chevron.forward").foregroundStyle(.tertiary)
+                    .font(.jtSubsectionHeader.weight(.semibold))
+                    .foregroundStyle(Color.jtAccent)
+                    .frame(width: GenreMetrics.iconSide, height: GenreMetrics.iconSide)
+                    .background(
+                        Color.jtAccentDim,
+                        in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.compactArtwork, style: .continuous)
+                    )
+                Spacer(minLength: JellytoneTheme.Space.sm)
+                Image(systemName: "chevron.forward")
+                    .font(.jtCaption.weight(.bold))
+                    .foregroundStyle(Color.jtTextTertiary)
             }
-            Text(genre.name).font(.title3.bold()).lineLimit(2)
-            if let summary { Text(summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2) }
+            Text(genre.name)
+                .font(.jtSubsectionHeader)
+                .foregroundStyle(Color.jtTextPrimary)
+                .lineLimit(2)
+            if let summary {
+                Text(summary)
+                    .font(.jtRowSubtitle)
+                    .foregroundStyle(Color.jtTextSecondary)
+                    .lineLimit(2)
+            }
         }
-        .padding(AudioDesign.Space.md)
-        .audioElevatedSurface(cornerRadius: AudioDesign.Radius.compact)
+        .padding(JellytoneTheme.Space.md)
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .background(
+            Color.jtSurface,
+            in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous)
+        )
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("Opens genre")
@@ -168,17 +239,14 @@ private struct GenreCard: View {
     }
 }
 
+private enum GenreMetrics {
+    static let iconSide: CGFloat = 48
+}
+
 struct GenreArtwork: View {
     let genre: Genre
 
     var body: some View {
-        if genre.imageTag != nil {
-            AuthenticatedArtworkView(
-                itemID: genre.id,
-                accessibilityLabel: "Artwork for \(genre.name)"
-            )
-        } else {
-            AudioMissingArtwork(label: genre.name, systemImage: "guitars")
-        }
+        JellytoneItemArtwork(itemID: genre.id, imageTag: genre.imageTag, name: genre.name)
     }
 }
