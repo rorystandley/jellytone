@@ -135,9 +135,9 @@ private struct MiniPlayerAccessoryView: View {
     private func transportButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: JellytoneTheme.Player.accessoryTransportIcon, weight: .semibold))
                 .foregroundStyle(Color.jtTextPrimary)
-                .frame(width: 34, height: 34)
+                .frame(width: JellytoneTheme.Player.miniTransport, height: JellytoneTheme.Player.miniTransport)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
@@ -145,16 +145,18 @@ private struct MiniPlayerAccessoryView: View {
     }
 }
 
+/// Shared artwork for Mini Player and Now Playing. Uses the themed local
+/// artwork component (gradient placeholder, never grey).
 struct NowPlayingArtwork: View {
     @ObservedObject var playback: PlaybackController
+    var cornerRadius: CGFloat = JellytoneTheme.Radius.largeArtwork
 
     var body: some View {
-        Group {
-            if let artwork = playback.artwork {
-                AudioArtwork(image: artwork, label: playback.currentTrack?.name ?? "current track")
-            } else {
-                AudioArtwork(image: nil, label: playback.currentTrack?.name ?? "current track")
-            }
-        }
+        JellytoneLocalArtwork(
+            image: playback.artwork,
+            label: playback.currentTrack?.name ?? "current track",
+            itemID: playback.currentTrack?.id,
+            cornerRadius: cornerRadius
+        )
     }
 }

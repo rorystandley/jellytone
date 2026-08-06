@@ -1,92 +1,60 @@
-# Repository agent instructions
+# Jellytone — Agent Instructions & Design Brief
 
-This repository is implemented and verified by coding agents. Do not assume a
-human will finish implementation, review, or QA.
+## Project
+Native iOS music client for a single Jellyfin server.
+XcodeGen project: Jellytone (project.yml authoritative).
+Swift 6, SwiftUI-first, iOS 18.4+, iPhone + iPad.
+Product SPM: GRDB only. No other third-party runtime deps in the app target.
+Hand-rolled JellyfinAPI (URLSession). No official Jellyfin SDK in product build.
 
-## Start here
+Targets: Jellytone (app), JellytoneTests, JellytoneUITests.
+No widgets / CarPlay / App Intents shipping yet (ADR 0011 design only).
 
-For selection-only requests:
+## Architecture (do not break)
+SwiftUI Features → AppModel → Domain → JellyfinGateway → LibraryStore (GRDB)
+PlaybackController is the **sole** queue/player owner.
+Cache-first browse. Fail-closed TLS. No wire types outside the gateway.
+Downloads verified via manifest; playback prefers local URL when verified.
 
-1. Verify the checkout, branch, and `git status`.
-2. Run `./scripts/next-work.sh`.
-3. Reconcile dirty or stale in-flight work before selecting anything new.
-4. Choose the first unblocked `NEXT` item in `docs/NEXT_WORK.md`.
-5. Report its release gate, owned surface, proof command, and blockers briefly.
+## Goal
+Premium connected music player with **Apple Music–level** visual and interaction quality
+(Spotify-level where it helps). Not feature parity with every Jellyfin client — quality of the primary surfaces first.
 
-Do not perform a repository-wide audit merely to select work. After selection,
-read only the relevant sections of `PRODUCT_PLAN.md`, `docs/ARCHITECTURE.md`,
-the named ADRs, implementation, and tests.
+## Target Information Architecture (Apple Music model)
+- Tab Bar:
+  - Home (Listen Now style)
+  - Browse or Library (hierarchical)
+  - Search
+  - (Downloads can stay as tab or move under Library — decide for consistency)
+- Persistent MiniPlayer above the tab bar when playing (iOS 26 tabViewBottomAccessory preferred)
+- Full-screen Now Playing that feels continuous with the MiniPlayer (expand/collapse, shared materials), not a disconnected sheet
+- Hierarchical push for Album / Artist / Playlist / Genre detail
+- Library categories: Playlists, Artists, Albums, Songs, Genres, Favourites, Downloads
 
-Authority order:
+## Priority Order (do not skip ahead without reason)
+1. Unify design system — migrate Now Playing, MiniPlayer, Queue, Search, Track catalog, Connection fully onto JellytoneTheme (kill dual AudioDesign look)
+2. Now Playing as primary surface — continuous expand from MiniPlayer, richer queue, silent prep (no “Preparing…” spinners)
+3. Search to Apple Music level — Top Results, Songs, Albums, Artists, Playlists; rich rows; useful idle state
+4. Library IA pass — dedicated Albums, denser lists/grids, consistent state chrome
+5. Loading consistency — skeletons everywhere primary content appears; cache-first; no layout jumps
+6. Connection / first-run polish
+7. Optional later: widgets, Live Activities, CarPlay (per ADR 0011)
 
-1. `PRODUCT_PLAN.md`: release scope and acceptance.
-2. `docs/NEXT_WORK.md`: current order and blockers.
-3. `docs/ARCHITECTURE.md`: boundaries and invariants.
-4. `docs/decisions/`: durable technical decisions.
-5. Tests, scripts, and machine evidence: proof.
+## UI & Loading Rules
+- One design system only: JellytoneTheme / jt* tokens.
+- Prefer skeletons / last-known content over ProgressView cards and full-screen spinners.
+- Silent buffering in the player; never block the chrome with “Preparing playback” labels if avoidable.
+- Match Apple Music density, spacing, materials, and typography as closely as practical.
 
-Do not add a second checklist or narrative status log. Update the queue whenever
-status changes and keep it under 120 lines.
+## Coding Rules
+- Keep PlaybackController as the only player/queue authority.
+- Do not rewrite networking, GRDB, or download verification unless explicitly asked.
+- Prefer SwiftUI + existing navigationDestination patterns.
+- Respect @MainActor and generation guards.
+- Update tests when changing view models / mappers / navigation.
+- After structural UI changes, confirm build + existing playback / lock-screen path still work.
 
-## Product boundary
-
-- Native iPhone/iPad Jellyfin music player only.
-- No video, spoken audio, server administration, or product cloud backend.
-- Version 1.0 is a premium personal connected-player for one server. Premium is
-  a UI/interaction quality bar, not permission to add deferred feature breadth.
-  `PRODUCT_PLAN.md` defines the exact contract.
-- Never weaken TLS, credentials, privacy, accessibility, or playback integrity
-  to pass a happy path.
-
-## Implementation rules
-
-- Preserve unrelated edits and reconcile in-flight work first.
-- Prefer small, reviewable slices with regression tests.
-- Keep wire/generated Jellyfin models behind the gateway/domain boundary.
-- Keep one authoritative playback queue and state owner.
-- Store tokens in Keychain; never log or commit credentials, private server
-  addresses, usernames, library data, signing material, or downloaded media.
-- Use deterministic clocks, identifiers, fixtures, and random sources in tests.
-- Never hand-edit the generated Xcode project; edit `project.yml` and regenerate.
-- Create or update an ADR for changes to platform/server support, dependencies,
-  persistence, playback, authentication/TLS, offline storage, extensions,
-  diagnostics, or release automation.
-
-Trace playback changes through app UI, restoration, Now Playing, remote commands,
-and offline/platform consumers that actually exist. Do not claim future surfaces
-because an SDK exposes an API.
-
-## Proof and handoff
-
-Stable entry points:
-
-- `./scripts/bootstrap.sh`
-- `./scripts/test.sh`
-- `./scripts/test-integration.sh`
-- `./scripts/test-ui.sh`
-- `./scripts/test-device.sh`
-- `./scripts/build-release.sh`
-
-Run focused tests while iterating and the full relevant gate before completion.
-A compile, subjective inspection, or promise of later manual QA is not proof.
-Use deterministic tests, simulator/UI evidence, measured media fixtures, and
-agent-operated device evidence as appropriate. A bug fix needs a regression test.
-
-If hardware, credentials, signing, entitlement, or an external service is
-unavailable, record the exact blocker and continue safe independent work; never
-waive the gate or substitute simulator evidence for device-only behavior.
-
-Every implementation handoff states:
-
-- release gate advanced and user-visible outcome;
-- files/modules changed;
-- commands and results;
-- simulator/device evidence and external blockers;
-- documentation/ADR updates;
-- final Git status and publication state.
-
-## Multi-agent work
-
-Use parallel agents only for bounded, low-overlap surfaces. Assign explicit file
-ownership, interfaces, outputs, and proof. The coordinating agent reviews diffs,
-integrates the app, runs the complete gate, and updates the queue.
+## When making changes
+- Focused, reviewable diffs.
+- Extract shared components early (rows, headers, skeletons).
+- Reference this file in every major change.

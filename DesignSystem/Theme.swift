@@ -59,6 +59,25 @@ enum JellytoneTheme {
         static let crossfade = Animation.easeInOut(duration: 0.25)
         /// Gentle pulse for skeleton placeholder blocks during a cold load.
         static let skeletonPulse = Animation.easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+        /// Standard content cross-fade (track change, lyrics toggle).
+        static let standard = Animation.easeInOut(duration: 0.28)
+        /// Snappy control-state change (play/pause, shuffle active).
+        static let quick = Animation.easeOut(duration: 0.18)
+    }
+
+    // MARK: Player chrome metrics (Mini Player + Now Playing + Queue)
+    enum Player {
+        static let miniArtwork: CGFloat = 38
+        static let miniTransport: CGFloat = 34
+        static let miniProgressHeight: CGFloat = 2
+        static let miniHorizontalInset: CGFloat = 8
+        static let miniBottomInset: CGFloat = 6
+        static let accessoryTransportIcon: CGFloat = 20
+        static let nowPlayingPrimary: CGFloat = 68
+        static let transportIcon: CGFloat = 20
+        static let transportSkipIcon: CGFloat = 26
+        static let nowPlayingArtworkMax: CGFloat = 290
+        static let queueArtwork: CGFloat = 38
     }
 
     // MARK: Hue wheel for generated artwork-placeholder gradients
@@ -472,4 +491,146 @@ extension ButtonStyle where Self == JellytoneChipButtonStyle {
 
 extension ToggleStyle where Self == JellytoneToggleStyle {
     static var jellytone: Self { .init() }
+}
+
+// MARK: - Transport buttons (Mini Player + Now Playing)
+
+/// Shared play/pause/skip/shuffle/repeat control used by player chrome only.
+/// Primary = solid white circle (Now Playing); compact = glass circle (legacy
+/// Mini Player); secondary = bare icon with active accent (shuffle/repeat).
+struct JellytoneTransportButton: View {
+    enum Kind {
+        case primary
+        case compact
+        case secondary
+    }
+
+    let systemImage: String
+    let label: String
+    var value: String? = nil
+    var kind: Kind = .secondary
+    var isActive = false
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(iconFont)
+                .foregroundStyle(foreground)
+                .frame(width: hitSide, height: hitSide)
+                .background(background)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+        .accessibilityLabel(label)
+        .accessibilityValue(value ?? (isActive ? "On" : "Off"))
+    }
+
+    private var hitSide: CGFloat {
+        switch kind {
+        case .primary: return JellytoneTheme.Player.nowPlayingPrimary
+        case .compact: return JellytoneTheme.Player.miniTransport
+        case .secondary: return 44
+        }
+    }
+
+    private var iconFont: Font {
+        switch kind {
+        case .primary:
+            return .system(size: JellytoneTheme.Player.nowPlayingPrimary * 0.34, weight: .semibold)
+        case .compact:
+            return .system(size: JellytoneTheme.Player.accessoryTransportIcon, weight: .semibold)
+        case .secondary:
+            // Skip arrows read larger than mode toggles (design-system.md §4.5).
+            let size = (systemImage.contains("backward") || systemImage.contains("forward"))
+                ? JellytoneTheme.Player.transportSkipIcon
+                : JellytoneTheme.Player.transportIcon
+            return .system(size: size, weight: .semibold)
+        }
+    }
+
+    private var foreground: Color {
+        switch kind {
+        case .primary: return .black
+        case .compact, .secondary: return isActive ? .jtAccent : Color.jtTextPrimary.opacity(0.85)
+        }
+    }
+
+    @ViewBuilder private var background: some View {
+        switch kind {
+        case .primary:
+            Circle().fill(Color.white)
+        case .compact:
+            Circle().fill(Color.white.opacity(0.14))
+        case .secondary:
+            Color.clear
+        }
+    }
+}
+
+// MARK: - Empty / loading state card (Queue, detail fallbacks)
+
+/// Compact empty/error/loading card used inside lists and player sheets.
+/// Replaces legacy `AudioStateView` on player chrome surfaces.
+struct JellytoneStateCard: View {
+    enum Kind { case loading, empty, error }
+
+    let kind: Kind
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(spacing: JellytoneTheme.Space.md) {
+            Group {
+                switch kind {
+                case .loading: ProgressView().controlSize(.large)
+                case .empty: Image(systemName: "music.note.list")
+                case .error: Image(systemName: "exclamationmark.triangle.fill")
+                }
+            }
+            .font(.jtSubsectionHeader)
+            .foregroundStyle(Color.jtAccent)
+            Text(title)
+                .font(.jtRowTitle)
+                .foregroundStyle(Color.jtTextPrimary)
+            Text(detail)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(JellytoneTheme.Space.lg)
+        .frame(maxWidth: 420)
+        .frame(maxWidth: .infinity)
+        .background(Color.jtSurface, in: RoundedRectangle(cornerRadius: JellytoneTheme.Radius.groupedCard, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Now-playing / local UIImage artwork (player chrome)
+
+/// Artwork for the active playback item. Prefers the in-memory image from
+/// `PlaybackController`; falls back to the generated gradient placeholder
+/// (never a grey box — design-system.md §6).
+struct JellytoneLocalArtwork: View {
+    let image: UIImage?
+    let label: String
+    var itemID: String? = nil
+    var cornerRadius: CGFloat = JellytoneTheme.Radius.largeArtwork
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                JellytoneTheme.placeholderGradient(
+                    hue: JellytoneTheme.placeholderHue(forID: itemID ?? label)
+                )
+            }
+        }
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityLabel(image == nil ? "No artwork for \(label)" : "Artwork for \(label)")
+    }
 }
