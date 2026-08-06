@@ -102,7 +102,12 @@ final class ConnectionScreenUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["夜明けの街で聴く A deliberately very long song title that should remain readable"].waitForExistence(timeout: 3))
         app.buttons["mini-player-details"].tap()
-        XCTAssertTrue(app.staticTexts["Preparing playback"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 3))
+        // Silent buffering: primary transport stays available (no spinner takeover).
+        XCTAssertTrue(app.buttons["Play"].waitForExistence(timeout: 3) || app.buttons["Pause"].waitForExistence(timeout: 3))
+        // Preparing is announced accessibly via a subtle indicator, not a blocking label.
+        let preparing = app.descendants(matching: .any)["preparing-playback"]
+        XCTAssertTrue(preparing.waitForExistence(timeout: 3))
         for _ in 0..<3 where !app.buttons["show-queue"].isHittable { app.swipeUp() }
         XCTAssertTrue(app.buttons["show-queue"].isHittable)
     }

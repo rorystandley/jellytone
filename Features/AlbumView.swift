@@ -267,9 +267,11 @@ func detailStateCard(title: String, detail: String, isLoading: Bool = false) -> 
 }
 
 /// Pre-iOS 26 fallback mini player (design-system.md §4.4). iOS 26 uses
-/// `tabViewBottomAccessory` in `MusicShellView` instead.
+/// Pre-iOS 26 fallback mini player. On iOS 26+ the system accessory in
+/// `MusicShellView` is used instead. Preparing is silent — play stays tappable.
 struct MiniPlayerView: View {
     @ObservedObject var playback: PlaybackController
+    var expansionNamespace: Namespace.ID
     let showPlayer: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -301,18 +303,20 @@ struct MiniPlayerView: View {
                 .accessibilityIdentifier("mini-player-details")
                 .accessibilityLabel("Now playing \(playback.currentTrack?.name ?? "") by \(playback.currentTrack?.artist ?? "")")
                 .accessibilityHint("Opens Now Playing")
+                .matchedTransitionSource(id: PlayerExpansion.sourceID, in: expansionNamespace)
+
                 if playback.isPreparing {
-                    ProgressView("Preparing playback")
-                        .controlSize(.small)
-                        .frame(width: JellytoneTheme.Player.miniTransport, height: JellytoneTheme.Player.miniTransport)
-                } else {
-                    JellytoneTransportButton(
-                        systemImage: playback.isPlaying ? "pause.fill" : "play.fill",
-                        label: playback.isPlaying ? "Pause" : "Play",
-                        kind: .compact,
-                        action: playback.toggle
-                    )
+                    PlayerPreparingIndicator(style: .mini)
                 }
+
+                JellytoneTransportButton(
+                    systemImage: playback.isPlaying ? "pause.fill" : "play.fill",
+                    label: playback.isPlaying ? "Pause" : "Play",
+                    kind: .compact,
+                    action: playback.toggle
+                )
+                .accessibilityHint(playback.isPreparing ? "Preparing playback" : "")
+
                 JellytoneTransportButton(
                     systemImage: "forward.end.fill",
                     label: "Next track",
@@ -329,9 +333,13 @@ struct MiniPlayerView: View {
         .padding(.horizontal, JellytoneTheme.Player.miniHorizontalInset)
         .padding(.bottom, JellytoneTheme.Player.miniBottomInset)
         .animation(reduceMotion ? nil : JellytoneTheme.Motion.quick, value: playback.isPlaying)
+        .animation(reduceMotion ? nil : JellytoneTheme.Motion.quick, value: playback.isPreparing)
     }
 }
 
+/// Full-screen Now Playing — continuous expansion target for the mini player
+/// (zoom transition + shared materials family). Silent buffering: transport and
+/// chrome stay usable while a track prepares (AGENTS.md Priority 2).
 struct NowPlayingView: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var playback: PlaybackController
@@ -347,14 +355,17 @@ struct NowPlayingView: View {
             GeometryReader { proxy in
                 ScrollView {
                     VStack(spacing: dynamicTypeSize.isAccessibilitySize ? JellytoneTheme.Space.md : JellytoneTheme.Space.xl) {
-                        if showingLyrics, let lyrics {
-                            LyricsView(lyrics: lyrics, playback: playback)
-                                .frame(height: artworkSize(for: proxy.size.width))
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            NowPlayingArtwork(playback: playback)
-                                .frame(width: artworkSize(for: proxy.size.width), height: artworkSize(for: proxy.size.width))
-                                .shadow(color: .black.opacity(0.5), radius: 30, y: 15)
+                        let artSide = artworkSize(for: proxy.size.width)
+                        if artSide > 0 {
+                            if showingLyrics, let lyrics {
+                                LyricsView(lyrics: lyrics, playback: playback)
+                                    .frame(height: artSide)
+                                    .frame(maxWidth: .infinity)
+                            } else {
+                                NowPlayingArtwork(playback: playback)
+                                    .frame(width: artSide, height: artSide)
+                                    .shadow(color: .black.opacity(0.5), radius: 30, y: 15)
+                            }
                         }
 
                         HStack(alignment: .top, spacing: JellytoneTheme.Space.md) {
@@ -395,6 +406,8 @@ struct NowPlayingView: View {
                             .foregroundStyle(Color.jtTextTertiary)
                         }
 
+                        // Transport always remains interactive during prepare/buffer —
+                        // no spinner takeover of the primary control.
                         HStack(spacing: dynamicTypeSize.isAccessibilitySize ? JellytoneTheme.Space.sm : JellytoneTheme.Space.lg) {
                             JellytoneTransportButton(
                                 systemImage: "shuffle",
@@ -412,17 +425,14 @@ struct NowPlayingView: View {
                             )
                             .disabled(!playback.canGoPrevious)
                             .opacity(playback.canGoPrevious ? 1 : 0.4)
-                            if playback.isPreparing {
-                                ProgressView("Preparing playback")
-                                    .frame(width: JellytoneTheme.Player.nowPlayingPrimary, height: JellytoneTheme.Player.nowPlayingPrimary)
-                            } else {
-                                JellytoneTransportButton(
-                                    systemImage: playback.isPlaying ? "pause.fill" : "play.fill",
-                                    label: playback.isPlaying ? "Pause" : "Play",
-                                    kind: .primary,
-                                    action: playback.toggle
-                                )
-                            }
+                            JellytoneTransportButton(
+                                systemImage: playback.isPlaying ? "pause.fill" : "play.fill",
+                                label: playback.isPlaying ? "Pause" : "Play",
+                                kind: .primary,
+                                action: playback.toggle
+                            )
+                            .accessibilityHint(playback.isPreparing ? "Preparing playback" : "")
+                            .opacity(playback.isPreparing ? 0.92 : 1)
                             JellytoneTransportButton(
                                 systemImage: "forward.end.fill",
                                 label: "Next track",
@@ -442,11 +452,23 @@ struct NowPlayingView: View {
                         }
                         .frame(maxWidth: .infinity)
 
+                        // Footer: quality (+ silent prep) · lyrics · queue — one chrome family.
                         HStack(spacing: JellytoneTheme.Space.md) {
-                            Label(playback.qualityLabel, systemImage: "waveform")
-                                .font(.jtCaption)
-                                .foregroundStyle(Color.jtTextTertiary)
-                            Spacer()
+                            HStack(spacing: JellytoneTheme.Space.sm) {
+                                if playback.isPreparing {
+                                    PlayerPreparingIndicator(style: .footer)
+                                }
+                                if !footerQualityLabel.isEmpty {
+                                    Label(footerQualityLabel, systemImage: "waveform")
+                                        .font(.jtCaption)
+                                        .foregroundStyle(Color.jtTextTertiary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .accessibilityElement(children: .combine)
+
+                            Spacer(minLength: JellytoneTheme.Space.sm)
+
                             if lyrics != nil {
                                 Button {
                                     withAnimation(reduceMotion ? nil : JellytoneTheme.Motion.crossfade) {
@@ -460,12 +482,27 @@ struct NowPlayingView: View {
                                 .accessibilityIdentifier("now-playing-lyrics-toggle")
                                 .accessibilityLabel(showingLyrics ? "Hide lyrics" : "Show lyrics")
                             }
+
+                            Button {
+                                showingQueue = true
+                            } label: {
+                                Image(systemName: "list.bullet")
+                                    .font(.system(size: JellytoneTheme.Player.transportIcon, weight: .semibold))
+                                    .foregroundStyle(Color.jtTextSecondary)
+                                    .frame(width: JellytoneTheme.Player.miniTransport, height: JellytoneTheme.Player.miniTransport)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                            .accessibilityIdentifier("show-queue")
+                            .accessibilityLabel("Queue")
+                            .accessibilityHint("Shows the current queue")
                         }
                     }
                     .frame(maxWidth: min(proxy.size.width - (JellytoneTheme.Space.screenMargin * 2), 620))
                     .padding(.horizontal, JellytoneTheme.Space.screenMargin)
                     .padding(.vertical, JellytoneTheme.Space.lg)
                     .animation(reduceMotion ? nil : JellytoneTheme.Motion.standard, value: playback.currentTrack?.id)
+                    .animation(reduceMotion ? nil : JellytoneTheme.Motion.quick, value: playback.isPreparing)
                 }
             }
             .task(id: playback.currentTrack?.id) {
@@ -480,23 +517,53 @@ struct NowPlayingView: View {
             .background(JellytoneDetailBackdrop(tint: .black) { backdropArtwork })
             .tint(Color.jtAccent)
             .toolbarBackground(.hidden, for: .navigationBar)
+            // Keep a stable "Now Playing" title for a11y / UI tests; album sits in the metadata block.
             .navigationTitle("Now Playing")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Chevron-down close matches Apple Music / design-system §4.5.
+                // Queue lives in the footer with lyrics/quality (same component family).
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Queue", systemImage: "list.bullet") { showingQueue = true }
-                        .accessibilityIdentifier("show-queue")
-                        .accessibilityHint("Shows the current queue")
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.jtCaption.weight(.semibold))
+                            .foregroundStyle(Color.jtTextPrimary)
+                            .frame(width: JellytoneTheme.Player.miniTransport, height: JellytoneTheme.Player.miniTransport)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                    .accessibilityLabel("Close")
+                    .accessibilityHint("Dismisses Now Playing")
                 }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
-            .sheet(isPresented: $showingQueue) { PlaybackQueueView(playback: playback) }
+            // Queue is a push inside this stack — integrated, not a second foreign sheet.
+            .navigationDestination(isPresented: $showingQueue) {
+                PlaybackQueueView(playback: playback)
+            }
         }
         // Now Playing is dark regardless of the app's light/dark setting, so
         // its adaptive text/controls resolve to their dark (light-coloured)
         // variants over the artwork wash.
         .preferredColorScheme(.dark)
+        // Full-height sheet that still supports interactive swipe-to-dismiss back
+        // to the mini player; drag indicator reinforces the continuous surface.
         .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .presentationContentInteraction(.scrolls)
+        .interactiveDismissDisabled(false)
+    }
+
+    /// Prefer real quality tags; de-emphasize loud preparing copy in the footer
+    /// (spinner carries the state). Empty string hides the label while preparing
+    /// if the controller still says "Preparing…".
+    private var footerQualityLabel: String {
+        let label = playback.qualityLabel
+        if playback.isPreparing, label == "Preparing…" || label == "Buffering…" {
+            return ""
+        }
+        return label
     }
 
     @ViewBuilder private var backdropArtwork: some View {
@@ -518,10 +585,12 @@ struct NowPlayingView: View {
     }
 
     private func artworkSize(for availableWidth: CGFloat) -> CGFloat {
+        // GeometryReader can report 0 during the zoom expand; avoid negative frames.
+        guard availableWidth.isFinite, availableWidth > 1 else { return 0 }
         if availableWidth > 700 {
             return min(availableWidth * 0.38, JellytoneTheme.Player.nowPlayingArtworkMax + 10)
         }
-        return min(availableWidth - JellytoneTheme.Space.xxxl * 1.5, 560)
+        return max(0, min(availableWidth - JellytoneTheme.Space.xxxl * 1.5, 560))
     }
 
     private func time(_ seconds: TimeInterval) -> String {
@@ -581,97 +650,87 @@ private struct LyricsView: View {
     }
 }
 
+/// Queue as a push destination inside Now Playing's stack — same design language,
+/// back-chevron return (no nested sheet-on-sheet).
 private struct PlaybackQueueView: View {
     @ObservedObject var playback: PlaybackController
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            List {
-                if let current = playback.currentTrack {
-                    Section {
-                        QueueTrackRow(track: current, isCurrent: true)
-                            .listRowBackground(
-                                RoundedRectangle(cornerRadius: JellytoneTheme.Radius.compactArtwork, style: .continuous)
-                                    .fill(Color.jtAccentDim)
-                                    .padding(.vertical, JellytoneTheme.Space.xxs)
-                            )
-                            .accessibilityHint("Currently playing. This track cannot be removed.")
-                    } header: {
-                        Text("Now Playing")
-                            .font(.jtCaption)
-                            .foregroundStyle(Color.jtTextTertiary)
-                            .textCase(.uppercase)
-                    }
-                }
+        List {
+            if let current = playback.currentTrack {
                 Section {
-                    if playback.upcomingEntries.isEmpty {
-                        JellytoneStateCard(
-                            kind: .empty,
-                            title: "Nothing Up Next",
-                            detail: "The current track will keep playing."
+                    QueueTrackRow(track: current, isCurrent: true)
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: JellytoneTheme.Radius.compactArtwork, style: .continuous)
+                                .fill(Color.jtAccentDim)
+                                .padding(.vertical, JellytoneTheme.Space.xxs)
                         )
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(
-                            top: JellytoneTheme.Space.sm,
-                            leading: JellytoneTheme.Space.screenMargin,
-                            bottom: JellytoneTheme.Space.sm,
-                            trailing: JellytoneTheme.Space.screenMargin
-                        ))
-                    } else {
-                        ForEach(playback.upcomingEntries) { entry in
-                            Button { playback.jump(to: entry.id) } label: {
-                                QueueTrackRow(track: entry.track, isCurrent: false)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Play \(entry.track.name) by \(entry.track.artist)")
-                            .accessibilityHint("Jumps to this track")
-                            .accessibilityAction(named: "Move Earlier") {
-                                playback.moveUpcoming(entryID: entry.id, by: -1)
-                            }
-                            .accessibilityAction(named: "Move Later") {
-                                playback.moveUpcoming(entryID: entry.id, by: 1)
-                            }
-                            .accessibilityAction(named: "Remove from Up Next") {
-                                playback.removeUpcoming(entryIDs: [entry.id])
-                            }
-                        }
-                        .onMove(perform: playback.moveUpcoming)
-                        .onDelete(perform: playback.removeUpcoming)
-                    }
+                        .accessibilityHint("Currently playing. This track cannot be removed.")
                 } header: {
-                    Text("Up Next")
+                    Text("Now Playing")
                         .font(.jtCaption)
                         .foregroundStyle(Color.jtTextTertiary)
                         .textCase(.uppercase)
                 }
-                if !playback.upcomingEntries.isEmpty {
-                    Section {
-                        Button("Clear Up Next", systemImage: "text.badge.minus") {
-                            playback.clearUpNext()
-                        }
-                        .foregroundStyle(Color.jtAccent)
-                        .accessibilityHint("Keeps the current track playing")
-                    }
-                }
             }
-            .navigationTitle("Queue")
-            .navigationBarTitleDisplayMode(.inline)
-            .scrollContentBackground(.hidden)
-            .background(Color.jtBackground)
-            .tint(Color.jtAccent)
-            .toolbar {
-                if !playback.upcomingEntries.isEmpty {
-                    ToolbarItemGroup(placement: .topBarLeading) {
-                        EditButton()
-                        Button("Clear Up Next") { playback.clearUpNext() }
-                            .accessibilityHint("Keeps the current track playing")
+            Section {
+                if playback.upcomingEntries.isEmpty {
+                    JellytoneStateCard(
+                        kind: .empty,
+                        title: "Nothing Up Next",
+                        detail: "The current track will keep playing."
+                    )
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(
+                        top: JellytoneTheme.Space.sm,
+                        leading: JellytoneTheme.Space.screenMargin,
+                        bottom: JellytoneTheme.Space.sm,
+                        trailing: JellytoneTheme.Space.screenMargin
+                    ))
+                } else {
+                    ForEach(playback.upcomingEntries) { entry in
+                        Button { playback.jump(to: entry.id) } label: {
+                            QueueTrackRow(track: entry.track, isCurrent: false)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Play \(entry.track.name) by \(entry.track.artist)")
+                        .accessibilityHint("Jumps to this track")
+                        .accessibilityAction(named: "Move Earlier") {
+                            playback.moveUpcoming(entryID: entry.id, by: -1)
+                        }
+                        .accessibilityAction(named: "Move Later") {
+                            playback.moveUpcoming(entryID: entry.id, by: 1)
+                        }
+                        .accessibilityAction(named: "Remove from Up Next") {
+                            playback.removeUpcoming(entryIDs: [entry.id])
+                        }
                     }
+                    .onMove(perform: playback.moveUpcoming)
+                    .onDelete(perform: playback.removeUpcoming)
                 }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            } header: {
+                Text("Up Next")
+                    .font(.jtCaption)
+                    .foregroundStyle(Color.jtTextTertiary)
+                    .textCase(.uppercase)
             }
         }
-        .presentationDetents([.medium, .large])
+        .navigationTitle("Queue")
+        .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .background(Color.jtBackground)
+        .tint(Color.jtAccent)
+        .toolbar {
+            if !playback.upcomingEntries.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    EditButton()
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Clear Up Next") { playback.clearUpNext() }
+                        .accessibilityHint("Keeps the current track playing")
+                }
+            }
+        }
     }
 }
 
