@@ -11,6 +11,7 @@ struct JellytoneApp: App {
             RootView()
                 .environmentObject(model)
                 .preferredColorScheme(appearance.colorScheme)
+                .onAppear { JellytoneHaptics.prepare() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {

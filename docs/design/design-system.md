@@ -199,3 +199,21 @@ Minimum text size anywhere in the app is 10px (tab bar label) — never go small
 - Don't use hover states (this is a touch app — only rest and pressed/active states exist).
 - Don't add numbered eyebrow labels, icons, or hairline rules to section headers (previously used, both have been removed — keep it plain text only).
 - Don't drop below the minimum type sizes in §2 (10px absolute floor, and only for the tab bar label).
+
+---
+## 8. Haptics
+
+Purposeful, short, interruptible — matching `PRODUCT_PLAN.md` and `AGENTS.md`.
+Implementation: `DesignSystem/Haptics.swift` (`JellytoneHaptics`).
+
+| Cue | Where |
+| --- | --- |
+| **Light impact** | Transport (skip / shuffle / repeat), play-from-library rows, secondary capsules, download start, queue jump, lyrics toggle |
+| **Medium impact** | Primary play/pause, favouriting on |
+| **Soft impact** | Unfavourite, nav chrome, expand/collapse Now Playing |
+| **Selection** | Alphabet index scrub, Now Playing seek ticks, toggles, chips, appearance picker |
+| **Success** | Successful server connect |
+| **Warning** | Remove download, clear cache, sign out, clear up-next |
+| **Error** | Failed connect |
+
+**Do not** fire haptics on ordinary navigation-row presses (Library category, album grid, search result push). System haptic settings are respected automatically; do not gate on Reduce Motion.
