@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 // The production gateway's diagnostic call sites remain compiled and executed,
 // but the host harness does not write into the macOS user's Documents folder.
