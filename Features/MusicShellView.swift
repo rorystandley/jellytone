@@ -27,6 +27,7 @@ struct MusicShellView: View {
                             playback: model.playback,
                             expansionNamespace: playerExpansion
                         ) {
+                            JellytoneHaptics.play(.soft)
                             showingPlayer = true
                         }
                     }
@@ -82,6 +83,7 @@ struct MusicShellView: View {
                 playback: model.playback,
                 expansionNamespace: playerExpansion
             ) {
+                JellytoneHaptics.play(.soft)
                 showingPlayer = true
             }
         }
@@ -163,7 +165,10 @@ private struct MiniPlayerAccessoryView: View {
     }
 
     private func transportButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            JellytoneHaptics.transport()
+            action()
+        } label: {
             Image(systemName: systemImage)
                 .font(.system(size: JellytoneTheme.Player.accessoryTransportIcon, weight: .semibold))
                 .foregroundStyle(Color.jtTextPrimary)

@@ -8,6 +8,8 @@ import SwiftUI
 // `JellytoneTheme.*`, the `Color`/`Font` extensions below, and the
 // ButtonStyle/ViewModifier helpers at the bottom. Semantic colours live in the
 // asset catalog (light/dark variants) under the same JT-prefixed names.
+// Haptics live in `Haptics.swift` (`JellytoneHaptics`) and are wired through
+// shared controls plus intentional AppModel / DownloadManager entry points.
 
 enum JellytoneTheme {
 
@@ -350,11 +352,18 @@ struct JellytoneSkeletonGrid: View {
 
 struct JellytonePressScaleStyle: ButtonStyle {
     var scale: CGFloat = JellytoneTheme.Motion.pressScaleDefault
+    /// Optional press-down haptic. Leave `nil` for navigation rows; use `.light`
+    /// / `.selection` for intentional controls that aren't covered elsewhere.
+    var haptic: JellytoneHaptics.Style? = nil
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? scale : 1)
             .animation(JellytoneTheme.Motion.press, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                guard pressed, let haptic else { return }
+                JellytoneHaptics.play(haptic)
+            }
     }
 }
 
@@ -384,6 +393,17 @@ struct JellytoneCapsuleButtonStyle: ButtonStyle {
             .clipShape(Capsule())
             .scaleEffect(configuration.isPressed ? JellytoneTheme.Motion.pressScaleLarge : 1)
             .animation(JellytoneTheme.Motion.press, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                // Primary capsules usually fire a semantic haptic from AppModel
+                // (play/shuffle). Keep press-haptics for secondary/retry only.
+                guard pressed else { return }
+                switch kind {
+                case .primaryOverArtwork, .primaryFlat:
+                    break
+                case .secondaryOverArtwork, .secondaryFlat:
+                    JellytoneHaptics.play(.light)
+                }
+            }
     }
 
     @ViewBuilder private var background: some View {
@@ -440,6 +460,17 @@ struct JellytoneIconButtonStyle: ButtonStyle {
             .clipShape(Circle())
             .scaleEffect(configuration.isPressed ? JellytoneTheme.Motion.pressScaleSmall : 1)
             .animation(JellytoneTheme.Motion.press, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                guard pressed else { return }
+                switch kind {
+                case .transportPrimary:
+                    JellytoneHaptics.primaryAction()
+                case .transportCompact, .detailAction:
+                    JellytoneHaptics.transport()
+                case .nav:
+                    JellytoneHaptics.play(.soft)
+                }
+            }
     }
 
     @ViewBuilder private var background: some View {
@@ -482,6 +513,7 @@ struct JellytoneToggleStyle: ToggleStyle {
                     alignment: configuration.isOn ? .trailing : .leading
                 )
                 .onTapGesture {
+                    JellytoneHaptics.toggle()
                     withAnimation(JellytoneTheme.Motion.toggleSpring) {
                         configuration.isOn.toggle()
                     }
@@ -510,11 +542,20 @@ struct JellytoneChipButtonStyle: ButtonStyle {
             }
             .scaleEffect(configuration.isPressed ? JellytoneTheme.Motion.pressScaleDefault : 1)
             .animation(JellytoneTheme.Motion.press, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                guard pressed else { return }
+                JellytoneHaptics.chip()
+            }
     }
 }
 
 extension ButtonStyle where Self == JellytonePressScaleStyle {
-    static func jtPressScale(_ scale: CGFloat = JellytoneTheme.Motion.pressScaleDefault) -> Self { .init(scale: scale) }
+    static func jtPressScale(
+        _ scale: CGFloat = JellytoneTheme.Motion.pressScaleDefault,
+        haptic: JellytoneHaptics.Style? = nil
+    ) -> Self {
+        .init(scale: scale, haptic: haptic)
+    }
 }
 
 extension ButtonStyle where Self == JellytoneCapsuleButtonStyle {
@@ -553,7 +594,15 @@ struct JellytoneTransportButton: View {
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            switch kind {
+            case .primary:
+                JellytoneHaptics.primaryAction()
+            case .compact, .secondary:
+                JellytoneHaptics.transport()
+            }
+            action()
+        } label: {
             Image(systemName: systemImage)
                 .font(iconFont)
                 .foregroundStyle(foreground)

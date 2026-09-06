@@ -102,6 +102,7 @@ struct SettingsView: View {
             infoRow(label: "Image Cache", value: imageCacheLabel)
             rowDivider
             Button {
+                JellytoneHaptics.destructive()
                 Task {
                     await ArtworkCache.shared.clear()
                     imageCacheBytes = await ArtworkCache.shared.diskBytes()
@@ -189,6 +190,8 @@ private struct AppearanceSettingsView: View {
 
     private func appearanceOption(_ preference: AppearancePreference) -> some View {
         Button {
+            guard appearance != preference else { return }
+            JellytoneHaptics.toggle()
             appearance = preference
         } label: {
             HStack(spacing: JellytoneTheme.Space.md) {

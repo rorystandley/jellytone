@@ -111,6 +111,8 @@ struct ConnectionView: View {
 
     private var connectButton: some View {
         Button {
+            // Immediate press cue from #10; connect success/error haptics fire in AppModel.
+            JellytoneHaptics.play(.light)
             if URLComponents(string: server)?.scheme?.lowercased() == "http" {
                 showingHTTPWarning = true
             } else {
