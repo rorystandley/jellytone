@@ -19,6 +19,5 @@ Follow `AGENTS.md` for repository workflow, authority order, and proof rules.
   `JellytoneTheme.Space` / `JellytoneTheme.Radius` values only.
 - The HTML mockups in `docs/design/` are the visual reference; `design-system.md`
   wins if they disagree.
-- `DesignSystem/AudioDesignSystem.swift` is the legacy system; screens are being
-  migrated to `Theme.swift` incrementally (Home is done). Do not use
-  `AudioDesign` in new or refactored UI.
+- Sole UI system: `DesignSystem/Theme.swift` (+ `Haptics.swift`). Do not
+  reintroduce a parallel design layer or raw styling outside `jt*` tokens.
