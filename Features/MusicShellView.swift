@@ -58,6 +58,7 @@ struct MusicShellView: View {
                         .navigationDestination(for: Album.self) { AlbumView(album: $0) }
                         .navigationDestination(for: Artist.self) { ArtistView(artist: $0) }
                         .navigationDestination(for: Playlist.self) { PlaylistDetailView(playlist: $0) }
+                        .navigationDestination(for: Genre.self) { GenreDetailView(genre: $0) }
                 }
             }
             Tab("Library", systemImage: "square.stack.fill") {

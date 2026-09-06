@@ -46,8 +46,10 @@ and entering another URL is sufficient.
   states at compact and regular widths.
 
 Advanced sort/filter modes, alphabetical navigation, playlist creation and
-membership editing, artist/album favourite writes, downloads, discovery mixes,
-and frequently played shelves are deferred. Existing track favourite and
+membership editing, artist/album favourite writes, and downloads are deferred.
+Home Listen Now discovery mixes (Instant Mix), frequently played albums,
+rediscover, and genre chips are in scope — they reuse existing Jellyfin item
+queries rather than a recommendation service. Existing track favourite and
 playlist rename writes may ship when their retry/conflict behavior remains
 proven, but are not a reason to broaden the release.
 

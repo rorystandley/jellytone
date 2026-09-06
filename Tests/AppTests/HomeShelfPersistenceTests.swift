@@ -35,7 +35,39 @@ final class HomeShelfPersistenceTests: XCTestCase {
         XCTAssertEqual(decoded.recentlyAddedAlbums.first?.id, "album-a")
         XCTAssertEqual(decoded.madeForYouPlaylists, [])
         XCTAssertEqual(decoded.favouriteArtists, [])
+        XCTAssertEqual(decoded.frequentlyPlayedAlbums, [])
+        XCTAssertEqual(decoded.rediscoverAlbums, [])
+        XCTAssertEqual(decoded.discoveryMixes, [])
+        XCTAssertEqual(decoded.homeGenres, [])
     }
+
+
+        func testListenNowShelvesRoundTripThroughPersistence() async throws {
+        let databaseURL = temporaryDatabaseURL()
+        let scope = LibraryScope(serverID: "server-a", accountID: "account-a")
+        let mix = DiscoveryMix(
+            id: "mix-artist-1",
+            seedItemID: "artist-1",
+            seedKind: .artist,
+            title: "Artist Mix",
+            subtitle: "Made for You",
+            artworkItemID: "artist-1",
+            imageTag: "tag-1"
+        )
+        let snapshot = HomeShelfSnapshot(
+            recentlyAddedAlbums: [],
+            recentlyPlayedTracks: [],
+            frequentlyPlayedAlbums: [Album(id: "top-1", name: "Top Album", artist: "Artist", productionYear: 2020, imageTag: nil)],
+            rediscoverAlbums: [Album(id: "rand-1", name: "Buried Album", artist: "Artist", productionYear: nil, imageTag: nil)],
+            discoveryMixes: [mix],
+            homeGenres: [Genre(id: "genre-1", name: "Electronic", imageTag: nil, itemCount: 12, albumCount: 3)]
+        )
+        let store = try SQLiteLibraryStore(databaseURL: databaseURL)
+        try await store.replaceHomeShelfSnapshot(snapshot, scope: scope, libraryID: "library-a")
+        let cached = try await store.cachedHomeShelfSnapshot(scope: scope, libraryID: "library-a")
+        XCTAssertEqual(cached, snapshot)
+    }
+
 
     func testReplacementIsAtomicAndScopedByServerAccountAndLibrary() async throws {
         let databaseURL = temporaryDatabaseURL()

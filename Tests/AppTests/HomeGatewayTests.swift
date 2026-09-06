@@ -52,8 +52,11 @@ final class HomeGatewayTests: XCTestCase {
 
         _ = try await api.recentlyAddedAlbums(userID: "account/id", libraryID: "library/id", limit: 999)
         _ = try await api.recentlyPlayedTracks(userID: "account/id", libraryID: "library/id", limit: 0)
+        _ = try await api.frequentlyPlayedAlbums(userID: "account/id", libraryID: "library/id", limit: 16)
+        _ = try await api.rediscoverAlbums(userID: "account/id", libraryID: "library/id", limit: 16)
+        _ = try await api.instantMixTracks(userID: "account/id", itemID: "seed-artist", limit: 50)
 
-        XCTAssertEqual(requests.count, 2)
+        XCTAssertEqual(requests.count, 5)
         let added = try query(requests[0])
         XCTAssertEqual(added["userId"], "account/id")
         XCTAssertEqual(added["ParentId"], "library/id")
@@ -72,9 +75,30 @@ final class HomeGatewayTests: XCTestCase {
         XCTAssertEqual(played["SortBy"], "DatePlayed")
         XCTAssertEqual(played["SortOrder"], "Descending")
         XCTAssertEqual(played["Limit"], "1")
+
+        let top = try query(requests[2])
+        XCTAssertEqual(top["userId"], "account/id")
+        XCTAssertEqual(top["ParentId"], "library/id")
+        XCTAssertEqual(top["IncludeItemTypes"], "MusicAlbum")
+        XCTAssertEqual(top["SortBy"], "PlayCount,SortName")
+        XCTAssertEqual(top["SortOrder"], "Descending")
+        XCTAssertEqual(top["Limit"], "16")
+
+        let rediscover = try query(requests[3])
+        XCTAssertEqual(rediscover["SortBy"], "Random")
+        XCTAssertEqual(rediscover["IncludeItemTypes"], "MusicAlbum")
+        XCTAssertEqual(rediscover["ParentId"], "library/id")
+
+        let mixRequest = requests[4]
+        let mixComponents = try XCTUnwrap(mixRequest.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) })
+        XCTAssertEqual(mixComponents.path, "/reverse-proxy/Items/seed-artist/InstantMix")
+        let mix = try query(mixRequest)
+        XCTAssertEqual(mix["userId"], "account/id")
+        XCTAssertEqual(mix["Limit"], "50")
+
         for request in requests {
             let components = try XCTUnwrap(request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) })
-            XCTAssertEqual(components.path, "/reverse-proxy/Items")
+            XCTAssertTrue(components.path.hasPrefix("/reverse-proxy/Items"), components.path)
             XCTAssertEqual(request.value(forHTTPHeaderField: "X-Emby-Token"), "synthetic-secret")
             XCTAssertFalse(components.url?.absoluteString.contains("synthetic-secret") == true)
         }

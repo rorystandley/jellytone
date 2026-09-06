@@ -37,6 +37,11 @@ struct HomeLibraryView: View {
             || !(model.homeSnapshot?.recentlyAddedAlbums.isEmpty ?? true)
             || !(model.homeSnapshot?.recentlyPlayedTracks.isEmpty ?? true)
             || !(model.homeSnapshot?.favouriteArtists.isEmpty ?? true)
+            || !(model.homeSnapshot?.discoveryMixes.isEmpty ?? true)
+            || !(model.homeSnapshot?.frequentlyPlayedAlbums.isEmpty ?? true)
+            || !(model.homeSnapshot?.rediscoverAlbums.isEmpty ?? true)
+            || !(model.homeSnapshot?.homeGenres.isEmpty ?? true)
+            || !(model.homeSnapshot?.madeForYouPlaylists.isEmpty ?? true)
     }
 
     @ViewBuilder private var content: some View {
@@ -46,16 +51,20 @@ struct HomeLibraryView: View {
             }
         } else if !hasContent, !model.isRefreshingHome, model.homeSnapshot != nil {
             HomeStateCard(title: "Nothing recent yet",
-                          detail: "Recently added albums and recently played music will appear here.")
+                          detail: "Top albums, mixes, and recently played music from this library will appear here.")
         } else {
             GeometryReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: JellytoneTheme.Space.xl) {
                         HomeHeroSection(playback: model.playback, topInset: proxy.safeAreaInsets.top)
-                        recentlyAddedSection
-                        favouriteArtistsSection
                         madeForYouSection
+                        topAlbumsSection
+                        favouriteArtistsSection
                         recentlyPlayedSection
+                        rediscoverSection
+                        recentlyAddedSection
+                        playlistsSection
+                        genresSection
                         if hasContent, let error = model.homeRefreshError { partialFailure(message: error) }
                     }
                     .padding(.bottom, JellytoneTheme.Space.xxxl)
@@ -158,22 +167,114 @@ struct HomeLibraryView: View {
         }
     }
 
-    // MARK: Made For You
+    // MARK: Made For You (Instant Mixes)
 
-    // Cached with the rest of the Home snapshot — paints from the last
-    // persisted shelf and silently updates when the refresh lands.
-    private var madeForYouPlaylists: [Playlist] {
-        model.homeSnapshot?.madeForYouPlaylists ?? []
+    private var discoveryMixes: [DiscoveryMix] {
+        model.homeSnapshot?.discoveryMixes ?? []
     }
 
     @ViewBuilder private var madeForYouSection: some View {
-        if !madeForYouPlaylists.isEmpty {
+        if !discoveryMixes.isEmpty {
             VStack(alignment: .leading, spacing: JellytoneTheme.Space.lg) {
-                HomeSectionHeader(title: "Made For You")
+                HomeSectionHeader(title: "Made for You")
                     .padding(.horizontal, JellytoneTheme.Space.screenMargin)
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: JellytoneTheme.Space.md) {
-                        ForEach(madeForYouPlaylists) { playlist in
+                        ForEach(discoveryMixes) { mix in
+                            Button {
+                                Task { await model.playDiscoveryMix(mix) }
+                            } label: {
+                                HomeShelfTile(
+                                    itemID: mix.artworkItemID,
+                                    imageTag: mix.imageTag,
+                                    title: mix.title,
+                                    subtitle: mix.subtitle
+                                )
+                            }
+                            .buttonStyle(.jtPressScale())
+                            .accessibilityIdentifier("home-discovery-mix-\(mix.id)")
+                            .accessibilityLabel("\(mix.title), \(mix.subtitle)")
+                            .accessibilityHint("Starts an Instant Mix")
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                }
+                .scrollTargetBehavior(.viewAligned)
+            }
+        }
+    }
+
+    // MARK: Top Albums
+
+    private var frequentlyPlayedAlbums: [Album] {
+        model.homeSnapshot?.frequentlyPlayedAlbums ?? []
+    }
+
+    @ViewBuilder private var topAlbumsSection: some View {
+        if !frequentlyPlayedAlbums.isEmpty {
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.lg) {
+                HomeSectionHeader(title: "Top Albums")
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: JellytoneTheme.Space.lg) {
+                        ForEach(frequentlyPlayedAlbums) { album in
+                            NavigationLink(value: album) { HomeAlbumCard(album: album) }
+                                .buttonStyle(.jtPressScale())
+                                .accessibilityIdentifier("home-top-album-\(album.id)")
+                        }
+                    }
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                    .padding(.vertical, JellytoneTheme.Space.sm)
+                }
+            }
+        }
+    }
+
+    // MARK: Rediscover
+
+    private var rediscoverAlbums: [Album] {
+        model.homeSnapshot?.rediscoverAlbums ?? []
+    }
+
+    @ViewBuilder private var rediscoverSection: some View {
+        if !rediscoverAlbums.isEmpty {
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.lg) {
+                HomeSectionHeader(title: "Rediscover")
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                Text("Albums from your library you might have forgotten.")
+                    .font(.jtCaption)
+                    .foregroundStyle(Color.jtTextSecondary)
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: JellytoneTheme.Space.lg) {
+                        ForEach(rediscoverAlbums) { album in
+                            NavigationLink(value: album) { HomeAlbumCard(album: album) }
+                                .buttonStyle(.jtPressScale())
+                                .accessibilityIdentifier("home-rediscover-album-\(album.id)")
+                        }
+                    }
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                    .padding(.vertical, JellytoneTheme.Space.sm)
+                }
+            }
+        }
+    }
+
+    // MARK: Your Playlists
+
+    private var homePlaylists: [Playlist] {
+        model.homeSnapshot?.madeForYouPlaylists ?? []
+    }
+
+    @ViewBuilder private var playlistsSection: some View {
+        if !homePlaylists.isEmpty {
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.lg) {
+                HomeSectionHeader(title: "Your Playlists")
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: JellytoneTheme.Space.md) {
+                        ForEach(homePlaylists) { playlist in
                             NavigationLink(value: playlist) {
                                 HomeShelfTile(
                                     itemID: playlist.id,
@@ -183,7 +284,7 @@ struct HomeLibraryView: View {
                                 )
                             }
                             .buttonStyle(.jtPressScale())
-                            .accessibilityIdentifier("home-made-for-you-playlist-\(playlist.id)")
+                            .accessibilityIdentifier("home-playlist-\(playlist.id)")
                             .accessibilityLabel("\(playlist.name), playlist")
                             .accessibilityHint("Opens playlist")
                         }
@@ -192,6 +293,40 @@ struct HomeLibraryView: View {
                     .padding(.horizontal, JellytoneTheme.Space.screenMargin)
                 }
                 .scrollTargetBehavior(.viewAligned)
+            }
+        }
+    }
+
+    // MARK: Genres
+
+    private var homeGenres: [Genre] {
+        model.homeSnapshot?.homeGenres ?? []
+    }
+
+    @ViewBuilder private var genresSection: some View {
+        if !homeGenres.isEmpty {
+            VStack(alignment: .leading, spacing: JellytoneTheme.Space.lg) {
+                HomeSectionHeader(title: "Genres")
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: JellytoneTheme.Space.sm) {
+                        ForEach(homeGenres) { genre in
+                            NavigationLink(value: genre) {
+                                Text(genre.name)
+                                    .font(.jtRowTitle)
+                                    .foregroundStyle(Color.jtTextPrimary)
+                                    .padding(.horizontal, JellytoneTheme.Space.md)
+                                    .padding(.vertical, JellytoneTheme.Space.sm)
+                                    .background(Capsule().fill(Color.jtSurface))
+                            }
+                            .buttonStyle(.jtPressScale())
+                            .accessibilityIdentifier("home-genre-\(genre.id)")
+                            .accessibilityLabel("\(genre.name), genre")
+                            .accessibilityHint("Opens genre")
+                        }
+                    }
+                    .padding(.horizontal, JellytoneTheme.Space.screenMargin)
+                }
             }
         }
     }

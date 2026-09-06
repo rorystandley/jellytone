@@ -150,6 +150,71 @@ struct JellyfinAPI: Sendable {
         })
     }
 
+    /// Most-played albums in the library (server PlayCount). Powers Home's
+    /// Listen Now "Top Albums" shelf — not a local reinterpretation of history.
+    func frequentlyPlayedAlbums(
+        userID: String,
+        libraryID: String,
+        limit: Int = 20
+    ) async throws -> [Album] {
+        let response = try await homeShelfItems(
+            operation: "home_frequently_played_albums",
+            userID: userID,
+            libraryID: libraryID,
+            itemType: "MusicAlbum",
+            limit: limit,
+            sortBy: "PlayCount,SortName"
+        )
+        return uniqueByID(response.Items.compactMap { item in
+            guard item.`Type` == "MusicAlbum" else { return nil }
+            return mapAlbum(item)
+        })
+    }
+
+    /// Server-random albums for Home's Rediscover shelf. Ordering is
+    /// intentionally non-deterministic across refreshes.
+    func rediscoverAlbums(
+        userID: String,
+        libraryID: String,
+        limit: Int = 20
+    ) async throws -> [Album] {
+        let response = try await homeShelfItems(
+            operation: "home_rediscover_albums",
+            userID: userID,
+            libraryID: libraryID,
+            itemType: "MusicAlbum",
+            limit: limit,
+            sortBy: "Random"
+        )
+        return uniqueByID(response.Items.compactMap { item in
+            guard item.`Type` == "MusicAlbum" else { return nil }
+            return mapAlbum(item)
+        })
+    }
+
+    /// Jellyfin Instant Mix from a seed item (artist, album, or track). Used
+    /// when the user plays a Listen Now "Made for You" mix tile.
+    func instantMixTracks(
+        userID: String,
+        itemID: String,
+        limit: Int = 50
+    ) async throws -> [Track] {
+        let response = try await send(
+            operation: "instant_mix_tracks",
+            path: ["Items", itemID, "InstantMix"],
+            query: [
+                URLQueryItem(name: "userId", value: userID),
+                URLQueryItem(name: "Limit", value: String(min(max(limit, 1), 100))),
+                URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,UserData,RunTimeTicks"),
+            ],
+            as: ItemsResponse<Item>.self
+        )
+        return uniqueByID(response.Items.compactMap { item in
+            guard item.`Type` == nil || item.`Type` == "Audio" else { return nil }
+            return mapTrack(item)
+        })
+    }
+
     func searchMusic(
         userID: String,
         libraryID: String?,
