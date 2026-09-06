@@ -91,6 +91,7 @@ final class DownloadManager: ObservableObject {
                 && !pending.contains { $0.track.id == track.id }
         }
         guard !newEntries.isEmpty else { return }
+        JellytoneHaptics.play(.light)
         for track in newEntries {
             pending.append((track, container))
             activeStates[track.id] = .waiting
@@ -99,10 +100,15 @@ final class DownloadManager: ObservableObject {
     }
 
     func remove(_ trackID: String) async {
+        let hadPending = pending.contains { $0.track.id == trackID } || activeStates[trackID] != nil
+        let hadRecord = records.contains { $0.track.id == trackID }
         activeStates[trackID] = nil
         pending.removeAll { $0.track.id == trackID }
-        guard let record = records.first(where: { $0.track.id == trackID }) else { return }
-        try? FileManager.default.removeItem(at: directory.appendingPathComponent(record.fileName))
+        guard hadPending || hadRecord else { return }
+        JellytoneHaptics.destructive()
+        if let record = records.first(where: { $0.track.id == trackID }) {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(record.fileName))
+        }
         if let scope = scopeProvider?() {
             try? await store?.removeDownloadedTrack(itemID: trackID, scope: scope)
         }

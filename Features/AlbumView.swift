@@ -349,6 +349,8 @@ struct NowPlayingView: View {
     @State private var showingQueue = false
     @State private var lyrics: TrackLyrics?
     @State private var showingLyrics = false
+    @State private var isScrubbing = false
+    @State private var lastScrubTick = -1
 
     var body: some View {
         NavigationStack {
@@ -392,11 +394,29 @@ struct NowPlayingView: View {
                         VStack(spacing: JellytoneTheme.Space.xxs) {
                             Slider(
                                 value: Binding(get: { playback.elapsed }, set: { playback.seek(to: $0) }),
-                                in: 0...max(playback.duration, 1)
+                                in: 0...max(playback.duration, 1),
+                                onEditingChanged: { editing in
+                                    if editing {
+                                        JellytoneHaptics.prepare(.selection)
+                                        isScrubbing = true
+                                        lastScrubTick = Int(playback.elapsed)
+                                        JellytoneHaptics.scrubTick()
+                                    } else {
+                                        isScrubbing = false
+                                        lastScrubTick = -1
+                                    }
+                                }
                             )
                             // Scrub fill is white on the dark NP canvas (design-system.md §4.5).
                             .tint(Color.jtTextPrimary)
                             .accessibilityLabel("Playback position")
+                            .onChange(of: playback.elapsed) { _, elapsed in
+                                guard isScrubbing else { return }
+                                let tick = Int(elapsed)
+                                guard tick != lastScrubTick else { return }
+                                lastScrubTick = tick
+                                JellytoneHaptics.scrubTick()
+                            }
                             HStack {
                                 Text(time(playback.elapsed))
                                 Spacer()
@@ -471,6 +491,7 @@ struct NowPlayingView: View {
 
                             if lyrics != nil {
                                 Button {
+                                    JellytoneHaptics.play(.light)
                                     withAnimation(reduceMotion ? nil : JellytoneTheme.Motion.crossfade) {
                                         showingLyrics.toggle()
                                     }
@@ -484,6 +505,7 @@ struct NowPlayingView: View {
                             }
 
                             Button {
+                                JellytoneHaptics.play(.light)
                                 showingQueue = true
                             } label: {
                                 Image(systemName: "list.bullet")
@@ -525,6 +547,7 @@ struct NowPlayingView: View {
                 // Queue lives in the footer with lyrics/quality (same component family).
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
+                        JellytoneHaptics.play(.soft)
                         dismiss()
                     } label: {
                         Image(systemName: "chevron.down")
@@ -689,7 +712,10 @@ private struct PlaybackQueueView: View {
                     ))
                 } else {
                     ForEach(playback.upcomingEntries) { entry in
-                        Button { playback.jump(to: entry.id) } label: {
+                        Button {
+                            JellytoneHaptics.transport()
+                            playback.jump(to: entry.id)
+                        } label: {
                             QueueTrackRow(track: entry.track, isCurrent: false)
                         }
                         .buttonStyle(.plain)
@@ -702,11 +728,15 @@ private struct PlaybackQueueView: View {
                             playback.moveUpcoming(entryID: entry.id, by: 1)
                         }
                         .accessibilityAction(named: "Remove from Up Next") {
+                            JellytoneHaptics.destructive()
                             playback.removeUpcoming(entryIDs: [entry.id])
                         }
                     }
                     .onMove(perform: playback.moveUpcoming)
-                    .onDelete(perform: playback.removeUpcoming)
+                    .onDelete { offsets in
+                        JellytoneHaptics.destructive()
+                        playback.removeUpcoming(atOffsets: offsets)
+                    }
                 }
             } header: {
                 Text("Up Next")
@@ -726,7 +756,10 @@ private struct PlaybackQueueView: View {
                     EditButton()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Clear Up Next") { playback.clearUpNext() }
+                    Button("Clear Up Next") {
+                        JellytoneHaptics.destructive()
+                        playback.clearUpNext()
+                    }
                         .accessibilityHint("Keeps the current track playing")
                 }
             }

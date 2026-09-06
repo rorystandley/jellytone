@@ -229,7 +229,7 @@ private struct ArtistAlphabetRail: View {
         let letter = letters[min(max(slot, 0), letters.count - 1)]
         guard letter != activeLetter else { return }
         activeLetter = letter
-        UISelectionFeedbackGenerator().selectionChanged()
+        JellytoneHaptics.scrubTick()
         onSelect(letter)
     }
 }

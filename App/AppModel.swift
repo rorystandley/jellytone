@@ -147,6 +147,7 @@ final class AppModel: ObservableObject {
         Diagnostics.event("connect_started")
         guard let serverURL = normalizedServerURL(server) else {
             errorMessage = APIError.invalidServerURL.localizedDescription
+            JellytoneHaptics.error()
             return
         }
         isLoading = true
@@ -177,10 +178,12 @@ final class AppModel: ObservableObject {
             await loadPendingFavourites()
             Task { await runFavouriteReconciliation() }
             try await refreshLibraries()
+            JellytoneHaptics.success()
         } catch {
             let failure = error as NSError
             Diagnostics.event("connect_failed", ["code": failure.code, "domain": failure.domain])
             errorMessage = error.localizedDescription
+            JellytoneHaptics.error()
         }
     }
 
@@ -983,6 +986,7 @@ final class AppModel: ObservableObject {
 
     func play(_ track: Track, in queue: [Track]) {
         guard let api, let session else { return }
+        JellytoneHaptics.playFromLibrary()
         playback.play(
             track,
             queue: queue,
@@ -1006,6 +1010,7 @@ final class AppModel: ObservableObject {
     func play(_ occurrence: TrackCatalogOccurrence, in occurrences: [TrackCatalogOccurrence]) {
         guard let api, let session,
               let selectedIndex = occurrences.firstIndex(where: { $0.id == occurrence.id }) else { return }
+        JellytoneHaptics.playFromLibrary()
         let entries = occurrences.map { QueueEntry(id: UUID(), track: $0.track) }
         playback.play(entries: entries, startingAt: entries[selectedIndex].id, using: api,
                       userID: session.userID, scope: playbackScope(for: session))
@@ -1014,6 +1019,7 @@ final class AppModel: ObservableObject {
     func play(_ entry: PlaylistEntry, in playlistEntries: [PlaylistEntry]) {
         guard let api, let session,
               let selectedIndex = playlistEntries.firstIndex(where: { $0.id == entry.id }) else { return }
+        JellytoneHaptics.playFromLibrary()
         let queue = playlistEntries.map { QueueEntry(track: $0.track) }
         playback.play(
             entries: queue,
@@ -1038,6 +1044,7 @@ final class AppModel: ObservableObject {
     func play(_ occurrence: GenreTrackOccurrence, in occurrences: [GenreTrackOccurrence]) {
         guard let api, let session,
               let selectedIndex = occurrences.firstIndex(where: { $0.id == occurrence.id }) else { return }
+        JellytoneHaptics.playFromLibrary()
         let queue = occurrences.map { QueueEntry(track: $0.track) }
         playback.play(
             entries: queue,
@@ -1062,6 +1069,7 @@ final class AppModel: ObservableObject {
     func play(_ occurrence: FavouriteTrackOccurrence, in occurrences: [FavouriteTrackOccurrence]) {
         guard let api, let session,
               let selectedIndex = occurrences.firstIndex(where: { $0.id == occurrence.id }) else { return }
+        JellytoneHaptics.playFromLibrary()
         let queue = occurrences.map { QueueEntry(track: $0.track) }
         playback.play(
             entries: queue,
@@ -1094,6 +1102,7 @@ final class AppModel: ObservableObject {
     func toggleFavourite(id: String) {
         guard let session, let store = libraryStore, !id.isEmpty else { return }
         let desired = favouriteRegistry.toggle(id)
+        JellytoneHaptics.favourite(adding: desired)
         favouriteSequence += 1
         let sequence = favouriteSequence
         let scope = libraryScope(for: session)
@@ -1140,14 +1149,17 @@ final class AppModel: ObservableObject {
     }
 
     func playNext(_ track: Track) {
+        JellytoneHaptics.play(.light)
         playback.playNext(track)
     }
 
     func addToQueue(_ track: Track) {
+        JellytoneHaptics.play(.soft)
         playback.addToQueue(track)
     }
 
     func logout() async {
+        JellytoneHaptics.destructive()
         await playback.stopAndWait()
         KeychainTokenStore.delete()
         await ArtworkCache.shared.clear()

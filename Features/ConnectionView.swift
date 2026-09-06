@@ -45,6 +45,7 @@ struct ConnectionView: View {
                         .audioElevatedSurface(cornerRadius: AudioDesign.Radius.compact)
 
                         Button {
+                            JellytoneHaptics.play(.light)
                             if URLComponents(string: server)?.scheme?.lowercased() == "http" {
                                 showingHTTPWarning = true
                             } else {
