@@ -14,7 +14,7 @@ The `.dc.html` files in this bundle are **design references built in HTML** — 
 ## Design Tokens & SwiftUI Theme
 Full token spec (palette, type scale, spacing/radius scale, component patterns, iconography, do/don't rules) is in **`design-system.md`** — treat it as the canonical reference.
 
-**`JellytoneTheme.swift`** is a working translation of that spec into SwiftUI, written to match the codebase's existing `DesignSystem/AudioDesignSystem.swift` conventions (nested `Space`/`Radius`/`Motion` enums, `Color`/`Font` extensions, `ButtonStyle`/`ToggleStyle`/`ViewModifier` helpers). It is additive — dropped into `DesignSystem/` alongside the existing file, not yet wired into any view. No hex codes or magic numbers should be needed outside this file when implementing the screens below.
+**`DesignSystem/Theme.swift`** (`JellytoneTheme`, `jt*` colours/fonts, button/toggle/chip styles, glass modifiers) is the sole SwiftUI translation of that spec. Pair with `DesignSystem/Haptics.swift` for tactile cues. No hex codes or magic numbers should be needed outside these files when implementing the screens below.
 
 ## Screens / Views
 

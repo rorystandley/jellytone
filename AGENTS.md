@@ -32,7 +32,7 @@ Premium connected music player with **Apple Music–level** visual and interacti
 - Library categories: Playlists, Artists, Albums, Songs, Genres, Favourites, Downloads
 
 ## Priority Order (do not skip ahead without reason)
-1. Unify design system — migrate Now Playing, MiniPlayer, Queue, Search, Track catalog, Connection fully onto JellytoneTheme (kill dual AudioDesign look)
+1. ~~Unify design system~~ — done: sole system is JellytoneTheme / `jt*` (`Theme.swift` + `Haptics.swift`). Do not reintroduce a parallel design layer.
 2. Now Playing as primary surface — continuous expand from MiniPlayer, richer queue, silent prep (no “Preparing…” spinners)
 3. Search to Apple Music level — Top Results, Songs, Albums, Artists, Playlists; rich rows; useful idle state
 4. Library IA pass — dedicated Albums, denser lists/grids, consistent state chrome

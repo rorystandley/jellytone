@@ -1,8 +1,7 @@
 import SwiftUI
 
 /// Full-library Songs catalogue (Library → Songs). Dense artwork rows with
-/// play / queue / favourite context menus. Themed per design-system.md and
-/// AGENTS.md Priority 4 — no AudioDesign chrome.
+/// play / queue / favourite context menus. Themed per design-system.md.
 struct TrackCatalogView: View {
     @EnvironmentObject private var model: AppModel
 

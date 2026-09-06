@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// First-run connect screen — themed per AGENTS.md priority 1 and
-/// `docs/design/design-system.md` / onboarding mockup in `Jellytone.dc.html`.
-/// No AudioDesign chrome; connect/auth behavior is unchanged.
+/// First-run connect screen — themed per `docs/design/design-system.md` /
+/// onboarding mockup in `Jellytone.dc.html`. Connect/auth behavior is unchanged.
 struct ConnectionView: View {
     @EnvironmentObject private var model: AppModel
     @State private var server = ""
