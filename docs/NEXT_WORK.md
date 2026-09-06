@@ -54,6 +54,11 @@ slice.
 
 ## RECENTLY COMPLETED
 
+- Home Listen Now discovery: Made for You Instant Mixes, Top Albums
+  (PlayCount), Rediscover (Random), genre chips, and honest Your Playlists
+  shelf — cache-first via HomeShelfSnapshot additive fields.
+
+
 - Premium UI Batch 2 — Home and browsing destinations: added shared browse
   containers, headings, artwork cards, track rows, playback actions, pagination,
   and intentional state/missing-artwork treatments; redesigned Home, Library,

@@ -320,58 +320,80 @@ final class AppModel: ObservableObject {
         async let played = homeTracksResult(api: api, userID: session.userID, libraryID: libraryID)
         async let playlists = homePlaylistsResult()
         async let artists = homeFavouriteArtistsResult(api: api, userID: session.userID, libraryID: libraryID)
+        async let topAlbums = homeFrequentlyPlayedAlbumsResult(api: api, userID: session.userID, libraryID: libraryID)
+        async let rediscover = homeRediscoverAlbumsResult(api: api, userID: session.userID, libraryID: libraryID)
+        async let genres = homeGenresResult(api: api, userID: session.userID, libraryID: libraryID)
         let addedResult = await added
         let playedResult = await played
         let playlistsResult = await playlists
         let artistsResult = await artists
+        let topAlbumsResult = await topAlbums
+        let rediscoverResult = await rediscover
+        let genresResult = await genres
         guard ownsHomeRefresh(generation, scope: requestScope) else { return }
 
         var replacement = homeSnapshot ?? .empty
         var errors: [String] = []
         switch addedResult {
         case let .success(albums):
-            replacement = HomeShelfSnapshot(recentlyAddedAlbums: albums,
-                                            recentlyPlayedTracks: replacement.recentlyPlayedTracks,
-                                            madeForYouPlaylists: replacement.madeForYouPlaylists,
-                                            favouriteArtists: replacement.favouriteArtists)
+            replacement = replacement.updating(recentlyAddedAlbums: albums)
         case .failure: errors.append("Recently added albums couldn’t be refreshed.")
         }
         switch playedResult {
         case let .success(tracks):
-            replacement = HomeShelfSnapshot(recentlyAddedAlbums: replacement.recentlyAddedAlbums,
-                                            recentlyPlayedTracks: tracks,
-                                            madeForYouPlaylists: replacement.madeForYouPlaylists,
-                                            favouriteArtists: replacement.favouriteArtists)
+            replacement = replacement.updating(recentlyPlayedTracks: tracks)
         case .failure: errors.append("Recently played music couldn’t be refreshed.")
         }
         switch playlistsResult {
         case let .success(list):
-            replacement = HomeShelfSnapshot(recentlyAddedAlbums: replacement.recentlyAddedAlbums,
-                                            recentlyPlayedTracks: replacement.recentlyPlayedTracks,
-                                            madeForYouPlaylists: list,
-                                            favouriteArtists: replacement.favouriteArtists)
+            replacement = replacement.updating(madeForYouPlaylists: list)
         case .failure:
-            // Made For You quietly keeps its last snapshot — the primary
-            // shelves carry Home's error surface.
+            // Secondary Listen Now shelves quietly keep their last snapshot —
+            // primary recently-added / recently-played carry Home's errors.
             break
         }
         switch artistsResult {
         case let .success(list):
-            replacement = HomeShelfSnapshot(recentlyAddedAlbums: replacement.recentlyAddedAlbums,
-                                            recentlyPlayedTracks: replacement.recentlyPlayedTracks,
-                                            madeForYouPlaylists: replacement.madeForYouPlaylists,
-                                            favouriteArtists: list)
+            replacement = replacement.updating(favouriteArtists: list)
         case .failure:
-            // Favourite Artists quietly keeps its last snapshot, like Made
-            // For You — the primary shelves carry Home's error surface.
             break
         }
+        switch topAlbumsResult {
+        case let .success(albums):
+            replacement = replacement.updating(frequentlyPlayedAlbums: albums)
+        case .failure:
+            break
+        }
+        switch rediscoverResult {
+        case let .success(albums):
+            replacement = replacement.updating(rediscoverAlbums: albums)
+        case .failure:
+            break
+        }
+        switch genresResult {
+        case let .success(list):
+            replacement = replacement.updating(homeGenres: list)
+        case .failure:
+            break
+        }
+
+        // Rebuild Instant Mix tiles from the freshest favourite artists +
+        // recent listening seeds available after this refresh merge.
+        let mixes = Self.makeDiscoveryMixes(
+            favouriteArtists: replacement.favouriteArtists,
+            recentlyPlayedTracks: replacement.recentlyPlayedTracks
+        )
+        replacement = replacement.updating(discoveryMixes: mixes)
+
         homeSnapshot = replacement
         var anySuccess = false
         if case .success = addedResult { anySuccess = true }
         if case .success = playedResult { anySuccess = true }
         if case .success = playlistsResult { anySuccess = true }
         if case .success = artistsResult { anySuccess = true }
+        if case .success = topAlbumsResult { anySuccess = true }
+        if case .success = rediscoverResult { anySuccess = true }
+        if case .success = genresResult { anySuccess = true }
         if anySuccess { try? await libraryStore?.replaceHomeShelfSnapshot(replacement, scope: scope, libraryID: libraryID) }
         homeRefreshError = errors.isEmpty ? nil : errors.joined(separator: " ")
         isRefreshingHome = false
@@ -379,6 +401,9 @@ final class AppModel: ObservableObject {
 
     private static let madeForYouShelfLimit = 10
     private static let favouriteArtistsShelfLimit = 20
+    private static let listenNowAlbumShelfLimit = 16
+    private static let homeGenresShelfLimit = 16
+    private static let discoveryMixLimit = 8
 
     private func homePlaylistsResult() async -> Result<[Playlist], Error> {
         do { return .success(try await recentPlaylists(limit: Self.madeForYouShelfLimit)) }
@@ -393,6 +418,108 @@ final class AppModel: ObservableObject {
             )
             return .success(page.artists)
         } catch { return .failure }
+    }
+
+    private func homeFrequentlyPlayedAlbumsResult(api: JellyfinAPI, userID: String, libraryID: String) async -> HomeQueryResult<[Album]> {
+        do {
+            return .success(try await api.frequentlyPlayedAlbums(
+                userID: userID, libraryID: libraryID, limit: Self.listenNowAlbumShelfLimit
+            ))
+        } catch { return .failure }
+    }
+
+    private func homeRediscoverAlbumsResult(api: JellyfinAPI, userID: String, libraryID: String) async -> HomeQueryResult<[Album]> {
+        do {
+            return .success(try await api.rediscoverAlbums(
+                userID: userID, libraryID: libraryID, limit: Self.listenNowAlbumShelfLimit
+            ))
+        } catch { return .failure }
+    }
+
+    private func homeGenresResult(api: JellyfinAPI, userID: String, libraryID: String) async -> HomeQueryResult<[Genre]> {
+        do {
+            let page = try await api.genres(
+                userID: userID, libraryID: libraryID,
+                startIndex: 0, limit: Self.homeGenresShelfLimit
+            )
+            return .success(page.genres)
+        } catch { return .failure }
+    }
+
+    /// Builds Listen Now Instant Mix tiles. Favourite artists first; fill from
+    /// distinct recently played artists/tracks so an empty favourites list
+    /// still yields a useful Made for You shelf.
+    private static func makeDiscoveryMixes(
+        favouriteArtists: [Artist],
+        recentlyPlayedTracks: [Track]
+    ) -> [DiscoveryMix] {
+        var mixes: [DiscoveryMix] = []
+        var seenSeeds = Set<String>()
+
+        for artist in favouriteArtists {
+            guard mixes.count < discoveryMixLimit else { break }
+            guard seenSeeds.insert(artist.id).inserted else { continue }
+            mixes.append(
+                DiscoveryMix(
+                    id: "mix-artist-\(artist.id)",
+                    seedItemID: artist.id,
+                    seedKind: .artist,
+                    title: "\(artist.name) Mix",
+                    subtitle: "Made for You",
+                    artworkItemID: artist.id,
+                    imageTag: artist.imageTag
+                )
+            )
+        }
+
+        for track in recentlyPlayedTracks {
+            guard mixes.count < discoveryMixLimit else { break }
+            if let artistID = track.artistID, seenSeeds.insert(artistID).inserted {
+                mixes.append(
+                    DiscoveryMix(
+                        id: "mix-artist-\(artistID)",
+                        seedItemID: artistID,
+                        seedKind: .artist,
+                        title: "\(track.artist) Mix",
+                        subtitle: "Because You Listened",
+                        artworkItemID: track.artworkItemID ?? track.albumID ?? artistID,
+                        imageTag: track.imageTag
+                    )
+                )
+                continue
+            }
+            guard seenSeeds.insert(track.id).inserted else { continue }
+            mixes.append(
+                DiscoveryMix(
+                    id: "mix-track-\(track.id)",
+                    seedItemID: track.id,
+                    seedKind: .track,
+                    title: "\(track.name) Mix",
+                    subtitle: "Because You Listened",
+                    artworkItemID: track.artworkItemID ?? track.albumID ?? track.id,
+                    imageTag: track.imageTag
+                )
+            )
+        }
+        return mixes
+    }
+
+    /// Plays a Listen Now Instant Mix. Failures surface on `errorMessage`
+    /// without wiping the Home snapshot.
+    func playDiscoveryMix(_ mix: DiscoveryMix) async {
+        guard let session, let api else { return }
+        do {
+            let tracks = try await api.instantMixTracks(
+                userID: session.userID, itemID: mix.seedItemID
+            )
+            guard let first = tracks.first else {
+                errorMessage = "This mix didn’t return any playable tracks."
+                return
+            }
+            play(first, in: tracks)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func tracks(for album: Album) async -> [Track] {
