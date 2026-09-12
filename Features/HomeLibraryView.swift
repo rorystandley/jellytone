@@ -180,7 +180,7 @@ struct HomeLibraryView: View {
                     .padding(.horizontal, JellytoneTheme.Space.screenMargin)
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: JellytoneTheme.Space.md) {
-                        ForEach(discoveryMixes) { mix in
+                        ForEach(Array(discoveryMixes.enumerated()), id: \.element.id) { index, mix in
                             Button {
                                 Task { await model.playDiscoveryMix(mix) }
                             } label: {
@@ -188,7 +188,8 @@ struct HomeLibraryView: View {
                                     itemID: mix.artworkItemID,
                                     imageTag: mix.imageTag,
                                     title: mix.title,
-                                    subtitle: mix.subtitle
+                                    subtitle: mix.subtitle,
+                                    isHero: index == 0
                                 )
                             }
                             .buttonStyle(.jtPressScale())
@@ -274,13 +275,14 @@ struct HomeLibraryView: View {
                     .padding(.horizontal, JellytoneTheme.Space.screenMargin)
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: JellytoneTheme.Space.md) {
-                        ForEach(homePlaylists) { playlist in
+                        ForEach(Array(homePlaylists.enumerated()), id: \.element.id) { index, playlist in
                             NavigationLink(value: playlist) {
                                 HomeShelfTile(
                                     itemID: playlist.id,
                                     imageTag: playlist.imageTag,
                                     title: playlist.name,
-                                    subtitle: playlist.itemCount.map { "\($0) songs" }
+                                    subtitle: playlist.itemCount.map { "\($0) songs" },
+                                    isHero: index == 0
                                 )
                             }
                             .buttonStyle(.jtPressScale())
@@ -347,7 +349,7 @@ struct HomeLibraryView: View {
                 let tracks = model.homeSnapshot?.recentlyPlayedTracks ?? []
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: JellytoneTheme.Space.md) {
-                        ForEach(tracks) { track in
+                        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
                             Button { model.play(track, in: tracks) } label: {
                                 HomeShelfTile(
                                     // Fall back to album artwork — most tracks
@@ -356,7 +358,8 @@ struct HomeLibraryView: View {
                                     itemID: track.artworkItemID ?? track.id,
                                     imageTag: track.artworkItemID == nil ? nil : (track.imageTag ?? "album"),
                                     title: track.name,
-                                    subtitle: track.artist
+                                    subtitle: track.artist,
+                                    isHero: index == 0
                                 )
                             }
                             .buttonStyle(.jtPressScale())
@@ -634,12 +637,21 @@ private struct HomeHeroSection: View {
                 ZStack(alignment: .bottom) {
                     Color.clear
                         .overlay {
-                            if let image = playback.artwork {
-                                Image(uiImage: image).resizable().scaledToFill()
-                            } else {
-                                JellytoneTheme.placeholderGradient(
-                                    hue: JellytoneTheme.placeholderHue(forID: current.id)
-                                )
+                            GeometryReader { geo in
+                                Group {
+                                    if let image = playback.artwork {
+                                        Image(uiImage: image).resizable().scaledToFill()
+                                    } else {
+                                        JellytoneTheme.placeholderGradient(
+                                            hue: JellytoneTheme.placeholderHue(forID: current.id)
+                                        )
+                                    }
+                                }
+                                // Pin the fill to the hero's laid-out size so
+                                // ScrollView geometry passes cannot retarget
+                                // scaledToFill and make the artwork zoom.
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .clipped()
                             }
                         }
                         .jtHeroVignette()
@@ -676,7 +688,10 @@ private struct HomeHeroSection: View {
                 .clipped()
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
+            // Plain, not press-scale: scaling the full-bleed artwork on
+            // touch-down fights the home ScrollView and looks like the
+            // image zooming in and out as you start to scroll.
+            .buttonStyle(.plain)
             .accessibilityIdentifier("home-continue-listening")
             .accessibilityLabel("Continue listening to \(current.name) by \(current.artist)")
             .accessibilityHint(playback.isPlaying ? "Pauses playback" : "Resumes playback")
@@ -766,31 +781,33 @@ private struct HomeAlbumCard: View {
 }
 
 /// Shared tile for the horizontal Made For You / Recently Played shelves —
-/// bottom-anchored text over artwork. The tile at the shelf's leading edge is
-/// "in focus" and grows to the hero width; the size interpolates continuously
-/// from the tile's own position in the scroll viewport, so focus hands over
-/// smoothly as the user scrolls.
+/// bottom-anchored text over artwork. The leading tile is a static hero
+/// (mockup 1.5fr column); the rest stay at the standard width. Width is not
+/// driven from scroll geometry — interpolating it made artwork appear to
+/// zoom as the home page scrolled (AGENTS.md: Home Listen Now surfaces).
 private struct HomeShelfTile: View {
     let itemID: String
     let imageTag: String?
     let title: String
     let subtitle: String?
-
-    @State private var focusProgress: Double = 0
+    var isHero: Bool = false
 
     private var width: CGFloat {
-        HomeMetrics.shelfTileWidth
-            + (HomeMetrics.shelfHeroTileWidth - HomeMetrics.shelfTileWidth) * focusProgress
+        isHero ? HomeMetrics.shelfHeroTileWidth : HomeMetrics.shelfTileWidth
     }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             Color.clear
-                .overlay { homeArtwork(itemID: itemID, imageTag: imageTag, name: title) }
+                .overlay {
+                    homeArtwork(itemID: itemID, imageTag: imageTag, name: title)
+                        .frame(width: width, height: HomeMetrics.shelfTileHeight)
+                        .clipped()
+                }
                 .jtArtworkScrim()
             VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
                 Text(title)
-                    .font(.jtRowTitle.weight(.heavy))
+                    .font(isHero ? .jtHeroCardTitle : .jtRowTitle.weight(.heavy))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -801,27 +818,12 @@ private struct HomeShelfTile: View {
                         .lineLimit(1)
                 }
             }
-            // Scale in place of a font swap so the type grows smoothly with
-            // the tile (hero title is ~1.24× the standard tile title).
-            .scaleEffect(1 + 0.24 * focusProgress, anchor: .bottomLeading)
-            .padding(
-                JellytoneTheme.Space.mdPlus
-                    + (JellytoneTheme.Space.lgPlus - JellytoneTheme.Space.mdPlus) * focusProgress
-            )
+            .padding(isHero ? JellytoneTheme.Space.lgPlus : JellytoneTheme.Space.mdPlus)
         }
         .frame(width: width, height: HomeMetrics.shelfTileHeight)
         .clipShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.card, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.card, style: .continuous))
         .accessibilityElement(children: .combine)
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.frame(in: .scrollView(axis: .horizontal)).minX
-        } action: { minX in
-            // Fully focused when the tile's leading edge sits at the content
-            // margin; fully standard one slot (tile + gap) away.
-            let distance = abs(minX - JellytoneTheme.Space.screenMargin)
-            let slot = HomeMetrics.shelfTileWidth + JellytoneTheme.Space.md
-            focusProgress = max(0, min(1, 1 - distance / slot))
-        }
     }
 }
 
