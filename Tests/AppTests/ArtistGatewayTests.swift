@@ -53,6 +53,7 @@ final class ArtistGatewayTests: XCTestCase {
             Self.response(request, json: #"""
             {"Items":[
                 {"Id":"track-most-played","Name":"Most Played","Type":"Audio","Artists":["Synthetic Artist"],
+                 "ArtistItems":[{"Name":"Synthetic Artist","Id":"artist-synthetic"}],
                  "Album":"Aurora Lines","AlbumId":"album-a","RunTimeTicks":1810000000},
                 {"Id":"album-a","Name":"Aurora Lines","Type":"MusicAlbum"},
                 {"Id":"track-most-played","Name":"Most Played (duplicate row)","Type":"Audio"},
@@ -69,6 +70,7 @@ final class ArtistGatewayTests: XCTestCase {
         XCTAssertEqual(tracks[0].name, "Most Played")
         XCTAssertEqual(tracks[0].album, "Aurora Lines")
         XCTAssertEqual(tracks[0].albumID, "album-a")
+        XCTAssertEqual(tracks[0].artistID, "artist-synthetic")
         XCTAssertEqual(tracks[1].artist, "Fallback Artist")
     }
 

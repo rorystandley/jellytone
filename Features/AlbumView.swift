@@ -339,7 +339,8 @@ struct MiniPlayerView: View {
 
 /// Full-screen Now Playing — continuous expansion target for the mini player
 /// (zoom transition + shared materials family). Silent buffering: transport and
-/// chrome stay usable while a track prepares (AGENTS.md Priority 2).
+/// chrome stay usable while a track prepares (AGENTS.md Priority 2). Album and
+/// artist names push the specific library items when Jellyfin gave us their IDs.
 struct NowPlayingView: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var playback: PlaybackController
@@ -376,14 +377,8 @@ struct NowPlayingView: View {
                                     .font(dynamicTypeSize.isAccessibilitySize ? .jtDetailTitle : .jtNowPlayingTitle)
                                     .foregroundStyle(Color.jtTextPrimary)
                                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                                Text(playback.currentTrack?.artist ?? "")
-                                    .font(.jtBody.weight(.medium))
-                                    .foregroundStyle(Color.jtTextSecondary)
-                                    .lineLimit(2)
-                                Text(playback.currentTrack?.album ?? "")
-                                    .font(.jtRowSubtitle)
-                                    .foregroundStyle(Color.jtTextTertiary)
-                                    .lineLimit(2)
+                                nowPlayingArtistLabel
+                                nowPlayingAlbumLabel
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             if let trackID = playback.currentTrack?.id {
@@ -561,10 +556,14 @@ struct NowPlayingView: View {
                     .accessibilityHint("Dismisses Now Playing")
                 }
             }
-            // Queue is a push inside this stack — integrated, not a second foreign sheet.
+            // Queue and album/artist destinations live at this stack root so
+            // ArtistView's album grid resolves instead of re-pushing Now Playing
+            // (same pattern as Library / Search — AGENTS.md).
             .navigationDestination(isPresented: $showingQueue) {
                 PlaybackQueueView(playback: playback)
             }
+            .navigationDestination(for: Album.self) { AlbumView(album: $0) }
+            .navigationDestination(for: Artist.self) { ArtistView(artist: $0) }
         }
         // Now Playing is dark regardless of the app's light/dark setting, so
         // its adaptive text/controls resolve to their dark (light-coloured)
@@ -599,6 +598,44 @@ struct NowPlayingView: View {
         }
     }
 
+    @ViewBuilder private var nowPlayingArtistLabel: some View {
+        let name = playback.currentTrack?.artist ?? ""
+        if let artist = playback.currentTrack?.artistDestination {
+            NowPlayingLibraryLink(
+                value: artist,
+                title: artist.name,
+                font: .jtBody.weight(.medium),
+                color: Color.jtTextSecondary,
+                identifier: "now-playing-artist",
+                hint: "Opens this artist"
+            )
+        } else {
+            Text(name)
+                .font(.jtBody.weight(.medium))
+                .foregroundStyle(Color.jtTextSecondary)
+                .lineLimit(2)
+        }
+    }
+
+    @ViewBuilder private var nowPlayingAlbumLabel: some View {
+        let name = playback.currentTrack?.album ?? ""
+        if let album = playback.currentTrack?.albumDestination {
+            NowPlayingLibraryLink(
+                value: album,
+                title: album.name,
+                font: .jtRowSubtitle,
+                color: Color.jtTextTertiary,
+                identifier: "now-playing-album",
+                hint: "Opens this album"
+            )
+        } else {
+            Text(name)
+                .font(.jtRowSubtitle)
+                .foregroundStyle(Color.jtTextTertiary)
+                .lineLimit(2)
+        }
+    }
+
     private var repeatAccessibilityLabel: String {
         switch playback.repeatMode {
         case .off: "Repeat off"
@@ -619,6 +656,31 @@ struct NowPlayingView: View {
     private func time(_ seconds: TimeInterval) -> String {
         let value = max(0, Int(seconds.rounded()))
         return String(format: "%d:%02d", value / 60, value % 60)
+    }
+}
+
+/// Tappable album/artist name on Now Playing. Keeps the metadata type colour
+/// (never an accent "link") and uses press-scale as the only affordance.
+private struct NowPlayingLibraryLink<Value: Hashable>: View {
+    let value: Value
+    let title: String
+    let font: Font
+    let color: Color
+    let identifier: String
+    let hint: String
+
+    var body: some View {
+        NavigationLink(value: value) {
+            Text(title)
+                .font(font)
+                .foregroundStyle(color)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
+        .accessibilityIdentifier(identifier)
+        .accessibilityHint(hint)
     }
 }
 

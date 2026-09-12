@@ -567,7 +567,8 @@ final class AppModel: ObservableObject {
         if ProcessInfo.processInfo.arguments.contains("--ui-testing-browse-details")
             || ProcessInfo.processInfo.arguments.contains("--ui-testing-search")
             || ProcessInfo.processInfo.arguments.contains("--ui-testing-library")
-            || ProcessInfo.processInfo.arguments.contains("--ui-testing-home") {
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-home")
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-music-shell") {
             return Self.syntheticAlbumTracks(albumID: album.id, albumName: album.name, artist: album.artist)
         }
 #endif
@@ -718,7 +719,8 @@ final class AppModel: ObservableObject {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-testing-search")
             || ProcessInfo.processInfo.arguments.contains("--ui-testing-browse-details")
-            || ProcessInfo.processInfo.arguments.contains("--ui-testing-home") {
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-home")
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-music-shell") {
             let albums = [
                 Album(id: "album-artwork", name: "Aurora Lines", artist: artist.name, productionYear: 2026, imageTag: "synthetic-art"),
                 Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title", artist: artist.name, productionYear: 2025, imageTag: nil),
@@ -770,7 +772,8 @@ final class AppModel: ObservableObject {
     func artistTopTracks(for artist: Artist) async throws -> [Track] {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-testing-search")
-            || ProcessInfo.processInfo.arguments.contains("--ui-testing-browse-details") {
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-browse-details")
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing-music-shell") {
             return Self.syntheticAlbumTracks(albumID: "artist-top", albumName: "Aurora Lines", artist: artist.name)
         }
 #endif
@@ -1630,9 +1633,11 @@ final class AppModel: ObservableObject {
             name: longMetadata ? "夜明けの街で聴く A deliberately very long song title that should remain readable" : "Visible Mini Player",
             artist: longMetadata ? "Björk Guðmundsdóttir & The Synthetic Orchestra" : "Synthetic Artist",
             album: longMetadata ? "An exceptionally long album name for accessibility testing" : "Synthetic Album",
+            albumID: "album-artwork",
             index: 1,
             disc: 1,
-            durationTicks: 1_800_000_000
+            durationTicks: 1_800_000_000,
+            artistID: "artist-unicode"
         )
         if !arguments.contains("--ui-testing-home") || arguments.contains("--ui-testing-restored-playback") {
             playback.configureForUITesting(track: track, upcoming: [
@@ -1676,11 +1681,12 @@ final class AppModel: ObservableObject {
     private static func syntheticAlbumTracks(albumID: String, albumName: String, artist: String) -> [Track] {
         [
             Track(id: "\(albumID)-track-1", name: "Opening Light", artist: artist, album: albumName,
-                  albumID: albumID, index: 1, disc: 1, durationTicks: 1_810_000_000),
+                  albumID: albumID, index: 1, disc: 1, durationTicks: 1_810_000_000, artistID: "artist-unicode"),
             Track(id: "\(albumID)-track-2", name: "夜明けの街で聴く — A Long Unicode Movement", artist: artist,
-                  album: albumName, albumID: albumID, index: 2, disc: 1, durationTicks: 2_420_000_000),
+                  album: albumName, albumID: albumID, index: 2, disc: 1, durationTicks: 2_420_000_000,
+                  artistID: "artist-unicode"),
             Track(id: "\(albumID)-track-3", name: "Second Disc Prelude", artist: artist, album: albumName,
-                  albumID: albumID, index: 1, disc: 2, durationTicks: 1_500_000_000),
+                  albumID: albumID, index: 1, disc: 2, durationTicks: 1_500_000_000, artistID: "artist-unicode"),
         ]
     }
 

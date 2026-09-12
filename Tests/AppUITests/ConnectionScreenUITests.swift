@@ -123,6 +123,39 @@ final class ConnectionScreenUITests: XCTestCase {
         XCTAssertTrue(app.buttons["mini-player-details"].exists)
     }
 
+    func testNowPlayingArtistAndAlbumOpenTheSpecificLibraryItems() {
+        var app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell"]
+        app.launch()
+
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+
+        let artist = app.descendants(matching: .any)["now-playing-artist"]
+        XCTAssertTrue(artist.waitForExistence(timeout: 3))
+        artist.tap()
+        XCTAssertTrue(app.navigationBars["Synthetic Artist"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Top Songs"].waitForExistence(timeout: 4))
+        let artistAlbum = app.descendants(matching: .any)["artist-album-album-artwork"]
+        for _ in 0..<6 where !artistAlbum.isHittable { app.swipeUp() }
+        XCTAssertTrue(artistAlbum.waitForExistence(timeout: 4))
+        artistAlbum.tap()
+        XCTAssertTrue(app.navigationBars["Aurora Lines"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["album-play-all"].waitForExistence(timeout: 4))
+        app.terminate()
+
+        app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell"]
+        app.launch()
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        let album = app.descendants(matching: .any)["now-playing-album"]
+        XCTAssertTrue(album.waitForExistence(timeout: 3))
+        album.tap()
+        XCTAssertTrue(app.navigationBars["Synthetic Album"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["album-play-all"].waitForExistence(timeout: 4))
+    }
+
     func testColdLaunchShowsConnectionForm() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]

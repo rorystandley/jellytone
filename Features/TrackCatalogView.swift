@@ -150,20 +150,14 @@ struct TrackCatalogView: View {
             .disabled(model.playback.currentTrack == nil)
         Button("Add to Queue", systemImage: "text.badge.plus") { model.addToQueue(track) }
             .disabled(model.playback.currentTrack == nil)
-        if let albumID = track.albumID, !track.album.isEmpty {
+        if let album = track.albumDestination {
             NavigationLink("Go to Album") {
-                AlbumView(album: Album(
-                    id: albumID,
-                    name: track.album,
-                    artist: track.artist,
-                    productionYear: nil,
-                    imageTag: track.imageTag
-                ))
+                AlbumView(album: album)
             }
         }
-        if let artistID = track.artistID, !track.artist.isEmpty {
+        if let artist = track.artistDestination {
             NavigationLink("Go to Artist") {
-                ArtistView(artist: Artist(id: artistID, name: track.artist, imageTag: nil))
+                ArtistView(artist: artist)
             }
         }
     }
