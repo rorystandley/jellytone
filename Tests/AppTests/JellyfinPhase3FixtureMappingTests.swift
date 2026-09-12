@@ -41,6 +41,47 @@ final class JellyfinPhase3FixtureMappingTests: XCTestCase {
         XCTAssertEqual(page.nextStartIndex, 11, "Rejected records must still advance server pagination")
     }
 
+    func testTracksPreferMatchingArtistItemsOverAlbumArtistsAndLegacyArtistIds() async throws {
+        let api = try makeAPI(fixture: "tracks")
+        Phase3FixtureURLProtocol.handler = { request in
+            let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+            XCTAssertTrue(components.queryItems?.contains(where: {
+                $0.name == "Fields" && ($0.value?.contains("AlbumId") == true)
+            }) == true)
+            let response = try XCTUnwrap(
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )
+            )
+            let json = #"""
+            {"Items":[
+                {"Id":"track-match","Name":"Match","Type":"Audio","Artists":["Track Artist"],
+                 "ArtistItems":[{"Name":"Other","Id":"artist-other"},{"Name":"Track Artist","Id":"artist-track"}],
+                 "AlbumArtists":[{"Name":"Album Artist","Id":"artist-album"}],
+                 "ArtistIds":["artist-legacy"],
+                 "Album":"Record","AlbumId":"album-record"},
+                {"Id":"track-legacy","Name":"Legacy","Type":"Audio","Artists":["Legacy Artist"],
+                 "ArtistIds":["artist-legacy-only"],
+                 "Album":"Record","AlbumId":"album-record"}
+            ]}
+            """#
+            return (response, Data(json.utf8))
+        }
+
+        let tracks = try await api.tracks(userID: "account", albumID: "album-record")
+        let matched = try XCTUnwrap(tracks.first { $0.id == "track-match" })
+        let legacy = try XCTUnwrap(tracks.first { $0.id == "track-legacy" })
+
+        XCTAssertEqual(matched.artistID, "artist-track")
+        XCTAssertEqual(matched.albumDestination?.id, "album-record")
+        XCTAssertEqual(matched.artistDestination?.id, "artist-track")
+        XCTAssertEqual(legacy.artistID, "artist-legacy-only")
+        XCTAssertEqual(legacy.artistDestination?.name, "Legacy Artist")
+    }
+
     func testSearchRetainsStableDistinctIdentitiesAndMalformedSiblingsFromFixture() async throws {
         let api = try makeAPI(fixture: "search")
 
@@ -87,18 +128,25 @@ final class JellyfinPhase3FixtureMappingTests: XCTestCase {
             ]
         )
         XCTAssertEqual(tracks.first { $0.id == "track-disc-1-02" }?.artist, "Track Artist")
+        XCTAssertEqual(tracks.first { $0.id == "track-disc-1-02" }?.artistID, "artist-track")
+        XCTAssertEqual(tracks.first { $0.id == "track-disc-1-02" }?.albumID, "album-compilation-001")
         XCTAssertEqual(tracks.first { $0.id == "track-disc-1-01-a" }?.artist, "Compilation Soloist")
+        XCTAssertEqual(tracks.first { $0.id == "track-disc-1-01-a" }?.artistID, "artist-compilation-soloist")
         XCTAssertEqual(tracks.first { $0.id == "track-disc-2-01" }?.artist, "Album Artist")
+        XCTAssertEqual(tracks.first { $0.id == "track-disc-2-01" }?.artistID, "artist-album")
+        XCTAssertEqual(tracks.first { $0.id == "track-disc-2-02" }?.artistID, "artist-disc")
 
         let unicode = try XCTUnwrap(tracks.first { $0.id == "track-missing-index-a" })
         XCTAssertEqual(unicode.name, "Cafe\u{301} Unnumbered")
         XCTAssertEqual(unicode.artist, "Unicode Fallback")
         XCTAssertNil(unicode.durationTicks)
+        XCTAssertEqual(unicode.artistID, "artist-unicode-fallback")
 
         let malformed = try XCTUnwrap(tracks.first { $0.id == "track-malformed-optionals" })
         XCTAssertEqual(malformed.artist, "Unknown Artist")
         XCTAssertEqual(malformed.album, "")
         XCTAssertNil(malformed.albumID)
+        XCTAssertNil(malformed.artistID)
         XCTAssertNil(malformed.disc)
         XCTAssertNil(malformed.index)
         XCTAssertNil(malformed.durationTicks)

@@ -17,6 +17,29 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertEqual(track.durationLabel, "2:05")
     }
 
+    func testTrackExposesAlbumAndArtistDestinationsOnlyWhenItemIDsExist() {
+        let linked = Track(
+            id: "track", name: "Song", artist: "Artist", album: "Album",
+            albumID: "album-1", index: 1, disc: 1, durationTicks: nil,
+            artistID: "artist-1", imageTag: "art"
+        )
+        XCTAssertEqual(linked.albumDestination, Album(id: "album-1", name: "Album", artist: "Artist",
+                                                     productionYear: nil, imageTag: "art"))
+        XCTAssertEqual(linked.artistDestination, Artist(id: "artist-1", name: "Artist", imageTag: nil))
+
+        let namesOnly = Track(id: "track", name: "Song", artist: "Artist", album: "Album",
+                              index: nil, disc: nil, durationTicks: nil)
+        XCTAssertNil(namesOnly.albumDestination)
+        XCTAssertNil(namesOnly.artistDestination)
+
+        let emptyNames = Track(
+            id: "track", name: "Song", artist: "", album: "",
+            albumID: "album-1", index: nil, disc: nil, durationTicks: nil, artistID: "artist-1"
+        )
+        XCTAssertNil(emptyNames.albumDestination)
+        XCTAssertNil(emptyNames.artistDestination)
+    }
+
     func testAppearancePreferenceMapsToTheExpectedColorScheme() {
         XCTAssertNil(AppearancePreference.system.colorScheme)
         XCTAssertEqual(AppearancePreference.light.colorScheme, .light)

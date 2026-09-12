@@ -205,7 +205,7 @@ struct JellyfinAPI: Sendable {
             query: [
                 URLQueryItem(name: "userId", value: userID),
                 URLQueryItem(name: "Limit", value: String(min(max(limit, 1), 100))),
-                URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,UserData,RunTimeTicks"),
+                URLQueryItem(name: "Fields", value: "\(Self.audioIdentityFields),UserData"),
             ],
             as: ItemsResponse<Item>.self
         )
@@ -647,7 +647,7 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "GenreIds", value: genreID),
             URLQueryItem(name: "IncludeItemTypes", value: "Audio"),
             URLQueryItem(name: "Recursive", value: "true"),
-            URLQueryItem(name: "Fields", value: "RunTimeTicks"),
+            URLQueryItem(name: "Fields", value: Self.audioIdentityFields),
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
@@ -689,7 +689,7 @@ struct JellyfinAPI: Sendable {
             path: ["Playlists", playlistID, "Items"],
             query: [
                 URLQueryItem(name: "userId", value: userID),
-                URLQueryItem(name: "Fields", value: "RunTimeTicks"),
+                URLQueryItem(name: "Fields", value: Self.audioIdentityFields),
                 URLQueryItem(name: "StartIndex", value: String(startIndex)),
                 URLQueryItem(name: "Limit", value: String(limit)),
                 URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
@@ -768,7 +768,7 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "ArtistIds", value: artistID),
             URLQueryItem(name: "IncludeItemTypes", value: "Audio"),
             URLQueryItem(name: "Recursive", value: "true"),
-            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists"),
+            URLQueryItem(name: "Fields", value: Self.audioIdentityFields),
             URLQueryItem(name: "StartIndex", value: "0"),
             URLQueryItem(name: "Limit", value: String(min(max(limit, 1), 25))),
             URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
@@ -829,26 +829,13 @@ struct JellyfinAPI: Sendable {
                 URLQueryItem(name: "ParentId", value: albumID),
                 URLQueryItem(name: "IncludeItemTypes", value: "Audio"),
                 URLQueryItem(name: "Recursive", value: "true"),
-                URLQueryItem(name: "Fields", value: "RunTimeTicks"),
+                URLQueryItem(name: "Fields", value: Self.audioIdentityFields),
                 URLQueryItem(name: "SortBy", value: "ParentIndexNumber,IndexNumber,SortName"),
                 URLQueryItem(name: "SortOrder", value: "Ascending"),
             ],
             as: ItemsResponse<Item>.self
         )
-        return response.Items.compactMap { item in
-            guard let identity = item.validatedIdentity else { return nil }
-            return Track(
-                id: identity.id,
-                name: identity.name,
-                artist: item.Artists?.first?.nonEmpty ?? item.AlbumArtist?.nonEmpty ?? "Unknown Artist",
-                album: item.Album?.nonEmpty ?? "",
-                albumID: item.AlbumId?.nonEmpty,
-                index: item.IndexNumber,
-                disc: item.ParentIndexNumber,
-                durationTicks: item.RunTimeTicks
-            )
-        }
-        .sorted(by: trackPrecedes)
+        return response.Items.compactMap(mapTrack).sorted(by: trackPrecedes)
     }
 
     /// Music-library catalog paging. The server's SortName/Id ordering is
@@ -868,7 +855,7 @@ struct JellyfinAPI: Sendable {
                 URLQueryItem(name: "ParentId", value: libraryID),
                 URLQueryItem(name: "IncludeItemTypes", value: "Audio"),
                 URLQueryItem(name: "Recursive", value: "true"),
-                URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists,IndexNumber,ParentIndexNumber"),
+                URLQueryItem(name: "Fields", value: Self.audioIdentityFields),
                 URLQueryItem(name: "StartIndex", value: String(max(0, startIndex))),
                 URLQueryItem(name: "Limit", value: String(min(max(limit, 1), 200))),
                 URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
@@ -1087,7 +1074,7 @@ struct JellyfinAPI: Sendable {
                 URLQueryItem(name: "IncludeItemTypes", value: itemType),
                 URLQueryItem(name: "IsFavorite", value: "true"),
                 URLQueryItem(name: "Recursive", value: "true"),
-                URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,UserData,RunTimeTicks"),
+                URLQueryItem(name: "Fields", value: "\(Self.audioIdentityFields),UserData"),
                 URLQueryItem(name: "StartIndex", value: String(startIndex)),
                 URLQueryItem(name: "Limit", value: String(limit)),
                 URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
@@ -1113,7 +1100,7 @@ struct JellyfinAPI: Sendable {
                 URLQueryItem(name: "ParentId", value: libraryID),
                 URLQueryItem(name: "IncludeItemTypes", value: itemType),
                 URLQueryItem(name: "Recursive", value: "true"),
-                URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio,UserData,RunTimeTicks"),
+                URLQueryItem(name: "Fields", value: "\(Self.audioIdentityFields),UserData"),
                 URLQueryItem(name: "StartIndex", value: "0"),
                 URLQueryItem(name: "Limit", value: String(homeShelfLimit(limit))),
                 URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
@@ -1128,6 +1115,12 @@ struct JellyfinAPI: Sendable {
         min(max(requestedLimit, 1), 100)
     }
 
+    /// Fields that keep a mapped `Track` tied to its album and artist items.
+    /// Jellyfin returns those IDs on `AlbumId` / `ArtistItems` / `AlbumArtists`;
+    /// display names alone cannot open the library destination.
+    private static let audioIdentityFields =
+        "PrimaryImageAspectRatio,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists,IndexNumber,ParentIndexNumber"
+
     private func uniqueByID<Value: Identifiable>(_ values: [Value]) -> [Value] where Value.ID == String {
         var seen = Set<String>()
         return values.filter { seen.insert($0.id).inserted }
@@ -1135,16 +1128,17 @@ struct JellyfinAPI: Sendable {
 
     private func mapTrack(_ item: Item) -> Track? {
         guard let identity = item.validatedIdentity else { return nil }
+        let artist = item.displayedArtistName
         return Track(
             id: identity.id,
             name: identity.name,
-            artist: item.Artists?.first?.nonEmpty ?? item.AlbumArtist?.nonEmpty ?? "Unknown Artist",
+            artist: artist,
             album: item.Album?.nonEmpty ?? "",
             albumID: item.AlbumId?.nonEmpty,
             index: item.IndexNumber,
             disc: item.ParentIndexNumber,
             durationTicks: item.RunTimeTicks,
-            artistID: item.ArtistIds?.first?.nonEmpty,
+            artistID: item.artistID(matching: artist),
             imageTag: item.ImageTags?["Primary"]
         )
     }
@@ -1317,6 +1311,21 @@ private struct Item: Decodable {
     private struct UserData: Decodable {
         let IsFavorite: Bool?
     }
+
+    /// Jellyfin `NameGuidPair` — artist/album-artist identity on Audio items.
+    private struct NameIdPair: Decodable {
+        let Name: String?
+        let Id: String?
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            Name = container.lossy(String.self, forKey: .Name)
+            Id = container.lossy(String.self, forKey: .Id)
+        }
+
+        private enum CodingKeys: String, CodingKey { case Name, Id }
+    }
+
     let Id: String?
     let Name: String?
     let SortName: String?
@@ -1324,6 +1333,8 @@ private struct Item: Decodable {
     let CollectionType: String?
     let AlbumArtist: String?
     let Artists: [String]?
+    let ArtistItems: [NameIdPair]?
+    let AlbumArtists: [NameIdPair]?
     let ArtistIds: [String]?
     let Album: String?
     let AlbumId: String?
@@ -1356,6 +1367,21 @@ private struct Item: Decodable {
         return (id, name)
     }
 
+    var displayedArtistName: String {
+        Artists?.first?.nonEmpty ?? AlbumArtist?.nonEmpty ?? "Unknown Artist"
+    }
+
+    /// Prefer the ID that matches the displayed artist name so compilations
+    /// open the track artist, not "Various Artists". Fall back through album
+    /// artists, then a legacy `ArtistIds` array some payloads still send.
+    func artistID(matching name: String) -> String? {
+        id(matching: name, in: ArtistItems)
+            ?? ArtistItems?.first?.Id?.nonEmpty
+            ?? id(matching: name, in: AlbumArtists)
+            ?? AlbumArtists?.first?.Id?.nonEmpty
+            ?? ArtistIds?.first?.nonEmpty
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         Id = container.lossy(String.self, forKey: .Id)
@@ -1365,6 +1391,8 @@ private struct Item: Decodable {
         CollectionType = container.lossy(String.self, forKey: .CollectionType)
         AlbumArtist = container.lossy(String.self, forKey: .AlbumArtist)
         Artists = container.lossy([String].self, forKey: .Artists)
+        ArtistItems = container.lossy([NameIdPair].self, forKey: .ArtistItems)
+        AlbumArtists = container.lossy([NameIdPair].self, forKey: .AlbumArtists)
         ArtistIds = container.lossy([String].self, forKey: .ArtistIds)
         Album = container.lossy(String.self, forKey: .Album)
         AlbumId = container.lossy(String.self, forKey: .AlbumId)
@@ -1381,8 +1409,13 @@ private struct Item: Decodable {
         userData = container.lossy(UserData.self, forKey: .UserData)
     }
 
+    private func id(matching name: String, in pairs: [NameIdPair]?) -> String? {
+        pairs?.first(where: { $0.Name?.nonEmpty == name })?.Id?.nonEmpty
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case Id, Name, SortName, `Type`, CollectionType, AlbumArtist, Artists, ArtistIds, Album, AlbumId
+        case Id, Name, SortName, `Type`, CollectionType, AlbumArtist, Artists, ArtistItems, AlbumArtists, ArtistIds
+        case Album, AlbumId
         case ProductionYear, ImageTags, IndexNumber, ParentIndexNumber, RunTimeTicks
         case ChildCount, RecursiveItemCount, SongCount, AlbumCount, PlaylistItemId, UserData
     }
