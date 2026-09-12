@@ -404,6 +404,19 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertTrue(playback.upcomingEntries.isEmpty)
         XCTAssertEqual(playback.queue.map(\.track), [tracks[0]])
 
+        playback.configureForLifecycleTesting(queue: tracks, currentIndex: 0, elapsed: 0, isPlaying: true)
+        let mixRest = [
+            Track(id: "mix-a", name: "Mix A", artist: "Artist", album: "Album",
+                  index: 1, disc: 1, durationTicks: 10_000_000),
+            Track(id: "mix-b", name: "Mix B", artist: "Artist", album: "Album",
+                  index: 2, disc: 1, durationTicks: 10_000_000),
+        ]
+        playback.replaceUpcoming(with: mixRest)
+        XCTAssertEqual(playback.currentTrack, tracks[0])
+        XCTAssertEqual(playback.queue.map(\.track.id), ["current", "mix-a", "mix-b"])
+        XCTAssertTrue(playback.canGoNext)
+        XCTAssertTrue(playback.isPlaying)
+
         let data = try XCTUnwrap(defaults.data(forKey: "active-playback-snapshot-v1"))
         let snapshot = try JSONDecoder().decode(PlaybackSnapshot.self, from: data)
         XCTAssertEqual(snapshot.queue, playback.queue)

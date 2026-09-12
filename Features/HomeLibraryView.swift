@@ -182,7 +182,7 @@ struct HomeLibraryView: View {
                     LazyHStack(spacing: JellytoneTheme.Space.md) {
                         ForEach(Array(discoveryMixes.enumerated()), id: \.element.id) { index, mix in
                             Button {
-                                Task { await model.playDiscoveryMix(mix) }
+                                model.playDiscoveryMix(mix)
                             } label: {
                                 HomeShelfTile(
                                     itemID: mix.artworkItemID,
