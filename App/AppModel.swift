@@ -62,15 +62,21 @@ final class AppModel: ObservableObject {
         playback.cacheAudioForReplay = { [weak self] track in
             guard let self, !self.downloads.isDownloaded(track.id),
                   let request = try? self.api?.audioDownloadRequest(itemID: track.id) else { return }
-            Task { await self.recentAudio.remember(trackID: track.id, request: request) }
+            self.recentAudio.enqueue([(trackID: track.id, request: request)])
+        }
+        playback.forgetCachedAudio = { [weak self] track in
+            self?.recentAudio.remove(trackID: track.id)
         }
         downloads.artworkPrefetch = { [weak self] track in
             guard let self, let api = self.api, let session = self.session,
                   let artworkID = track.artworkItemID else { return }
             let key = ArtworkCache.key(serverID: session.serverID, itemID: artworkID)
-            guard await ArtworkCache.shared.image(forKey: key) == nil else { return }
+            _ = await ArtworkCache.shared.image(forKey: key)
+            guard await ArtworkCache.shared.takeRevalidation(forKey: key) else { return }
             if let data = try? await api.artworkData(itemID: artworkID) {
                 await ArtworkCache.shared.store(data, forKey: key)
+            } else {
+                await ArtworkCache.shared.allowRevalidation(forKey: key)
             }
         }
         let arguments = ProcessInfo.processInfo.arguments
@@ -109,6 +115,7 @@ final class AppModel: ObservableObject {
         if trackCatalogState.occurrences.isEmpty,
            let cached = try? await libraryStore?.cachedTrackCatalogPage(scope: libraryScope(for: session), libraryID: libraryID, limit: 100) {
             trackCatalogState.replaceCached(cached, scope: scope)
+            prefetchDisplayedMedia(tracks: cached.occurrences.map(\.track))
         }
         trackCatalogGeneration += 1
         let generation = "track-catalog-\(trackCatalogGeneration)-\(session.serverID)-\(session.userID)-\(libraryID)"
@@ -116,6 +123,7 @@ final class AppModel: ObservableObject {
             guard let self else { throw APIError.notAuthenticated }
             let page = try await api.trackCatalogPage(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
             if startIndex == 0 { try? await self.libraryStore?.replaceTrackCatalogPage(page, generation: generation, scope: self.libraryScope(for: session), libraryID: libraryID) }
+            self.prefetchDisplayedMedia(tracks: page.occurrences.map(\.track))
             return page
         }
     }
@@ -222,6 +230,7 @@ final class AppModel: ObservableObject {
         }
         hasMoreAlbums = page.hasMore
         nextAlbumStartIndex = page.nextStartIndex
+        prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: albums))
         Diagnostics.event("albums_loaded", ["count": albums.count, "has_more": page.hasMore, "scoped": libraryID != nil])
     }
 
@@ -249,6 +258,7 @@ final class AppModel: ObservableObject {
             )
             hasMoreAlbums = page.hasMore
             nextAlbumStartIndex = page.nextStartIndex
+            prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: page.albums))
             Diagnostics.event("albums_page_loaded", ["count": page.albums.count, "total": albums.count])
         } catch {
             errorMessage = error.localizedDescription
@@ -314,6 +324,7 @@ final class AppModel: ObservableObject {
            let cached = try? await libraryStore?.cachedHomeShelfSnapshot(scope: scope, libraryID: libraryID),
            ownsHomeRefresh(generation, scope: requestScope) {
             homeSnapshot = cached
+            prefetchHomeSnapshot(cached)
         }
 
         async let added = homeAlbumsResult(api: api, userID: session.userID, libraryID: libraryID)
@@ -386,6 +397,7 @@ final class AppModel: ObservableObject {
         replacement = replacement.updating(discoveryMixes: mixes)
 
         homeSnapshot = replacement
+        prefetchHomeSnapshot(replacement)
         var anySuccess = false
         if case .success = addedResult { anySuccess = true }
         if case .success = playedResult { anySuccess = true }
@@ -568,6 +580,7 @@ final class AppModel: ObservableObject {
                 tracks, albumID: album.id,
                 scope: libraryScope(for: session), libraryID: selectedLibraryID
             )
+            prefetchDisplayedMedia(tracks: tracks, artworkItemIDs: artworkItemIDs(from: [album]))
             return tracks
         } catch {
             errorMessage = error.localizedDescription
@@ -579,18 +592,26 @@ final class AppModel: ObservableObject {
     /// network refresh lands.
     func cachedAlbumTracks(for album: Album) async -> [Track]? {
         guard let session else { return nil }
-        return try? await libraryStore?.cachedAlbumTracks(
+        let tracks = try? await libraryStore?.cachedAlbumTracks(
             albumID: album.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
         )
+        if let tracks {
+            prefetchDisplayedMedia(tracks: tracks, artworkItemIDs: artworkItemIDs(from: [album]))
+        }
+        return tracks
     }
 
     /// Playlists are user-global in Jellyfin, so their snapshots cache under
     /// the global library scope.
     func cachedPlaylistEntries(for playlist: Playlist) async -> [PlaylistEntry]? {
         guard let session else { return nil }
-        return try? await libraryStore?.cachedPlaylistEntries(
+        let entries = try? await libraryStore?.cachedPlaylistEntries(
             playlistID: playlist.id, scope: libraryScope(for: session), libraryID: nil
         )
+        if let entries {
+            prefetchDisplayedMedia(tracks: entries.map(\.track), artworkItemIDs: artworkItemIDs(from: [playlist]))
+        }
+        return entries
     }
 
     func storePlaylistEntries(_ entries: [PlaylistEntry], for playlist: Playlist) async {
@@ -669,7 +690,7 @@ final class AppModel: ObservableObject {
 #endif
         guard let session, let api else { throw APIError.notAuthenticated }
         let scope = libraryScope(for: session)
-        return try await CacheBackedMusicSearch.execute(
+        let page = try await CacheBackedMusicSearch.execute(
             query: query,
             startIndex: startIndex,
             scope: scope,
@@ -684,6 +705,13 @@ final class AppModel: ObservableObject {
                 startIndex: startIndex
             )
         }
+        prefetchDisplayedMedia(
+            tracks: page.tracks,
+            artworkItemIDs: artworkItemIDs(from: page.albums)
+                + artworkItemIDs(from: page.artists)
+                + artworkItemIDs(from: page.playlists)
+        )
+        return page
     }
 
     func albums(for artist: Artist, startIndex: Int = 0) async throws -> AlbumPage {
@@ -723,6 +751,7 @@ final class AppModel: ObservableObject {
                 scope: libraryScope(for: session), libraryID: selectedLibraryID
             )
         }
+        prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: page.albums))
         return page
     }
 
@@ -730,9 +759,11 @@ final class AppModel: ObservableObject {
     /// instant paint before the network refresh lands.
     func cachedArtistAlbums(for artist: Artist) async -> [Album]? {
         guard let session else { return nil }
-        return try? await libraryStore?.cachedArtistAlbums(
+        let albums = try? await libraryStore?.cachedArtistAlbums(
             artistID: artist.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
         )
+        if let albums { prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: albums)) }
+        return albums
     }
 
     /// The artist's most-played tracks, persisted as the refresh resolves.
@@ -753,14 +784,17 @@ final class AppModel: ObservableObject {
             tracks, artistID: artist.id,
             scope: libraryScope(for: session), libraryID: selectedLibraryID
         )
+        prefetchDisplayedMedia(tracks: tracks, artworkItemIDs: artworkItemIDs(from: [artist]))
         return tracks
     }
 
     func cachedArtistTopTracks(for artist: Artist) async -> [Track]? {
         guard let session else { return nil }
-        return try? await libraryStore?.cachedArtistTopTracks(
+        let tracks = try? await libraryStore?.cachedArtistTopTracks(
             artistID: artist.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
         )
+        if let tracks { prefetchDisplayedMedia(tracks: tracks, artworkItemIDs: artworkItemIDs(from: [artist])) }
+        return tracks
     }
 
     func artistPage(startIndex: Int = 0) async throws -> ArtistPage {
@@ -808,6 +842,7 @@ final class AppModel: ObservableObject {
                 page.artists, scope: libraryScope(for: session), libraryID: selectedLibraryID
             )
         }
+        prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: page.artists))
         return page
     }
 
@@ -815,9 +850,11 @@ final class AppModel: ObservableObject {
     /// account has never opened the Artists screen.
     func cachedArtists() async -> [Artist] {
         guard let session else { return [] }
-        return (try? await libraryStore?.cachedArtists(
+        let artists = (try? await libraryStore?.cachedArtists(
             scope: libraryScope(for: session), libraryID: selectedLibraryID
         )) ?? []
+        prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: artists))
+        return artists
     }
 
     func playlistPage(startIndex: Int = 0) async throws -> PlaylistPage {
@@ -850,13 +887,16 @@ final class AppModel: ObservableObject {
         } else {
             try? await libraryStore?.appendPlaylists(page.playlists, scope: libraryScope(for: session), libraryID: nil)
         }
+        prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: page.playlists))
         return page
     }
 
     /// Persisted playlist browse snapshot for cache-first paint.
     func cachedPlaylists() async -> [Playlist] {
         guard let session else { return [] }
-        return (try? await libraryStore?.cachedPlaylists(scope: libraryScope(for: session), libraryID: nil)) ?? []
+        let playlists = (try? await libraryStore?.cachedPlaylists(scope: libraryScope(for: session), libraryID: nil)) ?? []
+        prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: playlists))
+        return playlists
     }
 
     /// Most recently created playlists, for Home's "Made For You" shelf. The
@@ -896,11 +936,13 @@ final class AppModel: ObservableObject {
         }
 #endif
         guard let session, let api else { throw APIError.notAuthenticated }
-        return try await api.playlistEntries(
+        let page = try await api.playlistEntries(
             userID: session.userID,
             playlistID: playlist.id,
             startIndex: startIndex
         )
+        prefetchDisplayedMedia(tracks: page.entries.map(\.track), artworkItemIDs: artworkItemIDs(from: [playlist]))
+        return page
     }
 
     func genrePage(startIndex: Int = 0) async throws -> GenrePage {
@@ -943,13 +985,16 @@ final class AppModel: ObservableObject {
         } else {
             try? await libraryStore?.appendGenres(page.genres, scope: libraryScope(for: session), libraryID: selectedLibraryID)
         }
+        prefetchDisplayedMedia(artworkItemIDs: page.genres.compactMap { $0.imageTag == nil ? nil : $0.id })
         return page
     }
 
     /// Persisted genre browse snapshot for cache-first paint.
     func cachedGenres() async -> [Genre] {
         guard let session else { return [] }
-        return (try? await libraryStore?.cachedGenres(scope: libraryScope(for: session), libraryID: selectedLibraryID)) ?? []
+        let genres = (try? await libraryStore?.cachedGenres(scope: libraryScope(for: session), libraryID: selectedLibraryID)) ?? []
+        prefetchDisplayedMedia(artworkItemIDs: genres.compactMap { $0.imageTag == nil ? nil : $0.id })
+        return genres
     }
 
     func genreAlbums(for genre: Genre, startIndex: Int = 0) async throws -> AlbumPage {
@@ -982,15 +1027,18 @@ final class AppModel: ObservableObject {
                 write: { try await store.replaceGenreAlbums($0, genreID: genre.id, scope: scope, libraryID: libraryID) }
             )
         }
+        prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: page.albums))
         return page
     }
 
     /// Persisted genre-albums snapshot for instant paint.
     func cachedGenreAlbums(for genre: Genre) async -> [Album]? {
         guard let session else { return nil }
-        return try? await libraryStore?.cachedGenreAlbums(
+        let albums = try? await libraryStore?.cachedGenreAlbums(
             genreID: genre.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
         )
+        if let albums { prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: albums)) }
+        return albums
     }
 
     func genreTracks(for genre: Genre, startIndex: Int = 0) async throws -> GenreTrackPage {
@@ -1030,15 +1078,18 @@ final class AppModel: ObservableObject {
                 write: { try await store.replaceGenreTracks($0, genreID: genre.id, scope: scope, libraryID: libraryID) }
             )
         }
+        prefetchDisplayedMedia(tracks: page.occurrences.map(\.track))
         return page
     }
 
     /// Persisted genre-tracks snapshot for instant paint.
     func cachedGenreTracks(for genre: Genre) async -> [GenreTrackOccurrence]? {
         guard let session else { return nil }
-        return try? await libraryStore?.cachedGenreTracks(
+        let occurrences = try? await libraryStore?.cachedGenreTracks(
             genreID: genre.id, scope: libraryScope(for: session), libraryID: selectedLibraryID
         )
+        if let occurrences { prefetchDisplayedMedia(tracks: occurrences.map(\.track)) }
+        return occurrences
     }
 
     /// Write-through for paginated detail snapshots: page 0 replaces the cache;
@@ -1079,7 +1130,9 @@ final class AppModel: ObservableObject {
         }
 #endif
         guard let session, let api, let libraryID = selectedLibraryID else { throw APIError.notAuthenticated }
-        return try await api.favouriteArtists(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+        let page = try await api.favouriteArtists(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+        prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: page.artists))
+        return page
     }
 
     func favouriteAlbumsPage(startIndex: Int = 0) async throws -> FavouriteAlbumPage {
@@ -1103,7 +1156,9 @@ final class AppModel: ObservableObject {
         }
 #endif
         guard let session, let api, let libraryID = selectedLibraryID else { throw APIError.notAuthenticated }
-        return try await api.favouriteAlbums(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+        let page = try await api.favouriteAlbums(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+        prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: page.albums))
+        return page
     }
 
     func favouriteTracksPage(startIndex: Int = 0) async throws -> FavouriteTrackPage {
@@ -1136,7 +1191,9 @@ final class AppModel: ObservableObject {
         }
 #endif
         guard let session, let api, let libraryID = selectedLibraryID else { throw APIError.notAuthenticated }
-        return try await api.favouriteTracks(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+        let page = try await api.favouriteTracks(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
+        prefetchDisplayedMedia(tracks: page.occurrences.map(\.track))
+        return page
     }
 
     func play(_ track: Track, in queue: [Track], haptic: Bool = true) {
@@ -1303,6 +1360,74 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func mediaCacheBytes() async -> Int64 {
+        await ArtworkCache.shared.diskBytes() + recentAudio.totalBytes
+    }
+
+    func clearMediaCache() async {
+        await ArtworkCache.shared.clear()
+        recentAudio.clear()
+    }
+
+    /// Warm disk artwork into memory and queue original audio for tracks the
+    /// user can already see, so a subsequent tap plays without waiting on the
+    /// server. No-op during UI tests and when signed out.
+    func prefetchDisplayedMedia(tracks: [Track] = [], artworkItemIDs: [String] = []) {
+        guard !ProcessInfo.processInfo.arguments.contains("--ui-testing") else { return }
+        guard let session, let api else { return }
+        let ids = Array(Set(artworkItemIDs + tracks.compactMap(\.artworkItemID)))
+        if !ids.isEmpty {
+            let capturedSession = session
+            let capturedAPI = api
+            Task { await self.warmAndRefreshArtwork(itemIDs: ids, session: capturedSession, api: capturedAPI) }
+        }
+        let items = tracks.compactMap { track -> (trackID: String, request: URLRequest)? in
+            guard !downloads.isDownloaded(track.id),
+                  let request = try? api.audioDownloadRequest(itemID: track.id) else { return nil }
+            return (track.id, request)
+        }
+        if !items.isEmpty { recentAudio.enqueue(items) }
+    }
+
+    private func warmAndRefreshArtwork(itemIDs: [String], session: UserSession, api: JellyfinAPI) async {
+        let keys = itemIDs.map { ArtworkCache.key(serverID: session.serverID, itemID: $0) }
+        await ArtworkCache.shared.warm(keys: keys)
+        for itemID in itemIDs {
+            let key = ArtworkCache.key(serverID: session.serverID, itemID: itemID)
+            guard await ArtworkCache.shared.takeRevalidation(forKey: key) else { continue }
+            if let data = try? await api.artworkData(itemID: itemID) {
+                await ArtworkCache.shared.store(data, forKey: key)
+            } else {
+                await ArtworkCache.shared.allowRevalidation(forKey: key)
+            }
+        }
+    }
+
+    private func artworkItemIDs(from albums: [Album]) -> [String] {
+        albums.compactMap { $0.imageTag == nil ? nil : $0.id }
+    }
+
+    private func artworkItemIDs(from artists: [Artist]) -> [String] {
+        artists.compactMap { $0.imageTag == nil ? nil : $0.id }
+    }
+
+    private func artworkItemIDs(from playlists: [Playlist]) -> [String] {
+        playlists.compactMap { $0.imageTag == nil ? nil : $0.id }
+    }
+
+    private func prefetchHomeSnapshot(_ snapshot: HomeShelfSnapshot) {
+        prefetchDisplayedMedia(
+            tracks: snapshot.recentlyPlayedTracks,
+            artworkItemIDs: artworkItemIDs(from: snapshot.recentlyAddedAlbums)
+                + artworkItemIDs(from: snapshot.favouriteArtists)
+                + artworkItemIDs(from: snapshot.madeForYouPlaylists)
+                + artworkItemIDs(from: snapshot.frequentlyPlayedAlbums)
+                + artworkItemIDs(from: snapshot.rediscoverAlbums)
+                + snapshot.discoveryMixes.compactMap { $0.imageTag == nil ? nil : $0.artworkItemID }
+                + snapshot.homeGenres.compactMap { $0.imageTag == nil ? nil : $0.id }
+        )
+    }
+
     func playNext(_ track: Track) {
         JellytoneHaptics.play(.light)
         playback.playNext(track)
@@ -1420,6 +1545,7 @@ final class AppModel: ObservableObject {
             libraryID: libraryID
         ) else { return }
         albums = cached
+        prefetchDisplayedMedia(artworkItemIDs: artworkItemIDs(from: cached))
     }
 
     private func loadCachedHomeShelves(for session: UserSession, libraryID: String?) async {
@@ -1427,6 +1553,7 @@ final class AppModel: ObservableObject {
             scope: libraryScope(for: session), libraryID: libraryID
         ) else { return }
         homeSnapshot = cached
+        prefetchHomeSnapshot(cached)
     }
 
     private func ownsHomeRefresh(_ generation: Int, scope: HomeFeatureScope) -> Bool {

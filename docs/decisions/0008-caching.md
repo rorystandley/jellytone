@@ -43,9 +43,11 @@ transactionally; offline assets are never deleted by cache recovery.
 ## Implementation status (2026-07-19)
 
 Shipped first slice: `ArtworkCache` (NSCache + files in the system Caches
-directory, keys scoped `serverID_itemID`), read-through from
-`AuthenticatedArtworkView`, size reporting and manual purge in Settings, and a
-full clear on logout. The OS may evict the directory under storage pressure.
+directory, keys scoped `serverID_itemID`), cache-first paint from
+`AuthenticatedArtworkView` with a once-per-process network write-through so
+server art changes update the stored bytes, combined artwork+audio size and
+Clear Cache in Settings, and a full clear on logout. The OS may evict the
+directory under storage pressure.
 Not yet implemented from the decision above: budgeted LRU eviction, digests and
 byte-count verification, SQLite asset references, per-account (rather than
 per-server) namespaces, and offline pinning. Lyrics are now fetched live from
@@ -55,10 +57,13 @@ disk as content-addressed assets. Detail metadata snapshots (album tracks,
 playlist entries — `detail_track_snapshots`, migration 007) and ordered album
 pages (`sort_index`, migration 006) landed in SQLite per the decision.
 
-`RecentAudioCache` adds an ephemeral replay cache: when a track streams via
-direct play, its original file is fetched into the system Caches directory and
-served on subsequent plays (LRU by ~500 MB byte budget, OS-evictable, cleared
-on sign-out). It is deliberately weaker than downloads — unverified, no
-manifest, never presented as offline-capable; a miss just streams. Playback
-reporting (recently-played, resume) is unchanged because only the audio source
-is swapped, not the plan. Distinct from the download manifest of ADR 0009.
+`RecentAudioCache` is an LRU of original-container audio in the system Caches
+directory (default ~2 GB). Tracks the user has opened (album, playlist, queue,
+Home recently played, …) are enqueued for fetch so the next play starts from
+disk. Playback of a cache hit is immediate — the Jellyfin play session is
+attached afterwards for reporting. Files are OS-evictable, unverified, and
+never presented as offline-capable; a miss (or a corrupt file) streams. Distinct
+from the download manifest of ADR 0009.
+
+Settings shows combined artwork + audio cache size and a single Clear Cache
+action (also used on sign-out).

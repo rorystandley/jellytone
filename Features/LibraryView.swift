@@ -310,29 +310,49 @@ struct AuthenticatedArtworkView: View {
             }
         }
         .clipped()
-        .task(id: itemID) {
-#if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--ui-testing"), itemID.contains("artwork") {
-                image = Self.syntheticArtwork()
-                return
-            }
-#endif
-            guard let api = model.api, let session = model.session else { return }
-            let cacheKey = ArtworkCache.key(serverID: session.serverID, itemID: itemID)
-            if let cached = await ArtworkCache.shared.image(forKey: cacheKey) {
-                image = cached
-                return
-            }
-            guard var request = try? api.artworkRequest(itemID: itemID) else { return }
-            request.setValue(session.accessToken, forHTTPHeaderField: "X-Emby-Token")
-            if let (data, response) = try? await URLSession.shared.data(for: request),
-               (response as? HTTPURLResponse).map({ 200..<300 ~= $0.statusCode }) == true,
-               let fetched = UIImage(data: data) {
-                image = fetched
-                await ArtworkCache.shared.store(data, forKey: cacheKey)
-            }
-        }
+        .onAppear { paintMemoryIfNeeded() }
+        .task(id: itemID) { await loadArtwork() }
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    /// Memory hits paint before the async disk/network hop so a warm launch
+    /// does not flash the placeholder over art that is already decoded.
+    private func paintMemoryIfNeeded() {
+        guard image == nil, let session = model.session else { return }
+        let cacheKey = ArtworkCache.key(serverID: session.serverID, itemID: itemID)
+        if let cached = ArtworkCache.memoryImage(forKey: cacheKey) {
+            image = cached
+        }
+    }
+
+    private func loadArtwork() async {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing"), itemID.contains("artwork") {
+            image = Self.syntheticArtwork()
+            return
+        }
+#endif
+        guard let api = model.api, let session = model.session else { return }
+        let cacheKey = ArtworkCache.key(serverID: session.serverID, itemID: itemID)
+        if let cached = await ArtworkCache.shared.image(forKey: cacheKey) {
+            image = cached
+        }
+        // Stale-while-revalidate: show cache immediately, then let the first
+        // network fetch this process overwrite the stored bytes.
+        guard await ArtworkCache.shared.takeRevalidation(forKey: cacheKey) else { return }
+        guard var request = try? api.artworkRequest(itemID: itemID) else {
+            await ArtworkCache.shared.allowRevalidation(forKey: cacheKey)
+            return
+        }
+        request.setValue(session.accessToken, forHTTPHeaderField: "X-Emby-Token")
+        if let (data, response) = try? await URLSession.shared.data(for: request),
+           (response as? HTTPURLResponse).map({ 200..<300 ~= $0.statusCode }) == true,
+           let fetched = UIImage(data: data) {
+            image = fetched
+            await ArtworkCache.shared.store(data, forKey: cacheKey)
+        } else {
+            await ArtworkCache.shared.allowRevalidation(forKey: cacheKey)
+        }
     }
 
 #if DEBUG
