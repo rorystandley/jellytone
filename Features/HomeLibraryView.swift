@@ -180,7 +180,7 @@ struct HomeLibraryView: View {
                     .padding(.horizontal, JellytoneTheme.Space.screenMargin)
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: JellytoneTheme.Space.md) {
-                        ForEach(Array(discoveryMixes.enumerated()), id: \.element.id) { index, mix in
+                        ForEach(discoveryMixes) { mix in
                             Button {
                                 model.playDiscoveryMix(mix)
                             } label: {
@@ -188,8 +188,7 @@ struct HomeLibraryView: View {
                                     itemID: mix.artworkItemID,
                                     imageTag: mix.imageTag,
                                     title: mix.title,
-                                    subtitle: mix.subtitle,
-                                    isHero: index == 0
+                                    subtitle: mix.subtitle
                                 )
                             }
                             .buttonStyle(.jtPressScale())
@@ -275,14 +274,13 @@ struct HomeLibraryView: View {
                     .padding(.horizontal, JellytoneTheme.Space.screenMargin)
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: JellytoneTheme.Space.md) {
-                        ForEach(Array(homePlaylists.enumerated()), id: \.element.id) { index, playlist in
+                        ForEach(homePlaylists) { playlist in
                             NavigationLink(value: playlist) {
                                 HomeShelfTile(
                                     itemID: playlist.id,
                                     imageTag: playlist.imageTag,
                                     title: playlist.name,
-                                    subtitle: playlist.itemCount.map { "\($0) songs" },
-                                    isHero: index == 0
+                                    subtitle: playlist.itemCount.map { "\($0) songs" }
                                 )
                             }
                             .buttonStyle(.jtPressScale())
@@ -349,7 +347,7 @@ struct HomeLibraryView: View {
                 let tracks = model.homeSnapshot?.recentlyPlayedTracks ?? []
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: JellytoneTheme.Space.md) {
-                        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                        ForEach(tracks) { track in
                             Button { model.play(track, in: tracks) } label: {
                                 HomeShelfTile(
                                     // Fall back to album artwork — most tracks
@@ -358,8 +356,7 @@ struct HomeLibraryView: View {
                                     itemID: track.artworkItemID ?? track.id,
                                     imageTag: track.artworkItemID == nil ? nil : (track.imageTag ?? "album"),
                                     title: track.name,
-                                    subtitle: track.artist,
-                                    isHero: index == 0
+                                    subtitle: track.artist
                                 )
                             }
                             .buttonStyle(.jtPressScale())
@@ -427,8 +424,6 @@ private enum HomeMetrics {
     /// small album cards so the shelves share a rhythm.
     static let artistCircleDiameter: CGFloat = 112
     static let shelfTileHeight: CGFloat = 140
-    // Mockup grid is 1.5fr/1fr inside a 390pt frame with 20pt margins/12pt gap.
-    static let shelfHeroTileWidth: CGFloat = 202
     static let shelfTileWidth: CGFloat = 134
     /// Apple's canonical 44pt control size — the account avatar's tap target.
     static let avatarDiameter: CGFloat = 44
@@ -445,7 +440,7 @@ private struct HomeSkeleton: View {
     enum Layout {
         /// Recently Added: full-width hero card + a row of small squares.
         case heroAndCards
-        /// Made For You / Recently Played: hero tile + standard tiles.
+        /// Made For You / Recently Played: uniform horizontal tiles.
         case shelf
     }
 
@@ -472,10 +467,7 @@ private struct HomeSkeleton: View {
                 }
             case .shelf:
                 HStack(spacing: JellytoneTheme.Space.md) {
-                    block(width: HomeMetrics.shelfHeroTileWidth,
-                          height: HomeMetrics.shelfTileHeight,
-                          radius: JellytoneTheme.Radius.card)
-                    ForEach(0..<2, id: \.self) { _ in
+                    ForEach(0..<3, id: \.self) { _ in
                         block(width: HomeMetrics.shelfTileWidth,
                               height: HomeMetrics.shelfTileHeight,
                               radius: JellytoneTheme.Radius.card)
@@ -780,34 +772,29 @@ private struct HomeAlbumCard: View {
     }
 }
 
-/// Shared tile for the horizontal Made For You / Recently Played shelves —
-/// bottom-anchored text over artwork. The leading tile is a static hero
-/// (mockup 1.5fr column); the rest stay at the standard width. Width is not
-/// driven from scroll geometry — interpolating it made artwork appear to
-/// zoom as the home page scrolled (AGENTS.md: Home Listen Now surfaces).
+/// Shared tile for the horizontal Made For You / Recently Played / Playlists
+/// shelves — bottom-anchored text over artwork. Every tile uses the same
+/// size. Width is not driven from scroll geometry — interpolating it made
+/// artwork appear to zoom as the home page scrolled (AGENTS.md: Home Listen
+/// Now surfaces).
 private struct HomeShelfTile: View {
     let itemID: String
     let imageTag: String?
     let title: String
     let subtitle: String?
-    var isHero: Bool = false
-
-    private var width: CGFloat {
-        isHero ? HomeMetrics.shelfHeroTileWidth : HomeMetrics.shelfTileWidth
-    }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             Color.clear
                 .overlay {
                     homeArtwork(itemID: itemID, imageTag: imageTag, name: title)
-                        .frame(width: width, height: HomeMetrics.shelfTileHeight)
+                        .frame(width: HomeMetrics.shelfTileWidth, height: HomeMetrics.shelfTileHeight)
                         .clipped()
                 }
                 .jtArtworkScrim()
             VStack(alignment: .leading, spacing: JellytoneTheme.Space.xxs) {
                 Text(title)
-                    .font(isHero ? .jtHeroCardTitle : .jtRowTitle.weight(.heavy))
+                    .font(.jtRowTitle.weight(.heavy))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -818,9 +805,9 @@ private struct HomeShelfTile: View {
                         .lineLimit(1)
                 }
             }
-            .padding(isHero ? JellytoneTheme.Space.lgPlus : JellytoneTheme.Space.mdPlus)
+            .padding(JellytoneTheme.Space.mdPlus)
         }
-        .frame(width: width, height: HomeMetrics.shelfTileHeight)
+        .frame(width: HomeMetrics.shelfTileWidth, height: HomeMetrics.shelfTileHeight)
         .clipShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.card, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: JellytoneTheme.Radius.card, style: .continuous))
         .accessibilityElement(children: .combine)
