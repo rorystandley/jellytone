@@ -311,6 +311,17 @@ final class PlaybackController: ObservableObject {
         persistState()
     }
 
+    /// Replaces everything after the current item without restarting playback.
+    /// Used to expand a Made for You mix after its seed track has already started.
+    func replaceUpcoming(with tracks: [Track]) {
+        guard queue.indices.contains(currentIndex) else { return }
+        commitVisibleOrderForEditing()
+        let upcoming = tracks.map { QueueEntry(track: $0) }
+        queue = Array(queue.prefix(currentIndex + 1)) + upcoming
+        originalQueue = queue
+        queueDidMutate()
+    }
+
     func toggleShuffle() {
         guard queue.indices.contains(currentIndex) else { return }
         let currentID = queue[currentIndex].id

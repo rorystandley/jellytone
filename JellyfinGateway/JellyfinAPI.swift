@@ -194,6 +194,11 @@ struct JellyfinAPI: Sendable {
 
     /// Jellyfin Instant Mix from a seed item (artist, album, or track). Used
     /// when the user plays a Listen Now "Made for You" mix tile.
+    ///
+    /// Always filtered to Audio: Instant Mix from a MusicArtist can prepend
+    /// the artist itself, which is not playable. Callers should prefer a
+    /// track seed — artist Instant Mix uses the artist's own Genres, which
+    /// Jellyfin often leaves empty.
     func instantMixTracks(
         userID: String,
         itemID: String,
@@ -205,6 +210,7 @@ struct JellyfinAPI: Sendable {
             query: [
                 URLQueryItem(name: "userId", value: userID),
                 URLQueryItem(name: "Limit", value: String(min(max(limit, 1), 100))),
+                URLQueryItem(name: "IncludeItemTypes", value: "Audio"),
                 URLQueryItem(name: "Fields", value: "\(Self.audioIdentityFields),UserData"),
             ],
             as: ItemsResponse<Item>.self

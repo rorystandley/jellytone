@@ -95,6 +95,7 @@ final class HomeGatewayTests: XCTestCase {
         let mix = try query(mixRequest)
         XCTAssertEqual(mix["userId"], "account/id")
         XCTAssertEqual(mix["Limit"], "50")
+        XCTAssertEqual(mix["IncludeItemTypes"], "Audio")
 
         for request in requests {
             let components = try XCTUnwrap(request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) })
@@ -102,6 +103,28 @@ final class HomeGatewayTests: XCTestCase {
             XCTAssertEqual(request.value(forHTTPHeaderField: "X-Emby-Token"), "synthetic-secret")
             XCTAssertFalse(components.url?.absoluteString.contains("synthetic-secret") == true)
         }
+    }
+
+    func testInstantMixDropsNonAudioSeedAndKeepsPlayableTrackOrder() async throws {
+        HomeURLProtocol.handler = { request in
+            Self.response(request, json: #"""
+            {"Items":[
+                {"Id":"seed-artist","Name":"Synthetic Artist","Type":"MusicArtist"},
+                {"Id":"track-one","Name":"First Playable","Type":"Audio","Artists":["Synthetic Artist"],
+                 "Album":"Aurora Lines","AlbumId":"album-a","RunTimeTicks":1810000000},
+                {"Id":"album-a","Name":"Aurora Lines","Type":"MusicAlbum"},
+                {"Id":"track-one","Name":"Duplicate row","Type":"Audio"},
+                {"Id":"track-two","Name":"Second Playable","Type":"Audio","AlbumArtist":"Fallback Artist"}
+            ]}
+            """#)
+        }
+        let api = try makeAPI()
+
+        let tracks = try await api.instantMixTracks(userID: "account", itemID: "seed-artist")
+
+        XCTAssertEqual(tracks.map(\.id), ["track-one", "track-two"])
+        XCTAssertEqual(tracks[0].name, "First Playable")
+        XCTAssertEqual(tracks[1].artist, "Fallback Artist")
     }
 
     func testHomeShelfAuthenticationMalformedPayloadAndCancellationRemainTyped() async throws {
