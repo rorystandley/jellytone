@@ -379,7 +379,7 @@ final class AppModel: ObservableObject {
 
         // Rebuild Instant Mix tiles from the freshest favourite artists +
         // recent listening seeds available after this refresh merge.
-        let mixes = Self.makeDiscoveryMixes(
+        let mixes = DiscoveryMixCatalog.make(
             favouriteArtists: replacement.favouriteArtists,
             recentlyPlayedTracks: replacement.recentlyPlayedTracks
         )
@@ -397,13 +397,23 @@ final class AppModel: ObservableObject {
         if anySuccess { try? await libraryStore?.replaceHomeShelfSnapshot(replacement, scope: scope, libraryID: libraryID) }
         homeRefreshError = errors.isEmpty ? nil : errors.joined(separator: " ")
         isRefreshingHome = false
+        prefetchLeadingDiscoveryMixSeed(replacement.discoveryMixes)
+    }
+
+    /// Warm the first Made for You artist mix so tapping it doesn't wait on
+    /// a cold top-tracks query. Instant Mix from the artist entity is often
+    /// empty (no Genres on MusicArtist), so playback seeds from these tracks.
+    private func prefetchLeadingDiscoveryMixSeed(_ mixes: [DiscoveryMix]) {
+        guard let first = mixes.first, first.seedKind == .artist else { return }
+        let artist = Artist(id: first.seedItemID, name: first.title, imageTag: first.imageTag)
+        Task { _ = try? await artistTopTracks(for: artist) }
     }
 
     private static let madeForYouShelfLimit = 10
     private static let favouriteArtistsShelfLimit = 20
     private static let listenNowAlbumShelfLimit = 16
     private static let homeGenresShelfLimit = 16
-    private static let discoveryMixLimit = 8
+    private var discoveryMixGeneration = 0
 
     private func homePlaylistsResult() async -> Result<[Playlist], Error> {
         do { return .success(try await recentPlaylists(limit: Self.madeForYouShelfLimit)) }
@@ -446,79 +456,97 @@ final class AppModel: ObservableObject {
         } catch { return .failure }
     }
 
-    /// Builds Listen Now Instant Mix tiles. Favourite artists first; fill from
-    /// distinct recently played artists/tracks so an empty favourites list
-    /// still yields a useful Made for You shelf.
-    private static func makeDiscoveryMixes(
-        favouriteArtists: [Artist],
-        recentlyPlayedTracks: [Track]
-    ) -> [DiscoveryMix] {
-        var mixes: [DiscoveryMix] = []
-        var seenSeeds = Set<String>()
-
-        for artist in favouriteArtists {
-            guard mixes.count < discoveryMixLimit else { break }
-            guard seenSeeds.insert(artist.id).inserted else { continue }
-            mixes.append(
-                DiscoveryMix(
-                    id: "mix-artist-\(artist.id)",
-                    seedItemID: artist.id,
-                    seedKind: .artist,
-                    title: "\(artist.name) Mix",
-                    subtitle: "Made for You",
-                    artworkItemID: artist.id,
-                    imageTag: artist.imageTag
-                )
-            )
+    /// Plays a Listen Now Instant Mix. Haptic and any in-memory seed start
+    /// synchronously so the tap isn't a dead pause while Instant Mix computes.
+    /// Failures surface on `errorMessage` without wiping the Home snapshot.
+    ///
+    /// Artist Instant Mix is unreliable: Jellyfin builds it from the artist's
+    /// own Genres, which are often empty. We start a playable seed track
+    /// (cached recently-played or the artist's top songs) and expand the
+    /// queue from Instant Mix of that *track*.
+    func playDiscoveryMix(_ mix: DiscoveryMix) {
+        guard session != nil, api != nil else { return }
+        JellytoneHaptics.playFromLibrary()
+        discoveryMixGeneration += 1
+        let generation = discoveryMixGeneration
+        if let seed = inMemorySeedTrack(for: mix) {
+            play(seed, in: [seed], haptic: false)
         }
-
-        for track in recentlyPlayedTracks {
-            guard mixes.count < discoveryMixLimit else { break }
-            if let artistID = track.artistID, seenSeeds.insert(artistID).inserted {
-                mixes.append(
-                    DiscoveryMix(
-                        id: "mix-artist-\(artistID)",
-                        seedItemID: artistID,
-                        seedKind: .artist,
-                        title: "\(track.artist) Mix",
-                        subtitle: "Because You Listened",
-                        artworkItemID: track.artworkItemID ?? track.albumID ?? artistID,
-                        imageTag: track.imageTag
-                    )
-                )
-                continue
-            }
-            guard seenSeeds.insert(track.id).inserted else { continue }
-            mixes.append(
-                DiscoveryMix(
-                    id: "mix-track-\(track.id)",
-                    seedItemID: track.id,
-                    seedKind: .track,
-                    title: "\(track.name) Mix",
-                    subtitle: "Because You Listened",
-                    artworkItemID: track.artworkItemID ?? track.albumID ?? track.id,
-                    imageTag: track.imageTag
-                )
-            )
-        }
-        return mixes
+        Task { await expandDiscoveryMix(mix, generation: generation) }
     }
 
-    /// Plays a Listen Now Instant Mix. Failures surface on `errorMessage`
-    /// without wiping the Home snapshot.
-    func playDiscoveryMix(_ mix: DiscoveryMix) async {
+    private func inMemorySeedTrack(for mix: DiscoveryMix) -> Track? {
+        guard mix.seedKind == .track else { return nil }
+        return homeSnapshot?.recentlyPlayedTracks.first { $0.id == mix.seedItemID }
+    }
+
+    private func expandDiscoveryMix(_ mix: DiscoveryMix, generation: Int) async {
         guard let session, let api else { return }
         do {
-            let tracks = try await api.instantMixTracks(
-                userID: session.userID, itemID: mix.seedItemID
+            let seedTracks = try await resolveDiscoveryMixSeedTracks(
+                mix, api: api, session: session
             )
-            guard let first = tracks.first else {
+            guard generation == discoveryMixGeneration else { return }
+            guard let seed = seedTracks.first else {
                 errorMessage = "This mix didn’t return any playable tracks."
                 return
             }
-            play(first, in: tracks)
+            if playback.currentTrack?.id != seed.id {
+                play(seed, in: seedTracks, haptic: false)
+            }
+
+            let mixTracks = try await api.instantMixTracks(
+                userID: session.userID, itemID: seed.id
+            )
+            guard generation == discoveryMixGeneration else { return }
+            guard playback.currentTrack?.id == seed.id else { return }
+            let upcoming = DiscoveryMixQueue.upcoming(from: mixTracks, playing: seed)
+            if !upcoming.isEmpty {
+                playback.replaceUpcoming(with: upcoming)
+            }
         } catch {
-            errorMessage = error.localizedDescription
+            guard generation == discoveryMixGeneration else { return }
+            if playback.currentTrack == nil {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// A playable Audio seed so Instant Mix is never asked to mix from a
+    /// MusicArtist (empty when the artist entity has no Genres).
+    private func resolveDiscoveryMixSeedTracks(
+        _ mix: DiscoveryMix,
+        api: JellyfinAPI,
+        session: UserSession
+    ) async throws -> [Track] {
+        if let cached = inMemorySeedTrack(for: mix) { return [cached] }
+
+        switch mix.seedKind {
+        case .track:
+            return try await api.instantMixTracks(
+                userID: session.userID, itemID: mix.seedItemID
+            )
+        case .artist:
+            let artist = Artist(id: mix.seedItemID, name: mix.title, imageTag: mix.imageTag)
+            if let cached = await cachedArtistTopTracks(for: artist), !cached.isEmpty {
+                return cached
+            }
+            let top = try await artistTopTracks(for: artist)
+            if !top.isEmpty { return top }
+            // Last resort: artist Instant Mix (empty when the artist has no Genres).
+            return try await api.instantMixTracks(
+                userID: session.userID, itemID: mix.seedItemID
+            )
+        case .album:
+            let album = Album(
+                id: mix.seedItemID, name: mix.title, artist: "",
+                productionYear: nil, imageTag: mix.imageTag
+            )
+            let tracks = await self.tracks(for: album)
+            if !tracks.isEmpty { return tracks }
+            return try await api.instantMixTracks(
+                userID: session.userID, itemID: mix.seedItemID
+            )
         }
     }
 
@@ -1111,9 +1139,9 @@ final class AppModel: ObservableObject {
         return try await api.favouriteTracks(userID: session.userID, libraryID: libraryID, startIndex: startIndex)
     }
 
-    func play(_ track: Track, in queue: [Track]) {
+    func play(_ track: Track, in queue: [Track], haptic: Bool = true) {
         guard let api, let session else { return }
-        JellytoneHaptics.playFromLibrary()
+        if haptic { JellytoneHaptics.playFromLibrary() }
         playback.play(
             track,
             queue: queue,
