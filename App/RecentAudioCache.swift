@@ -1,11 +1,12 @@
 import Foundation
 
-/// Ephemeral LRU cache of recently-streamed audio, so replaying a track in
-/// quick succession reads from disk instead of the server. Distinct from
-/// downloads: files here are OS-evictable (system Caches directory), unverified,
-/// and never presented as "downloaded" or relied on for offline playback — a
-/// miss simply falls back to streaming. Only original-container (direct-play)
-/// audio is cached, since that is the byte-stable resource AVPlayer can reuse.
+/// Ephemeral LRU cache of recently shown and streamed audio, so a track the
+/// user has already seen (album, playlist, queue) plays from disk instead of
+/// waiting on the server. Distinct from downloads: files here are OS-evictable
+/// (system Caches directory), unverified, and never presented as "downloaded"
+/// — a miss simply falls back to streaming. Only original-container
+/// (direct-play) audio is cached, since that is the byte-stable resource
+/// AVPlayer can reuse.
 @MainActor
 final class RecentAudioCache {
     private struct Entry {
@@ -20,10 +21,13 @@ final class RecentAudioCache {
     private var index: [String: Entry] = [:]
     private var sequenceCounter = 0
     private var inFlight: Set<String> = []
+    private var pendingPrefetch: [(trackID: String, request: URLRequest)] = []
+    private var activePrefetches = 0
+    private let maxConcurrentPrefetch = 2
 
-    /// Default budget ~500 MB — enough to hold a listening session's rotation
-    /// without competing with downloads for space.
-    init(directory: URL? = nil, byteBudget: Int64 = 500 * 1_024 * 1_024, urlSession: URLSession = .shared) {
+    /// Default budget ~2 GB — enough to hold albums and queues the user has
+    /// actually opened, without competing with verified downloads for space.
+    init(directory: URL? = nil, byteBudget: Int64 = 2 * 1_024 * 1_024 * 1_024, urlSession: URLSession = .shared) {
         self.byteBudget = byteBudget
         self.urlSession = urlSession
         self.directory = directory
@@ -74,14 +78,50 @@ final class RecentAudioCache {
         }
     }
 
+    /// Queue original-audio fetches for tracks the user can already see, so
+    /// tapping play does not wait on the network. Bounded concurrency; already
+    /// cached or in-flight IDs are skipped.
+    func enqueue(_ items: [(trackID: String, request: URLRequest)]) {
+        for item in items {
+            guard index[item.trackID] == nil, !inFlight.contains(item.trackID) else { continue }
+            if pendingPrefetch.contains(where: { $0.trackID == item.trackID }) { continue }
+            pendingPrefetch.append(item)
+        }
+        pumpPrefetch()
+    }
+
+    /// Drop a corrupt or unusable cached file so the next play streams (and
+    /// can recache) instead of looping on the bad copy.
+    func remove(trackID: String) {
+        pendingPrefetch.removeAll { $0.trackID == trackID }
+        guard let entry = index[trackID] else { return }
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent(entry.fileName))
+        index[trackID] = nil
+    }
+
     func clear() {
         index = [:]
         inFlight = []
+        pendingPrefetch = []
         try? FileManager.default.removeItem(at: directory)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
     var totalBytes: Int64 { index.values.reduce(0) { $0 + $1.bytes } }
+
+    // MARK: Prefetch
+
+    private func pumpPrefetch() {
+        while activePrefetches < maxConcurrentPrefetch, !pendingPrefetch.isEmpty {
+            let item = pendingPrefetch.removeFirst()
+            activePrefetches += 1
+            Task { @MainActor [weak self] in
+                await self?.remember(trackID: item.trackID, request: item.request)
+                self?.activePrefetches -= 1
+                self?.pumpPrefetch()
+            }
+        }
+    }
 
     // MARK: LRU
 

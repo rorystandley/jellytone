@@ -113,11 +113,19 @@ final class PlaybackController: ObservableObject {
     /// no progress reporting — offline playback must not require the network.
     var localAudioURL: (@MainActor (Track) -> URL?)?
     /// Resolves an ephemeral replay-cache file for a track (set by the
-    /// coordinator). Used only for direct play, and only for the audio source
-    /// — the server plan and reporting still run normally.
+    /// coordinator). A hit plays immediately; the server plan and reporting
+    /// attach in the background so a warm launch does not wait on the network.
     var replayCachedAudioURL: (@MainActor (Track) -> URL?)?
     /// Asks the coordinator to cache a direct-play track's audio for replay.
     var cacheAudioForReplay: (@MainActor (Track) -> Void)?
+    /// Drops a corrupt replay-cache file so the next attempt streams.
+    var forgetCachedAudio: (@MainActor (Track) -> Void)?
+    /// True while the current player is reading an unverified replay-cache file
+    /// (not a download). A decode failure falls back to streaming.
+    private var usingReplayCache = false
+    /// Track whose replay-cache file just failed; skip that file for this
+    /// prepare so we cannot loop on a corrupt copy.
+    private var replayCacheDisabledForTrackID: String?
 
     private var api: JellyfinAPI?
     private var userID: String?
@@ -498,6 +506,7 @@ final class PlaybackController: ObservableObject {
         isPlaying = false
         playbackRequested = autoPlay
         isPreparing = true
+        usingReplayCache = false
         errorMessage = nil
         qualityLabel = "Preparing…"
         lastProgressBucket = -1
@@ -539,40 +548,49 @@ final class PlaybackController: ObservableObject {
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
                 if let localURL = localAudioURL?(track) {
                     plan = nil
+                    usingReplayCache = false
                     Diagnostics.event("playback_local_source_selected")
-                    qualityLabel = "Downloaded"
-                    let player = AVPlayer(url: localURL)
-                    self.player = player
-                    lastProgressBucket = Int(resumeAt / 10)
-                    lastPersistenceBucket = Int(resumeAt / 5)
-                    observe(player)
-                    if resumeAt > 0 {
-                        await player.seek(to: CMTime(seconds: resumeAt, preferredTimescale: 600))
-                    }
-                    guard !Task.isCancelled, generation == expectedGeneration else { return }
-                    let shouldPlay = shouldStartPreparedPlayer
-                    if shouldPlay { player.play() }
-                    isPlaying = shouldPlay
-                    isPreparing = false
-                    updateNowPlaying(track: track)
-                    if let albumID = track.albumID {
-                        // Cached artwork first — offline playback must not
-                        // depend on the network for its imagery either.
-                        let serverID = scope.split(separator: ":").first.map(String.init) ?? ""
-                        let cacheKey = ArtworkCache.key(serverID: serverID, itemID: albumID)
-                        if let cached = await ArtworkCache.shared.image(forKey: cacheKey),
-                           generation == expectedGeneration {
-                            artwork = cached
-                            updateNowPlaying(track: track)
-                        } else if let data = try? await api.artworkData(itemID: albumID),
-                                  let image = UIImage(data: data), generation == expectedGeneration {
-                            artwork = image
-                            updateNowPlaying(track: track)
-                            await ArtworkCache.shared.store(data, forKey: cacheKey)
-                        }
+                    let started = await startFilePlayback(
+                        url: localURL,
+                        track: track,
+                        resumeAt: resumeAt,
+                        expectedGeneration: expectedGeneration,
+                        quality: "Downloaded"
+                    )
+                    if started {
+                        await applyArtwork(for: track, api: api, expectedGeneration: expectedGeneration)
+                        prefetchUpcomingAudio()
                     }
                     return
                 }
+                // Cached original audio plays immediately. The playback plan
+                // (needed only for Jellyfin reporting) attaches afterwards so a
+                // warm launch does not block on PlaybackInfo.
+                if track.id != replayCacheDisabledForTrackID,
+                   let cached = replayCachedAudioURL?(track) {
+                    usingReplayCache = true
+                    Diagnostics.event("playback_local_source_selected")
+                    let started = await startFilePlayback(
+                        url: cached,
+                        track: track,
+                        resumeAt: resumeAt,
+                        expectedGeneration: expectedGeneration,
+                        quality: "Direct Play"
+                    )
+                    if started {
+                        attachPlanAndReport(
+                            api: api,
+                            userID: userID,
+                            track: track,
+                            resumeAt: resumeAt,
+                            expectedGeneration: expectedGeneration
+                        )
+                        await applyArtwork(for: track, api: api, expectedGeneration: expectedGeneration)
+                        prefetchUpcomingAudio()
+                    }
+                    return
+                }
+                replayCacheDisabledForTrackID = nil
                 let selectedPlan = try await api.playbackPlan(itemID: track.id, userID: userID)
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
                 let startTask = Task {
@@ -607,21 +625,11 @@ final class PlaybackController: ObservableObject {
                     return
                 }
                 plan = selectedPlan
+                usingReplayCache = false
                 Diagnostics.event("playback_plan_selected", ["method_code": selectedPlan.method.diagnosticCode])
                 qualityLabel = selectedPlan.method == .directPlay ? "Direct Play" : "AAC transcode"
-                // Direct play can read a replay-cached copy of the original
-                // file instead of re-streaming; reporting above is unchanged.
-                // A cache miss falls back to the network stream and asks the
-                // coordinator to cache it for next time.
-                let playbackURL: URL
-                if selectedPlan.method == .directPlay, let cached = replayCachedAudioURL?(track) {
-                    playbackURL = cached
-                    Diagnostics.event("playback_local_source_selected")
-                } else {
-                    playbackURL = selectedPlan.url
-                    if selectedPlan.method == .directPlay { cacheAudioForReplay?(track) }
-                }
-                let player = AVPlayer(url: playbackURL)
+                if selectedPlan.method == .directPlay { cacheAudioForReplay?(track) }
+                let player = AVPlayer(url: selectedPlan.url)
                 self.player = player
                 lastProgressBucket = Int(resumeAt / 10)
                 lastPersistenceBucket = Int(resumeAt / 5)
@@ -635,12 +643,8 @@ final class PlaybackController: ObservableObject {
                 isPlaying = shouldPlay
                 isPreparing = false
                 updateNowPlaying(track: track)
-                if let albumID = track.albumID,
-                   let data = try? await api.artworkData(itemID: albumID),
-                   let image = UIImage(data: data), generation == expectedGeneration {
-                    artwork = image
-                    updateNowPlaying(track: track)
-                }
+                await applyArtwork(for: track, api: api, expectedGeneration: expectedGeneration)
+                prefetchUpcomingAudio()
             } catch {
                 guard generation == expectedGeneration else { return }
                 isPreparing = false
@@ -648,6 +652,113 @@ final class PlaybackController: ObservableObject {
                 errorMessage = error.localizedDescription
                 Diagnostics.event("playback_prepare_failed", ["code": (error as NSError).code])
             }
+        }
+    }
+
+    /// Starts AVPlayer on a local file (download or replay cache). Returns
+    /// false if this generation was cancelled mid-seek.
+    @discardableResult
+    private func startFilePlayback(
+        url: URL,
+        track: Track,
+        resumeAt: TimeInterval,
+        expectedGeneration: UUID,
+        quality: String
+    ) async -> Bool {
+        qualityLabel = quality
+        let player = AVPlayer(url: url)
+        self.player = player
+        lastProgressBucket = Int(resumeAt / 10)
+        lastPersistenceBucket = Int(resumeAt / 5)
+        observe(player)
+        if resumeAt > 0 {
+            await player.seek(to: CMTime(seconds: resumeAt, preferredTimescale: 600))
+        }
+        guard !Task.isCancelled, generation == expectedGeneration else { return false }
+        let shouldPlay = shouldStartPreparedPlayer
+        if shouldPlay { player.play() }
+        isPlaying = shouldPlay
+        isPreparing = false
+        updateNowPlaying(track: track)
+        return true
+    }
+
+    /// Cache-first artwork for Now Playing / lock screen, then one write-through
+    /// fetch so a server-side art change updates the cache.
+    private func applyArtwork(for track: Track, api: JellyfinAPI, expectedGeneration: UUID) async {
+        let itemID = track.artworkItemID ?? track.albumID
+        guard let itemID else { return }
+        let serverID = scope.split(separator: ":").first.map(String.init) ?? ""
+        let cacheKey = ArtworkCache.key(serverID: serverID, itemID: itemID)
+        if let cached = await ArtworkCache.shared.image(forKey: cacheKey),
+           generation == expectedGeneration {
+            artwork = cached
+            updateNowPlaying(track: track)
+        }
+        guard await ArtworkCache.shared.takeRevalidation(forKey: cacheKey) else { return }
+        if let data = try? await api.artworkData(itemID: itemID),
+           let image = UIImage(data: data), generation == expectedGeneration {
+            artwork = image
+            updateNowPlaying(track: track)
+            await ArtworkCache.shared.store(data, forKey: cacheKey)
+        } else {
+            await ArtworkCache.shared.allowRevalidation(forKey: cacheKey)
+        }
+    }
+
+    /// Fetch the Jellyfin play session after cached audio has already started
+    /// so reporting can catch up without delaying audible start.
+    private func attachPlanAndReport(
+        api: JellyfinAPI,
+        userID: String,
+        track: Track,
+        resumeAt: TimeInterval,
+        expectedGeneration: UUID
+    ) {
+        let priorReporting = reportingTask
+        reportingTask = Task { [weak self] in
+            await priorReporting?.value
+            guard let self, self.generation == expectedGeneration else { return }
+            do {
+                let selectedPlan = try await api.playbackPlan(itemID: track.id, userID: userID)
+                guard self.generation == expectedGeneration else { return }
+                self.plan = selectedPlan
+                Diagnostics.event("playback_plan_selected", ["method_code": selectedPlan.method.diagnosticCode])
+                let outcome = await api.reportStarted(
+                    itemID: track.id,
+                    plan: selectedPlan,
+                    position: self.elapsed,
+                    paused: !self.shouldStartPreparedPlayer
+                )
+                guard self.generation == expectedGeneration else {
+                    let stop = await api.reportStopped(itemID: track.id, plan: selectedPlan, position: self.elapsed)
+                    self.recordReportingOutcome(
+                        stop,
+                        operation: .stop,
+                        lifecycle: .replacing,
+                        method: selectedPlan.method,
+                        position: self.elapsed,
+                        successReason: .replaced
+                    )
+                    return
+                }
+                self.recordReportingOutcome(
+                    outcome,
+                    operation: .start,
+                    lifecycle: self.shouldStartPreparedPlayer ? .playing : .paused,
+                    method: selectedPlan.method,
+                    position: resumeAt
+                )
+            } catch {
+                // Cached audio keeps playing; reporting is best-effort here.
+            }
+        }
+    }
+
+    private func prefetchUpcomingAudio() {
+        let upcoming = queue.dropFirst(currentIndex + 1).prefix(3)
+        for entry in upcoming {
+            cacheAudioForReplay?(entry.track)
         }
     }
 
@@ -806,6 +917,15 @@ final class PlaybackController: ObservableObject {
     }
 
     private func handlePlayerFailure(_ error: Error) {
+        if usingReplayCache, let track = currentTrack {
+            usingReplayCache = false
+            replayCacheDisabledForTrackID = track.id
+            forgetCachedAudio?(track)
+            let resumeAt = elapsed
+            let shouldPlay = playbackRequested
+            prepareCurrent(resumeAt: resumeAt, autoPlay: shouldPlay)
+            return
+        }
         guard plan != nil else { return }
         player?.pause()
         isPlaying = false

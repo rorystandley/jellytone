@@ -116,7 +116,7 @@ final class HomeUITests: XCTestCase {
         avatar.tap()
         XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["settings-sign-out"].exists)
-        let clear = app.buttons["settings-clear-image-cache"]
+        let clear = app.buttons["settings-clear-cache"]
         XCTAssertTrue(clear.exists)
         clear.tap()
         XCTAssertTrue(app.staticTexts["Zero KB"].waitForExistence(timeout: 3))

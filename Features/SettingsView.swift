@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Settings sheet (opened from the Home avatar): account identity with
-/// sign-out, and data/storage controls including the image-cache purge.
+/// sign-out, and data/storage controls including cache size and purge.
 /// Themed per docs/design/design-system.md — grouped rows in surface cards,
 /// coral for every action, no second accent colour.
 struct SettingsView: View {
@@ -9,7 +9,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system
 
-    @State private var imageCacheBytes: Int64?
+    @State private var cacheBytes: Int64?
     @State private var isSigningOut = false
 
     var body: some View {
@@ -34,7 +34,7 @@ struct SettingsView: View {
                 }
             }
             .tint(Color.jtAccent)
-            .task { imageCacheBytes = await ArtworkCache.shared.diskBytes() }
+            .task { cacheBytes = await model.mediaCacheBytes() }
         }
     }
 
@@ -99,16 +99,17 @@ struct SettingsView: View {
 
     private var dataSection: some View {
         section(title: "Data & Storage") {
-            infoRow(label: "Image Cache", value: imageCacheLabel)
+            infoRow(label: "Cache", value: cacheLabel)
+                .accessibilityIdentifier("settings-cache-size")
             rowDivider
             Button {
                 JellytoneHaptics.destructive()
                 Task {
-                    await ArtworkCache.shared.clear()
-                    imageCacheBytes = await ArtworkCache.shared.diskBytes()
+                    await model.clearMediaCache()
+                    cacheBytes = await model.mediaCacheBytes()
                 }
             } label: {
-                Text("Clear Image Cache")
+                Text("Clear Cache")
                     .font(.jtRowTitle)
                     .foregroundStyle(Color.jtAccent)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -116,12 +117,12 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
-            .accessibilityIdentifier("settings-clear-image-cache")
+            .accessibilityIdentifier("settings-clear-cache")
         }
     }
 
-    private var imageCacheLabel: String {
-        guard let bytes = imageCacheBytes else { return "Calculating…" }
+    private var cacheLabel: String {
+        guard let bytes = cacheBytes else { return "Calculating…" }
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 

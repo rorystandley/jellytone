@@ -25,6 +25,33 @@ final class RecentAudioCacheTests: XCTestCase {
         XCTAssertEqual(cache.totalBytes, 0)
     }
 
+    func testRemoveDropsACachedTrack() async throws {
+        let workspace = temporaryDirectory()
+        let cacheDir = workspace.appendingPathComponent("recent", isDirectory: true)
+        let source = try writeSource(bytes: 512, name: "a.mp3", in: workspace)
+        let cache = RecentAudioCache(directory: cacheDir)
+
+        await cache.remember(trackID: "track-a", request: URLRequest(url: source))
+        XCTAssertNotNil(cache.localURL(for: "track-a"))
+        cache.remove(trackID: "track-a")
+        XCTAssertNil(cache.localURL(for: "track-a"))
+        XCTAssertEqual(cache.totalBytes, 0)
+    }
+
+    func testEnqueuePrefetchesUncachedTracks() async throws {
+        let workspace = temporaryDirectory()
+        let cacheDir = workspace.appendingPathComponent("recent", isDirectory: true)
+        let source = try writeSource(bytes: 256, name: "a.mp3", in: workspace)
+        let cache = RecentAudioCache(directory: cacheDir)
+
+        cache.enqueue([(trackID: "track-a", request: URLRequest(url: source))])
+        for _ in 0..<50 where cache.localURL(for: "track-a") == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertNotNil(cache.localURL(for: "track-a"))
+        XCTAssertEqual(cache.totalBytes, 256)
+    }
+
     func testLRUEvictsLeastRecentlyUsedOverBudget() async throws {
         let workspace = temporaryDirectory()
         let cacheDir = workspace.appendingPathComponent("recent", isDirectory: true)

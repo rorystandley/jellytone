@@ -720,6 +720,59 @@ final class MinimumWorkingAppTests: XCTestCase {
     }
 
     @MainActor
+    func testReplayCachedAudioStartsWithoutWaitingForPlaybackInfo() async throws {
+        MockURLProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path.contains("PlaybackInfo") {
+                Thread.sleep(forTimeInterval: 0.4)
+                return Self.response(
+                    for: request,
+                    json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"session"}"#
+                )
+            }
+            if path.contains("/Sessions/Playing") {
+                return Self.response(for: request, status: 204, json: "")
+            }
+            return Self.response(for: request, status: 404, json: "")
+        }
+        let audioURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("replay-cache-\(UUID().uuidString).mp3")
+        try Data((0..<64).map { UInt8($0) }).write(to: audioURL)
+        addTeardownBlock { try? FileManager.default.removeItem(at: audioURL) }
+
+        let session = RecordingAudioSession()
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        let playback = PlaybackController(defaults: defaults, audioSession: session)
+        playback.replayCachedAudioURL = { _ in audioURL }
+        let api = JellyfinAPI(
+            baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+            deviceID: "device",
+            token: "token",
+            urlSession: makeSession()
+        )
+        let track = Track(
+            id: "track",
+            name: "Track",
+            artist: "Artist",
+            album: "Album",
+            index: 1,
+            disc: 1,
+            durationTicks: 600_000_000
+        )
+
+        playback.play(track, queue: [track], using: api, userID: "user", scope: "server:user")
+        for _ in 0..<40 where playback.isPreparing {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+
+        XCTAssertFalse(playback.isPreparing, "Cached audio must start before PlaybackInfo returns")
+        XCTAssertEqual(playback.qualityLabel, "Direct Play")
+        XCTAssertEqual(playback.currentTrack?.id, "track")
+        await playback.stopAndWait()
+    }
+
+    @MainActor
     func testInterruptionPausesPersistsAndResumesOnlyWhenSystemAllows() throws {
         let session = RecordingAudioSession()
         let commands = RecordingRemoteCommandRouter()
