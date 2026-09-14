@@ -13,7 +13,11 @@ protocol AudioSessionManaging {
 struct SystemAudioSessionManager: AudioSessionManaging {
     func activateForPlayback() throws {
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playback, mode: .default)
+        // Re-setting category on every track advance can emit spurious
+        // interruption/route notifications that clear autoplay intent.
+        if session.category != .playback || session.mode != .default {
+            try session.setCategory(.playback, mode: .default)
+        }
         try session.setActive(true)
     }
 
@@ -138,6 +142,10 @@ final class PlaybackController: ObservableObject {
     private var wasPlayingBeforeInterruption = false
     private var audioInterruptionIsActive = false
     private var playbackRequested = false
+    /// When set, remote pause commands are ignored until this date (or until the
+    /// successor track has progressed). Absorbs Lock Screen pauses queued for
+    /// the item that just ended so shuffle/queue autoplay is not cancelled.
+    private var suppressRemotePauseUntil: Date?
     var shouldStartPreparedPlayer: Bool { playbackRequested && !audioInterruptionIsActive }
 
     init(
@@ -266,6 +274,17 @@ final class PlaybackController: ObservableObject {
         handlePlayerFailure(NSError(domain: "PlaybackFailureTest", code: code))
     }
 
+    /// Simulates a failure/completion callback that still carries a previous
+    /// item's generation — must not affect the track prepared after advance.
+    func simulateStaleObservedFailureForTesting(generation observedGeneration: UUID, code: Int = -1) {
+        handleObservedPlayerFailure(
+            NSError(domain: "PlaybackFailureTest", code: code),
+            observedGeneration: observedGeneration
+        )
+    }
+
+    var currentGenerationForTesting: UUID { generation }
+
     func waitForPendingReportingForTesting() async {
         await preparationTask?.value
         await reportingTask?.value
@@ -274,6 +293,7 @@ final class PlaybackController: ObservableObject {
 
     func toggle() {
         guard let player else { return }
+        suppressRemotePauseUntil = nil
         if isPlaying { player.pause() } else { player.play() }
         isPlaying.toggle()
         playbackRequested = isPlaying
@@ -413,6 +433,16 @@ final class PlaybackController: ObservableObject {
     }
 
     private func advance(automatic: Bool) {
+        if automatic {
+            // Publish paused Now Playing rate before the async prepare so the
+            // system does not treat the ended item as still playing.
+            if isPlaying {
+                isPlaying = false
+                updatePlaybackRate()
+            }
+            // Absorb a deferred Lock Screen pause for the ended item.
+            suppressRemotePauseUntil = Date().addingTimeInterval(1.5)
+        }
         if automatic, repeatMode == .one {
             prepareCurrent(resumeAt: 0, autoPlay: true)
             return
@@ -430,6 +460,7 @@ final class PlaybackController: ObservableObject {
         player?.pause()
         isPlaying = false
         playbackRequested = false
+        suppressRemotePauseUntil = nil
         if duration > 0 { elapsed = duration }
         updateNowPlayingElapsed()
         closeCurrentSession(lifecycle: .completed)
@@ -483,6 +514,7 @@ final class PlaybackController: ObservableObject {
         duration = 0
         isPlaying = false
         playbackRequested = false
+        suppressRemotePauseUntil = nil
         isPreparing = false
         qualityLabel = ""
         updateQueueControls()
@@ -774,13 +806,17 @@ final class PlaybackController: ObservableObject {
     }
 
     private func observe(_ player: AVPlayer) {
+        let observedGeneration = generation
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.5, preferredTimescale: 600),
             queue: .main
         ) { [weak self] time in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, self.generation == observedGeneration else { return }
                 self.elapsed = time.seconds.isFinite ? max(0, time.seconds) : 0
+                if self.elapsed > 0.35 {
+                    self.suppressRemotePauseUntil = nil
+                }
                 if let seconds = player.currentItem?.duration.seconds, seconds.isFinite, seconds > 0 {
                     self.duration = seconds
                 }
@@ -803,7 +839,10 @@ final class PlaybackController: ObservableObject {
             object: player.currentItem,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.advance(automatic: true) }
+            Task { @MainActor in
+                guard let self, self.generation == observedGeneration else { return }
+                self.advance(automatic: true)
+            }
         }
         failureObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemFailedToPlayToEndTime,
@@ -812,19 +851,52 @@ final class PlaybackController: ObservableObject {
         ) { [weak self] notification in
             let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
                 ?? NSError(domain: AVFoundationErrorDomain, code: -1)
-            Task { @MainActor in self?.handlePlayerFailure(error) }
+            Task { @MainActor in
+                self?.handleObservedPlayerFailure(error, observedGeneration: observedGeneration)
+            }
         }
         stalledObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemPlaybackStalled,
             object: player.currentItem,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.handlePlaybackStalled() }
+            Task { @MainActor in
+                guard let self, self.generation == observedGeneration else { return }
+                self.handlePlaybackStalled()
+            }
         }
         itemStatusObservation = player.currentItem?.observe(\.status, options: [.new]) { [weak self] item, _ in
-            guard item.status == .failed else { return }
-            let error = item.error ?? NSError(domain: AVFoundationErrorDomain, code: -1)
-            Task { @MainActor in self?.handlePlayerFailure(error) }
+            let status = item.status
+            let error = item.error
+            Task { @MainActor in
+                guard let self, self.generation == observedGeneration else { return }
+                switch status {
+                case .failed:
+                    self.handlePlayerFailure(error ?? NSError(domain: AVFoundationErrorDomain, code: -1))
+                case .readyToPlay:
+                    self.resumePreparedPlayerIfNeeded()
+                default:
+                    break
+                }
+            }
+        }
+    }
+
+    /// Drop late failure callbacks from a previous item after the queue has
+    /// already advanced and bumped `generation`.
+    private func handleObservedPlayerFailure(_ error: Error, observedGeneration: UUID) {
+        guard generation == observedGeneration else { return }
+        handlePlayerFailure(error)
+    }
+
+    /// `play()` before `readyToPlay` can no-op across a track transition; re-assert
+    /// when the item is ready if autoplay is still requested.
+    private func resumePreparedPlayerIfNeeded() {
+        guard shouldStartPreparedPlayer, let player else { return }
+        if player.rate == 0 || !isPlaying {
+            player.play()
+            isPlaying = true
+            updatePlaybackRate()
         }
     }
 
@@ -992,6 +1064,10 @@ final class PlaybackController: ObservableObject {
         case .play:
             if !isPlaying { toggle() }
         case .pause:
+            // Now Playing can deliver a deferred pause for the item that just
+            // ended — while the successor prepares, or just after it starts.
+            if isPreparing { return }
+            if let until = suppressRemotePauseUntil, Date() < until { return }
             if isPlaying { toggle() }
         case .previous:
             previous()

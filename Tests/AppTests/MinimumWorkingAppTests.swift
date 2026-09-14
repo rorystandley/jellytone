@@ -663,6 +663,162 @@ final class MinimumWorkingAppTests: XCTestCase {
     }
 
     @MainActor
+    func testNaturalCompletionAdvancesQueueAndKeepsPlaying() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path.hasSuffix("PlaybackInfo") {
+                let itemID = path.split(separator: "/").dropLast().last.map(String.init) ?? "unknown"
+                return Self.response(
+                    for: request,
+                    json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"advance-\#(itemID)"}"#
+                )
+            }
+            let body = try Self.bodyData(from: request)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let itemID = try XCTUnwrap(json["ItemId"] as? String)
+            recorder.append(path.hasSuffix("Stopped") ? "stop:\(itemID)" : "start:\(itemID)")
+            return Self.response(for: request, status: 204, json: "")
+        }
+        let playback = PlaybackController(
+            defaults: try XCTUnwrap(UserDefaults(suiteName: #function)),
+            audioSession: RecordingAudioSession(),
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+                              deviceID: "device", token: "token", urlSession: makeSession())
+        let tracks = Self.queueTracks()
+
+        playback.play(tracks[0], queue: tracks, using: api, userID: "user", scope: "server:user")
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertTrue(playback.isPlaying)
+
+        playback.simulateNaturalCompletionForTesting()
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+        await playback.waitForPendingReportingForTesting()
+
+        XCTAssertEqual(playback.currentTrack, tracks[1])
+        XCTAssertEqual(playback.currentIndex, 1)
+        XCTAssertTrue(playback.isPlaying, "Queue advance after natural completion must autoplay")
+        XCTAssertEqual(recorder.events, ["start:queue-1", "stop:queue-1", "start:queue-2"])
+    }
+
+    @MainActor
+    func testShuffledNaturalCompletionKeepsAutoplayingSuccessor() async throws {
+        MockURLProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path.hasSuffix("PlaybackInfo") {
+                let itemID = path.split(separator: "/").dropLast().last.map(String.init) ?? "unknown"
+                return Self.response(
+                    for: request,
+                    json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"shuffle-\#(itemID)"}"#
+                )
+            }
+            return Self.response(for: request, status: 204, json: "")
+        }
+        let playback = PlaybackController(
+            defaults: try XCTUnwrap(UserDefaults(suiteName: #function)),
+            audioSession: RecordingAudioSession(),
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+                              deviceID: "device", token: "token", urlSession: makeSession())
+        let tracks = Self.queueTracks()
+
+        // Mirrors AppModel.shuffle: play all, then toggle shuffle.
+        playback.play(tracks[0], queue: tracks, using: api, userID: "user", scope: "server:user")
+        playback.toggleShuffle()
+        XCTAssertTrue(playback.isShuffled)
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+
+        let firstID = try XCTUnwrap(playback.currentTrack?.id)
+        playback.simulateNaturalCompletionForTesting()
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+        await playback.waitForPendingReportingForTesting()
+
+        XCTAssertNotEqual(playback.currentTrack?.id, firstID)
+        XCTAssertTrue(playback.isPlaying, "Shuffle must keep autoplaying after the first track ends")
+        XCTAssertTrue(playback.isShuffled)
+    }
+
+    @MainActor
+    func testStaleFailureFromPreviousItemDoesNotStopAdvancedTrack() async throws {
+        MockURLProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path.hasSuffix("PlaybackInfo") {
+                let itemID = path.split(separator: "/").dropLast().last.map(String.init) ?? "unknown"
+                return Self.response(
+                    for: request,
+                    json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"stale-\#(itemID)"}"#
+                )
+            }
+            return Self.response(for: request, status: 204, json: "")
+        }
+        let playback = PlaybackController(
+            defaults: try XCTUnwrap(UserDefaults(suiteName: #function)),
+            audioSession: RecordingAudioSession(),
+            remoteCommands: RecordingRemoteCommandRouter(),
+            notificationCenter: NotificationCenter()
+        )
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+                              deviceID: "device", token: "token", urlSession: makeSession())
+        let tracks = Self.queueTracks()
+
+        playback.play(tracks[0], queue: tracks, using: api, userID: "user", scope: "server:user")
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+        let staleGeneration = playback.currentGenerationForTesting
+
+        playback.simulateNaturalCompletionForTesting()
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+        await playback.waitForPendingReportingForTesting()
+        XCTAssertTrue(playback.isPlaying)
+        XCTAssertEqual(playback.currentTrack, tracks[1])
+
+        playback.simulateStaleObservedFailureForTesting(generation: staleGeneration)
+        XCTAssertTrue(playback.isPlaying, "A late failure for the previous item must not pause the successor")
+        XCTAssertNil(playback.errorMessage)
+        XCTAssertEqual(playback.currentTrack, tracks[1])
+    }
+
+    @MainActor
+    func testDeferredRemotePauseDuringAdvanceDoesNotCancelAutoplay() async throws {
+        MockURLProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path.hasSuffix("PlaybackInfo") {
+                return Self.response(
+                    for: request,
+                    json: #"{"MediaSources":[{"Id":"source","Container":"mp3","SupportsDirectPlay":true,"SupportsTranscoding":true,"MediaStreams":[{"Type":"Audio","Codec":"mp3"}]}],"PlaySessionId":"pause-race"}"#
+                )
+            }
+            return Self.response(for: request, status: 204, json: "")
+        }
+        let commands = RecordingRemoteCommandRouter()
+        let playback = PlaybackController(
+            defaults: try XCTUnwrap(UserDefaults(suiteName: #function)),
+            audioSession: RecordingAudioSession(),
+            remoteCommands: commands,
+            notificationCenter: NotificationCenter()
+        )
+        let api = JellyfinAPI(baseURL: try XCTUnwrap(URL(string: "https://example.com")),
+                              deviceID: "device", token: "token", urlSession: makeSession())
+        let tracks = Self.queueTracks()
+
+        playback.play(tracks[0], queue: tracks, using: api, userID: "user", scope: "server:user")
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+
+        playback.simulateNaturalCompletionForTesting()
+        // Deferred Lock Screen pause for the ended item, arriving during prepare.
+        commands.send(.pause)
+        for _ in 0..<200 where playback.isPreparing { try await Task.sleep(for: .milliseconds(5)) }
+        await playback.waitForPendingReportingForTesting()
+
+        XCTAssertEqual(playback.currentTrack, tracks[1])
+        XCTAssertTrue(playback.isPlaying, "Deferred remote pause must not cancel autoplay of the next track")
+    }
+
+    @MainActor
     func testTerminalPlayerFailureClosesSessionAndExposesGenericError() async throws {
         let recorder = RequestRecorder()
         MockURLProtocol.handler = { request in
