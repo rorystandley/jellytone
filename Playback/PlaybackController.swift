@@ -142,9 +142,11 @@ final class PlaybackController: ObservableObject {
     private var wasPlayingBeforeInterruption = false
     private var audioInterruptionIsActive = false
     private var playbackRequested = false
-    /// When set, remote pause commands are ignored until this date (or until the
-    /// successor track has progressed). Absorbs Lock Screen pauses queued for
-    /// the item that just ended so shuffle/queue autoplay is not cancelled.
+    /// When set, remote pause commands are ignored until this date. Absorbs
+    /// Lock Screen / Now Playing pauses queued for the item that just ended so
+    /// shuffle/queue autoplay is not cancelled. Refreshed when the successor
+    /// actually starts, because stop-reporting can burn the advance-time window
+    /// before audible playback begins.
     private var suppressRemotePauseUntil: Date?
     var shouldStartPreparedPlayer: Bool { playbackRequested && !audioInterruptionIsActive }
 
@@ -284,6 +286,19 @@ final class PlaybackController: ObservableObject {
     }
 
     var currentGenerationForTesting: UUID { generation }
+
+    /// Marks the remote-pause suppress window as already expired (past), without
+    /// clearing it. Simulates stop-reporting burning the advance-time window
+    /// before the successor becomes audible.
+    func expireRemotePauseSuppressionForTesting() {
+        suppressRemotePauseUntil = Date().addingTimeInterval(-0.1)
+    }
+
+    /// Advances `elapsed` as the periodic time observer would. Must not clear
+    /// remote-pause suppression (regression for the post-#21 autoplay hole).
+    func simulateElapsedProgressForTesting(_ seconds: TimeInterval) {
+        elapsed = max(0, seconds)
+    }
 
     func waitForPendingReportingForTesting() async {
         await preparationTask?.value
@@ -440,8 +455,10 @@ final class PlaybackController: ObservableObject {
                 isPlaying = false
                 updatePlaybackRate()
             }
-            // Absorb a deferred Lock Screen pause for the ended item.
-            suppressRemotePauseUntil = Date().addingTimeInterval(1.5)
+            // Absorb a deferred Lock Screen pause for the ended item. The
+            // window is refreshed again when the successor actually starts
+            // (see `noteSuccessorPlaybackStarted`).
+            suppressRemotePauseUntil = Date().addingTimeInterval(2.0)
         }
         if automatic, repeatMode == .one {
             prepareCurrent(resumeAt: 0, autoPlay: true)
@@ -466,6 +483,14 @@ final class PlaybackController: ObservableObject {
         closeCurrentSession(lifecycle: .completed)
         updatePlaybackRate()
         persistState()
+    }
+
+    /// Keep ignoring deferred remote pauses after the successor becomes audible.
+    /// Without this, a long `reportStopped` can exhaust the advance-time window
+    /// before `play()`, and a Lock Screen pause then cancels autoplay.
+    private func noteSuccessorPlaybackStarted() {
+        guard suppressRemotePauseUntil != nil else { return }
+        suppressRemotePauseUntil = Date().addingTimeInterval(2.0)
     }
 
     func seek(to seconds: TimeInterval) {
@@ -682,7 +707,10 @@ final class PlaybackController: ObservableObject {
                 }
                 guard !Task.isCancelled, generation == expectedGeneration else { return }
                 let shouldPlay = shouldStartPreparedPlayer
-                if shouldPlay { player.play() }
+                if shouldPlay {
+                    player.play()
+                    noteSuccessorPlaybackStarted()
+                }
                 isPlaying = shouldPlay
                 isPreparing = false
                 updateNowPlaying(track: track)
@@ -719,7 +747,10 @@ final class PlaybackController: ObservableObject {
         }
         guard !Task.isCancelled, generation == expectedGeneration else { return false }
         let shouldPlay = shouldStartPreparedPlayer
-        if shouldPlay { player.play() }
+        if shouldPlay {
+            player.play()
+            noteSuccessorPlaybackStarted()
+        }
         isPlaying = shouldPlay
         isPreparing = false
         updateNowPlaying(track: track)
@@ -814,9 +845,10 @@ final class PlaybackController: ObservableObject {
             Task { @MainActor in
                 guard let self, self.generation == observedGeneration else { return }
                 self.elapsed = time.seconds.isFinite ? max(0, time.seconds) : 0
-                if self.elapsed > 0.35 {
-                    self.suppressRemotePauseUntil = nil
-                }
+                // Do not clear `suppressRemotePauseUntil` from elapsed progress.
+                // Deferred Lock Screen pauses often arrive shortly after the
+                // successor becomes audible (~0.3–1s); clearing early was the
+                // hole that left shuffle/queue autoplay paused after track one.
                 if let seconds = player.currentItem?.duration.seconds, seconds.isFinite, seconds > 0 {
                     self.duration = seconds
                 }
@@ -865,7 +897,7 @@ final class PlaybackController: ObservableObject {
                 self.handlePlaybackStalled()
             }
         }
-        itemStatusObservation = player.currentItem?.observe(\.status, options: [.new]) { [weak self] item, _ in
+        itemStatusObservation = player.currentItem?.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
             let status = item.status
             let error = item.error
             Task { @MainActor in
@@ -896,6 +928,7 @@ final class PlaybackController: ObservableObject {
         if player.rate == 0 || !isPlaying {
             player.play()
             isPlaying = true
+            noteSuccessorPlaybackStarted()
             updatePlaybackRate()
         }
     }
@@ -1067,7 +1100,15 @@ final class PlaybackController: ObservableObject {
             // Now Playing can deliver a deferred pause for the item that just
             // ended — while the successor prepares, or just after it starts.
             if isPreparing { return }
-            if let until = suppressRemotePauseUntil, Date() < until { return }
+            if let until = suppressRemotePauseUntil, Date() < until {
+                // Re-assert play if a pause slipped through before suppress.
+                if playbackRequested, let player, !isPlaying {
+                    player.play()
+                    isPlaying = true
+                    updatePlaybackRate()
+                }
+                return
+            }
             if isPlaying { toggle() }
         case .previous:
             previous()
@@ -1127,6 +1168,13 @@ final class PlaybackController: ObservableObject {
     }
 
     func handleInterruptionBegan() {
+        // Session churn from activateForPlayback during an automatic advance can
+        // emit a began without a matching ended. If we latched that, every
+        // successor would prepare paused until the user pressed play.
+        if isPreparing, suppressRemotePauseUntil != nil, !isPlaying {
+            Diagnostics.event("playback_interruption_began_ignored_during_advance")
+            return
+        }
         audioInterruptionIsActive = true
         wasPlayingBeforeInterruption = isPlaying || (isPreparing && playbackRequested)
         if isPlaying {
@@ -1140,7 +1188,22 @@ final class PlaybackController: ObservableObject {
     }
 
     func handleInterruptionEnded(shouldResume: Bool) {
+        let hadActiveInterruption = audioInterruptionIsActive || wasPlayingBeforeInterruption
         audioInterruptionIsActive = false
+        // Preserve autoplay across spurious non-resume interruptions while the
+        // successor of an automatic advance is still preparing.
+        if isPreparing, wasPlayingBeforeInterruption, suppressRemotePauseUntil != nil, !shouldResume {
+            wasPlayingBeforeInterruption = false
+            Diagnostics.event("playback_interruption_ended", ["allowed": 0, "preserved_prepare": 1, "resumed": 0])
+            return
+        }
+        // Stray `ended` (including after an interruption we ignored during
+        // automatic-advance prepare) must not clear autoplay intent.
+        guard hadActiveInterruption else {
+            wasPlayingBeforeInterruption = false
+            Diagnostics.event("playback_interruption_ended", ["allowed": shouldResume ? 1 : 0, "ignored_stray": 1, "resumed": 0])
+            return
+        }
         playbackRequested = shouldResume && wasPlayingBeforeInterruption
         let resume = playbackRequested && player != nil
         wasPlayingBeforeInterruption = false
@@ -1150,6 +1213,7 @@ final class PlaybackController: ObservableObject {
                 if resume {
                     player?.play()
                     isPlaying = true
+                    noteSuccessorPlaybackStarted()
                     updatePlaybackRate()
                     reportProgress()
                     persistState()
