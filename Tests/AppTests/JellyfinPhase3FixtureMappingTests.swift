@@ -32,11 +32,22 @@ final class JellyfinPhase3FixtureMappingTests: XCTestCase {
         XCTAssertEqual(minimal.artist, "Unknown Artist")
         XCTAssertNil(minimal.productionYear)
         XCTAssertNil(minimal.imageTag)
+        XCTAssertNil(minimal.artistID)
+        XCTAssertNil(minimal.artistDestination)
+
+        let compilation = try XCTUnwrap(page.albums.first { $0.id == "album-compilation-001" })
+        XCTAssertEqual(compilation.artistID, "artist-various")
+        XCTAssertEqual(compilation.artistDestination?.id, "artist-various")
+
+        let unicode = try XCTUnwrap(page.albums.first { $0.id == "album-unicode-composed" })
+        XCTAssertEqual(unicode.artist, "Zoë")
+        XCTAssertEqual(unicode.artistID, "artist-zoe")
 
         let damaged = try XCTUnwrap(page.albums.first { $0.id == "album-malformed-optionals" })
         XCTAssertEqual(damaged.artist, "Unknown Artist")
         XCTAssertNil(damaged.productionYear)
         XCTAssertNil(damaged.imageTag)
+        XCTAssertNil(damaged.artistID)
         XCTAssertFalse(page.hasMore)
         XCTAssertEqual(page.nextStartIndex, 11, "Rejected records must still advance server pagination")
     }
@@ -80,6 +91,45 @@ final class JellyfinPhase3FixtureMappingTests: XCTestCase {
         XCTAssertEqual(matched.artistDestination?.id, "artist-track")
         XCTAssertEqual(legacy.artistID, "artist-legacy-only")
         XCTAssertEqual(legacy.artistDestination?.name, "Legacy Artist")
+    }
+
+    func testAlbumsPreferAlbumArtistsOverFeaturedArtistItems() async throws {
+        let api = try makeAPI(fixture: "albums")
+        Phase3FixtureURLProtocol.handler = { request in
+            let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+            XCTAssertTrue(components.queryItems?.contains(where: {
+                $0.name == "Fields" && ($0.value?.contains("AlbumArtists") == true)
+            }) == true)
+            let response = try XCTUnwrap(
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )
+            )
+            let json = #"""
+            {"Items":[
+                {"Id":"album-prefers-album-artist","Name":"Record","Type":"MusicAlbum",
+                 "AlbumArtist":"Album Artist",
+                 "AlbumArtists":[{"Name":"Album Artist","Id":"artist-album"}],
+                 "Artists":["Featured Soloist"],
+                 "ArtistItems":[{"Name":"Featured Soloist","Id":"artist-featured"}]},
+                {"Id":"album-legacy-ids","Name":"Legacy","Type":"MusicAlbum",
+                 "AlbumArtist":"Legacy Artist","ArtistIds":["artist-legacy-only"]}
+            ],"TotalRecordCount":2}
+            """#
+            return (response, Data(json.utf8))
+        }
+
+        let page = try await api.albums(userID: "account", libraryID: "library")
+        let preferred = try XCTUnwrap(page.albums.first { $0.id == "album-prefers-album-artist" })
+        let legacy = try XCTUnwrap(page.albums.first { $0.id == "album-legacy-ids" })
+
+        XCTAssertEqual(preferred.artistID, "artist-album")
+        XCTAssertEqual(preferred.artistDestination?.name, "Album Artist")
+        XCTAssertEqual(legacy.artistID, "artist-legacy-only")
+        XCTAssertEqual(legacy.artistDestination?.id, "artist-legacy-only")
     }
 
     func testSearchRetainsStableDistinctIdentitiesAndMalformedSiblingsFromFixture() async throws {

@@ -40,6 +40,26 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertNil(emptyNames.artistDestination)
     }
 
+    func testAlbumExposesArtistDestinationOnlyWhenArtistIDExists() {
+        let linked = Album(
+            id: "album-1", name: "Album", artist: "Artist",
+            productionYear: 2024, imageTag: "art", artistID: "artist-1"
+        )
+        XCTAssertEqual(linked.artistDestination, Artist(id: "artist-1", name: "Artist", imageTag: nil))
+
+        let namesOnly = Album(
+            id: "album-1", name: "Album", artist: "Artist",
+            productionYear: nil, imageTag: nil
+        )
+        XCTAssertNil(namesOnly.artistDestination)
+
+        let emptyName = Album(
+            id: "album-1", name: "Album", artist: "",
+            productionYear: nil, imageTag: nil, artistID: "artist-1"
+        )
+        XCTAssertNil(emptyName.artistDestination)
+    }
+
     func testAppearancePreferenceMapsToTheExpectedColorScheme() {
         XCTAssertNil(AppearancePreference.system.colorScheme)
         XCTAssertEqual(AppearancePreference.light.colorScheme, .light)
