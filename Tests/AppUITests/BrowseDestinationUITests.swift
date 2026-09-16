@@ -79,7 +79,6 @@ final class BrowseDestinationUITests: XCTestCase {
         capture("album-artist-destination", app: app)
     }
 
-
     func testLibraryArtistAlbumTapOpensAlbumNotArtist() {
         let app = launch(["--ui-testing-library", "--ui-testing-artists", "--ui-testing-browse-details"])
         openTab("Library", in: app)
