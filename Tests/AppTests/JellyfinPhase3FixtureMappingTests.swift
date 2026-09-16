@@ -22,6 +22,11 @@ final class JellyfinPhase3FixtureMappingTests: XCTestCase {
             ]
         )
         XCTAssertEqual(page.albums.first?.artist, "Various Artists")
+        XCTAssertEqual(page.albums.first?.artistID, "artist-various",
+                       "Compilations must open the album artist, not a featured soloist")
+        XCTAssertEqual(page.albums.first { $0.id == "album-duplicate-a" }?.artistID, "artist-duplicate")
+        XCTAssertEqual(page.albums.first { $0.id == "album-unicode-composed" }?.artistID, "artist-zoe")
+        XCTAssertEqual(page.albums.first { $0.id == "album-unicode-decomposed" }?.artistID, "artist-angstrom")
         XCTAssertEqual(page.albums.filter { $0.name == "Shared Display Name" }.map(\.id),
                        ["album-duplicate-a", "album-duplicate-b"])
         XCTAssertEqual(page.albums.first { $0.id == "album-unicode-composed" }?.name, "Café 東京 🎧")
@@ -30,15 +35,77 @@ final class JellyfinPhase3FixtureMappingTests: XCTestCase {
 
         let minimal = try XCTUnwrap(page.albums.first { $0.id == "album-minimal" })
         XCTAssertEqual(minimal.artist, "Unknown Artist")
+        XCTAssertNil(minimal.artistID)
         XCTAssertNil(minimal.productionYear)
         XCTAssertNil(minimal.imageTag)
 
         let damaged = try XCTUnwrap(page.albums.first { $0.id == "album-malformed-optionals" })
         XCTAssertEqual(damaged.artist, "Unknown Artist")
+        XCTAssertNil(damaged.artistID)
         XCTAssertNil(damaged.productionYear)
         XCTAssertNil(damaged.imageTag)
         XCTAssertFalse(page.hasMore)
         XCTAssertEqual(page.nextStartIndex, 11, "Rejected records must still advance server pagination")
+    }
+
+    func testAlbumsBrowseRequestsAlbumArtistIdentityFields() async throws {
+        let api = try makeAPI(fixture: "albums")
+        Phase3FixtureURLProtocol.handler = { request in
+            let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+            XCTAssertTrue(components.queryItems?.contains(where: {
+                $0.name == "Fields"
+                    && ($0.value?.contains("AlbumArtists") == true)
+                    && ($0.value?.contains("AlbumArtist") == true)
+            }) == true)
+            let response = try XCTUnwrap(
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )
+            )
+            return (response, Data(#"{"Items":[],"TotalRecordCount":0}"#.utf8))
+        }
+
+        _ = try await api.albums(userID: "account", libraryID: "library")
+    }
+
+    func testAlbumsPreferMatchingAlbumArtistsOverFeaturedArtistItems() async throws {
+        let api = try makeAPI(fixture: "albums")
+        Phase3FixtureURLProtocol.handler = { request in
+            let response = try XCTUnwrap(
+                HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )
+            )
+            let json = #"""
+            {"Items":[
+                {"Id":"album-various","Name":"Sampler","Type":"MusicAlbum",
+                 "AlbumArtist":"Various Artists",
+                 "AlbumArtists":[{"Name":"Various Artists","Id":"artist-various"}],
+                 "Artists":["Featured Soloist"],
+                 "ArtistItems":[{"Name":"Featured Soloist","Id":"artist-featured"}]},
+                {"Id":"album-legacy","Name":"Legacy","Type":"MusicAlbum",
+                 "AlbumArtist":"Legacy Artist",
+                 "ArtistIds":["artist-legacy-only"]}
+            ],"TotalRecordCount":2}
+            """#
+            return (response, Data(json.utf8))
+        }
+
+        let page = try await api.albums(userID: "account", libraryID: nil)
+        let various = try XCTUnwrap(page.albums.first { $0.id == "album-various" })
+        let legacy = try XCTUnwrap(page.albums.first { $0.id == "album-legacy" })
+
+        XCTAssertEqual(various.artist, "Various Artists")
+        XCTAssertEqual(various.artistID, "artist-various")
+        XCTAssertEqual(various.artistDestination?.id, "artist-various")
+        XCTAssertEqual(legacy.artistID, "artist-legacy-only")
+        XCTAssertEqual(legacy.artistDestination?.name, "Legacy Artist")
     }
 
     func testTracksPreferMatchingArtistItemsOverAlbumArtistsAndLegacyArtistIds() async throws {

@@ -664,8 +664,11 @@ final class AppModel: ObservableObject {
             return MusicSearchPage(
                 artists: [Artist(id: "artist-unicode", name: "Björk Guðmundsdóttir & The Synthetic Orchestra", imageTag: nil)],
                 albums: [
-                    Album(id: "album-artwork", name: "Aurora Lines", artist: "Björk Guðmundsdóttir", productionYear: 2026, imageTag: "synthetic-art"),
-                    Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title", artist: "Synthetic Artist", productionYear: 2025, imageTag: nil),
+                    Album(id: "album-artwork", name: "Aurora Lines", artist: "Björk Guðmundsdóttir",
+                          productionYear: 2026, imageTag: "synthetic-art", artistID: "artist-unicode"),
+                    Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title",
+                          artist: "Synthetic Artist", productionYear: 2025, imageTag: nil,
+                          artistID: "artist-synthetic"),
                 ],
                 tracks: [
                     Track(
@@ -722,8 +725,10 @@ final class AppModel: ObservableObject {
             || ProcessInfo.processInfo.arguments.contains("--ui-testing-home")
             || ProcessInfo.processInfo.arguments.contains("--ui-testing-music-shell") {
             let albums = [
-                Album(id: "album-artwork", name: "Aurora Lines", artist: artist.name, productionYear: 2026, imageTag: "synthetic-art"),
-                Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title", artist: artist.name, productionYear: 2025, imageTag: nil),
+                Album(id: "album-artwork", name: "Aurora Lines", artist: artist.name,
+                      productionYear: 2026, imageTag: "synthetic-art", artistID: artist.id),
+                Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title",
+                      artist: artist.name, productionYear: 2025, imageTag: nil, artistID: artist.id),
             ]
             return AlbumPage(albums: startIndex == 0 ? albums : [], hasMore: false, nextStartIndex: albums.count)
         }
@@ -1620,8 +1625,11 @@ final class AppModel: ObservableObject {
         libraries = [MusicLibrary(id: "music", name: "Music")]
         selectedLibraryID = "music"
         albums = [
-            Album(id: "album-artwork", name: "Aurora Lines", artist: "Synthetic Artist", productionYear: 2026, imageTag: "synthetic-art"),
-            Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title", artist: "Björk Guðmundsdóttir", productionYear: 2025, imageTag: nil),
+            Album(id: "album-artwork", name: "Aurora Lines", artist: "Synthetic Artist",
+                  productionYear: 2026, imageTag: "synthetic-art", artistID: "artist-synthetic"),
+            Album(id: "album-missing", name: "夜明け — A Deliberately Long Album Title",
+                  artist: "Björk Guðmundsdóttir", productionYear: 2025, imageTag: nil,
+                  artistID: "artist-unicode"),
         ]
         if arguments.contains("--ui-testing-library-empty") { albums = [] }
         hasMoreAlbums = false
@@ -1692,7 +1700,8 @@ final class AppModel: ObservableObject {
 
     private static func syntheticHomeSnapshot(albumID: String) -> HomeShelfSnapshot {
         HomeShelfSnapshot(
-            recentlyAddedAlbums: [Album(id: albumID, name: "New Album", artist: "Synthetic Artist", productionYear: 2026, imageTag: nil)],
+            recentlyAddedAlbums: [Album(id: albumID, name: "New Album", artist: "Synthetic Artist",
+                                        productionYear: 2026, imageTag: nil, artistID: "artist-synthetic")],
             recentlyPlayedTracks: [Track(id: "home-track-1", name: "Recently Played", artist: "Synthetic Artist", album: "New Album", albumID: albumID, index: 1, disc: 1, durationTicks: 1_800_000_000)],
             favouriteArtists: [Artist(id: "home-artist-1", name: "Synthetic Artist", imageTag: nil)]
         )

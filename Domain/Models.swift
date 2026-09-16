@@ -22,6 +22,32 @@ struct Album: Identifiable, Codable, Hashable, Sendable {
     let artist: String
     let productionYear: Int?
     let imageTag: String?
+    /// Jellyfin album-artist item ID when the browse/search payload included it.
+    /// Absent from older cache payloads, which decode to `nil`.
+    let artistID: String?
+
+    init(
+        id: String,
+        name: String,
+        artist: String,
+        productionYear: Int?,
+        imageTag: String?,
+        artistID: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.artist = artist
+        self.productionYear = productionYear
+        self.imageTag = imageTag
+        self.artistID = artistID
+    }
+
+    /// The album artist as a library destination, when Jellyfin gave us that
+    /// artist's item ID. Name-only albums stay non-tappable.
+    var artistDestination: Artist? {
+        guard let artistID, !artist.isEmpty else { return nil }
+        return Artist(id: artistID, name: artist, imageTag: nil)
+    }
 }
 
 struct AlbumPage: Equatable, Sendable {
@@ -261,7 +287,14 @@ struct Track: Identifiable, Codable, Hashable, Sendable {
     /// The album this track belongs to, when Jellyfin gave us that album's item ID.
     var albumDestination: Album? {
         guard let albumID, !album.isEmpty else { return nil }
-        return Album(id: albumID, name: album, artist: artist, productionYear: nil, imageTag: imageTag)
+        return Album(
+            id: albumID,
+            name: album,
+            artist: artist,
+            productionYear: nil,
+            imageTag: imageTag,
+            artistID: artistID
+        )
     }
 
     /// The performing (or album) artist this track belongs to, when Jellyfin

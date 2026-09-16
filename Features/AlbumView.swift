@@ -57,9 +57,7 @@ struct AlbumView: View {
                 .foregroundStyle(Color.jtTextPrimary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-            Text(album.artist)
-                .font(.jtBody.weight(.medium))
-                .foregroundStyle(Color.jtTextSecondary)
+            albumArtistLabel
             Text(metaLine)
                 .font(.jtCaption)
                 .foregroundStyle(Color.jtTextTertiary)
@@ -108,6 +106,28 @@ struct AlbumView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Album-artist name: value-based push when Jellyfin gave us the artist
+    /// item ID (same pattern as Now Playing). Keeps secondary type colour —
+    /// press-scale is the only affordance, never an accent "link".
+    @ViewBuilder private var albumArtistLabel: some View {
+        if let artist = album.artistDestination {
+            NavigationLink(value: artist) {
+                Text(artist.name)
+                    .font(.jtBody.weight(.medium))
+                    .foregroundStyle(Color.jtTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
+            .accessibilityIdentifier("album-artist")
+            .accessibilityHint("Opens this artist")
+        } else {
+            Text(album.artist)
+                .font(.jtBody.weight(.medium))
+                .foregroundStyle(Color.jtTextSecondary)
+        }
     }
 
     @ViewBuilder private var trackList: some View {

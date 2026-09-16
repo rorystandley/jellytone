@@ -70,6 +70,29 @@ final class BrowseDestinationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["album-play-all"].isHittable)
         XCTAssertTrue(app.buttons["album-shuffle"].isHittable)
         capture("album-artwork-multidisc", app: app)
+
+        let albumArtist = element("album-artist", in: app)
+        XCTAssertTrue(albumArtist.waitForExistence(timeout: 4))
+        albumArtist.tap()
+        XCTAssertTrue(app.navigationBars["Björk Guðmundsdóttir"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Top Songs"].waitForExistence(timeout: 4))
+        capture("album-artist-destination", app: app)
+    }
+
+    func testLibraryAlbumArtistOpensArtistDestination() {
+        let app = launch(["--ui-testing-library", "--ui-testing-browse-details"])
+        openTab("Library", in: app)
+        let album = element("library-album-album-artwork", in: app)
+        XCTAssertTrue(album.waitForExistence(timeout: 4))
+        album.tap()
+        XCTAssertTrue(app.navigationBars["Aurora Lines"].waitForExistence(timeout: 4))
+
+        let albumArtist = element("album-artist", in: app)
+        XCTAssertTrue(albumArtist.waitForExistence(timeout: 4))
+        albumArtist.tap()
+        XCTAssertTrue(app.navigationBars["Synthetic Artist"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Top Songs"].waitForExistence(timeout: 4))
+        capture("library-album-artist", app: app)
     }
 
     func testLibraryArtistAlbumTapOpensAlbumNotArtist() {

@@ -81,7 +81,7 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "userId", value: userID),
             URLQueryItem(name: "IncludeItemTypes", value: "MusicAlbum"),
             URLQueryItem(name: "Recursive", value: "true"),
-            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
+            URLQueryItem(name: "Fields", value: Self.albumIdentityFields),
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "false"),
@@ -242,7 +242,7 @@ struct JellyfinAPI: Sendable {
             // fields power rich search rows (duration, artist, album art).
             URLQueryItem(
                 name: "Fields",
-                value: "PrimaryImageAspectRatio,SortName,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists,ArtistIds"
+                value: "PrimaryImageAspectRatio,SortName,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists,ArtistItems,AlbumArtists,ArtistIds"
             ),
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
@@ -616,7 +616,7 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "GenreIds", value: genreID),
             URLQueryItem(name: "IncludeItemTypes", value: "MusicAlbum"),
             URLQueryItem(name: "Recursive", value: "true"),
-            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
+            URLQueryItem(name: "Fields", value: Self.albumIdentityFields),
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
@@ -732,7 +732,7 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "ArtistIds", value: artistID),
             URLQueryItem(name: "IncludeItemTypes", value: "MusicAlbum"),
             URLQueryItem(name: "Recursive", value: "true"),
-            URLQueryItem(name: "Fields", value: "PrimaryImageAspectRatio"),
+            URLQueryItem(name: "Fields", value: Self.albumIdentityFields),
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
@@ -1054,12 +1054,17 @@ struct JellyfinAPI: Sendable {
 
     private func mapAlbum(_ item: Item) -> Album? {
         guard let identity = item.validatedIdentity else { return nil }
+        let artist = item.AlbumArtist?.nonEmpty ?? item.Artists?.first?.nonEmpty ?? "Unknown Artist"
         return Album(
             id: identity.id,
             name: identity.name,
-            artist: item.AlbumArtist?.nonEmpty ?? item.Artists?.first?.nonEmpty ?? "Unknown Artist",
+            artist: artist,
             productionYear: item.ProductionYear,
-            imageTag: item.ImageTags?["Primary"]
+            imageTag: item.ImageTags?["Primary"],
+            // Prefer the ID that matches the displayed album-artist name so a
+            // compilation labelled "Various Artists" opens that entry, not a
+            // featured soloist from Artists/ArtistItems.
+            artistID: item.albumArtistID(matching: artist)
         )
     }
 
@@ -1125,7 +1130,13 @@ struct JellyfinAPI: Sendable {
     /// Jellyfin returns those IDs on `AlbumId` / `ArtistItems` / `AlbumArtists`;
     /// display names alone cannot open the library destination.
     private static let audioIdentityFields =
-        "PrimaryImageAspectRatio,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists,IndexNumber,ParentIndexNumber"
+        "PrimaryImageAspectRatio,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists,ArtistItems,AlbumArtists,IndexNumber,ParentIndexNumber"
+
+    /// Fields that keep a mapped `Album` tied to its album-artist item.
+    /// `AlbumArtists` (and `ArtistItems` as fallback) carry the IDs used by
+    /// `Album.artistDestination`; `AlbumArtist` / `Artists` are display names.
+    private static let albumIdentityFields =
+        "PrimaryImageAspectRatio,AlbumArtist,Artists,ArtistItems,AlbumArtists"
 
     private func uniqueByID<Value: Identifiable>(_ values: [Value]) -> [Value] where Value.ID == String {
         var seen = Set<String>()
@@ -1385,6 +1396,17 @@ private struct Item: Decodable {
             ?? ArtistItems?.first?.Id?.nonEmpty
             ?? id(matching: name, in: AlbumArtists)
             ?? AlbumArtists?.first?.Id?.nonEmpty
+            ?? ArtistIds?.first?.nonEmpty
+    }
+
+    /// Album detail links should open the album artist. Prefer `AlbumArtists`
+    /// (matching the displayed `AlbumArtist` name) over `ArtistItems`, which
+    /// on MusicAlbum payloads can list featured performers.
+    func albumArtistID(matching name: String) -> String? {
+        id(matching: name, in: AlbumArtists)
+            ?? AlbumArtists?.first?.Id?.nonEmpty
+            ?? id(matching: name, in: ArtistItems)
+            ?? ArtistItems?.first?.Id?.nonEmpty
             ?? ArtistIds?.first?.nonEmpty
     }
 

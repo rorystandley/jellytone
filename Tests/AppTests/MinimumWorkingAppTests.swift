@@ -24,7 +24,8 @@ final class MinimumWorkingAppTests: XCTestCase {
             artistID: "artist-1", imageTag: "art"
         )
         XCTAssertEqual(linked.albumDestination, Album(id: "album-1", name: "Album", artist: "Artist",
-                                                     productionYear: nil, imageTag: "art"))
+                                                     productionYear: nil, imageTag: "art",
+                                                     artistID: "artist-1"))
         XCTAssertEqual(linked.artistDestination, Artist(id: "artist-1", name: "Artist", imageTag: nil))
 
         let namesOnly = Track(id: "track", name: "Song", artist: "Artist", album: "Album",
@@ -38,6 +39,26 @@ final class MinimumWorkingAppTests: XCTestCase {
         )
         XCTAssertNil(emptyNames.albumDestination)
         XCTAssertNil(emptyNames.artistDestination)
+    }
+
+    func testAlbumExposesArtistDestinationOnlyWhenArtistIDAndNameExist() {
+        let linked = Album(
+            id: "album-1", name: "Album", artist: "Artist",
+            productionYear: 2024, imageTag: "art", artistID: "artist-1"
+        )
+        XCTAssertEqual(linked.artistDestination, Artist(id: "artist-1", name: "Artist", imageTag: nil))
+
+        let namesOnly = Album(
+            id: "album-1", name: "Album", artist: "Artist",
+            productionYear: nil, imageTag: nil
+        )
+        XCTAssertNil(namesOnly.artistDestination)
+
+        let emptyName = Album(
+            id: "album-1", name: "Album", artist: "",
+            productionYear: nil, imageTag: nil, artistID: "artist-1"
+        )
+        XCTAssertNil(emptyName.artistDestination)
     }
 
     func testAppearancePreferenceMapsToTheExpectedColorScheme() {
