@@ -22,6 +22,31 @@ struct Album: Identifiable, Codable, Hashable, Sendable {
     let artist: String
     let productionYear: Int?
     let imageTag: String?
+    /// Album-artist item ID from Jellyfin (`AlbumArtists` / related fields).
+    /// Optional so older cache payloads decode without it.
+    let artistID: String?
+
+    init(
+        id: String,
+        name: String,
+        artist: String,
+        productionYear: Int?,
+        imageTag: String?,
+        artistID: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.artist = artist
+        self.productionYear = productionYear
+        self.imageTag = imageTag
+        self.artistID = artistID
+    }
+
+    /// The album artist library item, when Jellyfin gave us that artist's ID.
+    var artistDestination: Artist? {
+        guard let artistID, !artist.isEmpty else { return nil }
+        return Artist(id: artistID, name: artist, imageTag: nil)
+    }
 }
 
 struct AlbumPage: Equatable, Sendable {
