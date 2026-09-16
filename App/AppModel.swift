@@ -458,11 +458,14 @@ final class AppModel: ObservableObject {
         } catch { return .failure }
     }
 
+    /// Fixed-count random sample for Home genre chips. Full alphabetical
+    /// paging stays on Library → Genres (AGENTS.md Listen Now shelf pattern).
     private func homeGenresResult(api: JellyfinAPI, userID: String, libraryID: String) async -> HomeQueryResult<[Genre]> {
         do {
             let page = try await api.genres(
                 userID: userID, libraryID: libraryID,
-                startIndex: 0, limit: Self.homeGenresShelfLimit
+                startIndex: 0, limit: Self.homeGenresShelfLimit,
+                sortBy: "Random"
             )
             return .success(page.genres)
         } catch { return .failure }
