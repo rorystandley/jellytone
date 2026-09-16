@@ -197,6 +197,122 @@ struct NowPlayingArtwork: View {
     }
 }
 
+/// Circular LP-style artwork for Now Playing. Spins while playback is active;
+/// freezes on pause and respects Reduce Motion (static disc).
+struct NowPlayingVinylDisc: View {
+    @ObservedObject var playback: PlaybackController
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Visual RPM — slower than a real 33⅓ so the motion reads as deliberate, not frantic.
+    private let secondsPerRevolution: Double = 12
+    @State private var accumulatedDegrees: Double = 0
+    @State private var spinAnchor: Date?
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: reduceMotion ? 1 : 1.0 / 30.0, paused: !shouldSpin)) { context in
+            discContent
+                .rotationEffect(.degrees(degrees(at: context.date)))
+        }
+        .accessibilityIdentifier("now-playing-vinyl-disc")
+        .accessibilityLabel(accessibilityLabel)
+        .onAppear { syncSpinState() }
+        .onChange(of: playback.isPlaying) { _, _ in syncSpinState() }
+        .onChange(of: playback.currentTrack?.id) { _, _ in
+            accumulatedDegrees = 0
+            spinAnchor = shouldSpin ? Date() : nil
+        }
+        .onChange(of: reduceMotion) { _, _ in syncSpinState() }
+    }
+
+    private var shouldSpin: Bool {
+        playback.isPlaying && !reduceMotion
+    }
+
+    private var accessibilityLabel: String {
+        let name = playback.currentTrack?.name ?? "current track"
+        if playback.artwork == nil {
+            return "Vinyl artwork placeholder for \(name)"
+        }
+        return "Vinyl artwork for \(name)"
+    }
+
+    private var discContent: some View {
+        GeometryReader { geo in
+            let side = min(geo.size.width, geo.size.height)
+            let labelInset = side * 0.14
+            let spindle = max(JellytoneTheme.Space.sm, side * 0.07)
+            ZStack {
+                Circle()
+                    .fill(Color.black)
+                vinylGrooves(side: side)
+                artworkLabel
+                    .frame(width: side - labelInset * 2, height: side - labelInset * 2)
+                    .clipped()
+                    .clipShape(Circle())
+                // Spindle hub — reads as a physical LP centre.
+                Circle()
+                    .fill(Color.black)
+                    .frame(width: spindle, height: spindle)
+                    .overlay {
+                        Circle()
+                            .strokeBorder(Color.jtGlassBorderOverArtwork, lineWidth: 1)
+                    }
+            }
+            .frame(width: side, height: side)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .aspectRatio(1, contentMode: .fit)
+    }
+
+    @ViewBuilder
+    private var artworkLabel: some View {
+        Group {
+            if let image = playback.artwork {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                JellytoneTheme.placeholderGradient(
+                    hue: JellytoneTheme.placeholderHue(
+                        forID: playback.currentTrack?.id ?? playback.currentTrack?.name ?? "current track"
+                    )
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func vinylGrooves(side: CGFloat) -> some View {
+        // Concentric hairlines suggest pressed grooves without competing with the label art.
+        ForEach(0..<7, id: \.self) { index in
+            let inset = side * (0.03 + CGFloat(index) * 0.028)
+            Circle()
+                .strokeBorder(Color.white.opacity(index.isMultiple(of: 2) ? 0.07 : 0.04), lineWidth: 1)
+                .padding(inset)
+        }
+    }
+
+    private func degrees(at date: Date) -> Double {
+        var value = accumulatedDegrees
+        if let spinAnchor {
+            value += date.timeIntervalSince(spinAnchor) * (360 / secondsPerRevolution)
+        }
+        return value
+    }
+
+    private func syncSpinState() {
+        let now = Date()
+        if shouldSpin {
+            if spinAnchor == nil {
+                spinAnchor = now
+            }
+        } else if let spinAnchor {
+            accumulatedDegrees += now.timeIntervalSince(spinAnchor) * (360 / secondsPerRevolution)
+            self.spinAnchor = nil
+        }
+    }
+}
+
 /// Subtle preparing/buffering chrome. Never replaces transport — keeps
 /// artwork, title, and controls fully interactive (Priority 2 silent prep).
 struct PlayerPreparingIndicator: View {

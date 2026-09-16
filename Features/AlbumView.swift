@@ -373,6 +373,8 @@ struct NowPlayingView: View {
     @State private var showingQueue = false
     @State private var lyrics: TrackLyrics?
     @State private var showingLyrics = false
+    /// Persisted LP / square artwork preference on Now Playing (AGENTS.md Priority 2).
+    @AppStorage("nowPlayingShowsVinylDisc") private var showingVinylDisc = false
     @State private var isScrubbing = false
     @State private var lastScrubTick = -1
 
@@ -387,6 +389,10 @@ struct NowPlayingView: View {
                                 LyricsView(lyrics: lyrics, playback: playback)
                                     .frame(height: artSide)
                                     .frame(maxWidth: .infinity)
+                            } else if showingVinylDisc {
+                                NowPlayingVinylDisc(playback: playback)
+                                    .frame(width: artSide, height: artSide)
+                                    .shadow(color: .black.opacity(0.5), radius: 30, y: 15)
                             } else {
                                 NowPlayingArtwork(playback: playback)
                                     .frame(width: artSide, height: artSide)
@@ -490,7 +496,7 @@ struct NowPlayingView: View {
                         }
                         .frame(maxWidth: .infinity)
 
-                        // Footer: quality (+ silent prep) · lyrics · queue — one chrome family.
+                        // Footer: quality (+ silent prep) · vinyl · lyrics · queue — one chrome family.
                         HStack(spacing: JellytoneTheme.Space.md) {
                             HStack(spacing: JellytoneTheme.Space.sm) {
                                 if playback.isPreparing {
@@ -506,6 +512,26 @@ struct NowPlayingView: View {
                             .accessibilityElement(children: .combine)
 
                             Spacer(minLength: JellytoneTheme.Space.sm)
+
+                            Button {
+                                JellytoneHaptics.play(.light)
+                                withAnimation(reduceMotion ? nil : JellytoneTheme.Motion.crossfade) {
+                                    // Vinyl replaces artwork; leave lyrics mode so the disc is visible.
+                                    if showingLyrics { showingLyrics = false }
+                                    showingVinylDisc.toggle()
+                                }
+                            } label: {
+                                Image(systemName: "opticaldisc")
+                                    .font(.system(size: JellytoneTheme.Player.transportIcon, weight: .semibold))
+                                    .foregroundStyle(showingVinylDisc ? Color.jtAccent : Color.jtTextSecondary)
+                                    .frame(width: JellytoneTheme.Player.miniTransport, height: JellytoneTheme.Player.miniTransport)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleSmall))
+                            .accessibilityIdentifier("now-playing-vinyl-toggle")
+                            .accessibilityLabel(showingVinylDisc ? "Show square artwork" : "Show vinyl artwork")
+                            .accessibilityValue(showingVinylDisc ? "Vinyl" : "Square")
+                            .accessibilityHint("Toggles rotating LP artwork")
 
                             if lyrics != nil {
                                 Button {
@@ -543,6 +569,7 @@ struct NowPlayingView: View {
                     .padding(.vertical, JellytoneTheme.Space.lg)
                     .animation(reduceMotion ? nil : JellytoneTheme.Motion.standard, value: playback.currentTrack?.id)
                     .animation(reduceMotion ? nil : JellytoneTheme.Motion.quick, value: playback.isPreparing)
+                    .animation(reduceMotion ? nil : JellytoneTheme.Motion.crossfade, value: showingVinylDisc)
                 }
             }
             .task(id: playback.currentTrack?.id) {
