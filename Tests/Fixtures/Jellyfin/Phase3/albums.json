@@ -7,7 +7,7 @@
       "AlbumArtist": "Various Artists",
       "AlbumArtists": [{"Name": "Various Artists", "Id": "artist-various"}],
       "Artists": ["Synthetic Soloist"],
-      "ArtistItems": [{"Name": "Synthetic Soloist", "Id": "artist-soloist"}],
+      "ArtistItems": [{"Name": "Synthetic Soloist", "Id": "artist-compilation-soloist"}],
       "ProductionYear": 2024,
       "ImageTags": {"Primary": "art-compilation-v1"}
     },
@@ -31,7 +31,8 @@
       "Name": "Caf\u00e9 \u6771\u4eac \ud83c\udfa7",
       "Type": "MusicAlbum",
       "Artists": ["Zo\u00eb"],
-      "ArtistItems": [{"Name": "Zo\u00eb", "Id": "artist-zoe"}]
+      "ArtistItems": [{"Name": "Zo\u00eb", "Id": "artist-zoe"}],
+      "ArtistIds": ["artist-zoe-legacy"]
     },
     {
       "Id": "album-unicode-decomposed",

@@ -299,6 +299,9 @@ struct HomeLibraryView: View {
 
     // MARK: Genres
 
+    // Fixed chip row (no infinite scroll). Snapshot holds a server-random
+    // sample so each Home refresh surfaces different genres without the lag
+    // of paging mid-shelf; Library owns the full alphabetical catalogue.
     private var homeGenres: [Genre] {
         model.homeSnapshot?.homeGenres ?? []
     }

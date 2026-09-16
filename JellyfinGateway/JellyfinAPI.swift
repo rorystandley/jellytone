@@ -558,11 +558,16 @@ struct JellyfinAPI: Sendable {
         catch { return .transient }
     }
 
+    /// Library browse defaults to alphabetical `SortName`. Home's Listen Now
+    /// shelf passes `sortBy: "Random"` for a fixed-size rotating sample —
+    /// pagination belongs on the Library Genres screen, not the chip row.
     func genres(
         userID: String,
         libraryID: String?,
         startIndex: Int = 0,
-        limit: Int = 100
+        limit: Int = 100,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending"
     ) async throws -> GenrePage {
         var query = [
             URLQueryItem(name: "userId", value: userID),
@@ -574,8 +579,8 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
-            URLQueryItem(name: "SortBy", value: "SortName"),
-            URLQueryItem(name: "SortOrder", value: "Ascending"),
+            URLQueryItem(name: "SortBy", value: sortBy),
+            URLQueryItem(name: "SortOrder", value: sortOrder),
         ]
         if let libraryID {
             query.append(URLQueryItem(name: "ParentId", value: libraryID))
@@ -1061,9 +1066,6 @@ struct JellyfinAPI: Sendable {
             artist: artist,
             productionYear: item.ProductionYear,
             imageTag: item.ImageTags?["Primary"],
-            // Prefer the ID that matches the displayed album-artist name so a
-            // compilation labelled "Various Artists" opens that entry, not a
-            // featured soloist from Artists/ArtistItems.
             artistID: item.albumArtistID(matching: artist)
         )
     }
@@ -1130,13 +1132,11 @@ struct JellyfinAPI: Sendable {
     /// Jellyfin returns those IDs on `AlbumId` / `ArtistItems` / `AlbumArtists`;
     /// display names alone cannot open the library destination.
     private static let audioIdentityFields =
-        "PrimaryImageAspectRatio,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists,ArtistItems,AlbumArtists,IndexNumber,ParentIndexNumber"
+        "PrimaryImageAspectRatio,RunTimeTicks,Album,AlbumId,AlbumArtist,Artists,ArtistItems,AlbumArtists,ArtistIds,IndexNumber,ParentIndexNumber"
 
-    /// Fields that keep a mapped `Album` tied to its album-artist item.
-    /// `AlbumArtists` (and `ArtistItems` as fallback) carry the IDs used by
-    /// `Album.artistDestination`; `AlbumArtist` / `Artists` are display names.
+    /// Fields that keep a mapped `Album` tied to its album-artist library item.
     private static let albumIdentityFields =
-        "PrimaryImageAspectRatio,AlbumArtist,Artists,ArtistItems,AlbumArtists"
+        "PrimaryImageAspectRatio,AlbumArtist,Artists,AlbumArtists,ArtistItems,ArtistIds"
 
     private func uniqueByID<Value: Identifiable>(_ values: [Value]) -> [Value] where Value.ID == String {
         var seen = Set<String>()
@@ -1399,9 +1399,8 @@ private struct Item: Decodable {
             ?? ArtistIds?.first?.nonEmpty
     }
 
-    /// Album detail links should open the album artist. Prefer `AlbumArtists`
-    /// (matching the displayed `AlbumArtist` name) over `ArtistItems`, which
-    /// on MusicAlbum payloads can list featured performers.
+    /// Prefer album-artist IDs so album headers open the album artist, not a
+    /// featured track performer. Fall back through track artists, then legacy IDs.
     func albumArtistID(matching name: String) -> String? {
         id(matching: name, in: AlbumArtists)
             ?? AlbumArtists?.first?.Id?.nonEmpty

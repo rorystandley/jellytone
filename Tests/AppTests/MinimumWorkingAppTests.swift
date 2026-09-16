@@ -41,7 +41,7 @@ final class MinimumWorkingAppTests: XCTestCase {
         XCTAssertNil(emptyNames.artistDestination)
     }
 
-    func testAlbumExposesArtistDestinationOnlyWhenArtistIDAndNameExist() {
+    func testAlbumExposesArtistDestinationOnlyWhenArtistIDExists() {
         let linked = Album(
             id: "album-1", name: "Album", artist: "Artist",
             productionYear: 2024, imageTag: "art", artistID: "artist-1"

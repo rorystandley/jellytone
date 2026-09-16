@@ -131,6 +131,7 @@ final class GenreGatewayTests: XCTestCase {
         XCTAssertEqual(genresQuery["StartIndex"], "5")
         XCTAssertEqual(genresQuery["Limit"], "10")
         XCTAssertEqual(genresQuery["SortBy"], "SortName")
+        XCTAssertEqual(genresQuery["SortOrder"], "Ascending")
 
         try assertCommonScope(requests[1], path: "/reverse-proxy/Items", itemType: "MusicAlbum")
         let albumQuery = try Self.query(requests[1])
@@ -146,6 +147,30 @@ final class GenreGatewayTests: XCTestCase {
         XCTAssertEqual(trackQuery["StartIndex"], "25")
         XCTAssertEqual(trackQuery["Limit"], "30")
         XCTAssertEqual(trackQuery["SortBy"], "Album,ParentIndexNumber,IndexNumber,SortName")
+    }
+
+    func testHomeGenreShelfRequestsRandomSortWithFixedLimit() async throws {
+        var requests: [URLRequest] = []
+        GenreURLProtocol.handler = { request in
+            requests.append(request)
+            return Self.response(request, json: #"{"Items":[],"TotalRecordCount":0}"#)
+        }
+        let api = try makeAPI()
+
+        _ = try await api.genres(
+            userID: "account",
+            libraryID: "library",
+            startIndex: 0,
+            limit: 16,
+            sortBy: "Random"
+        )
+
+        XCTAssertEqual(requests.count, 1)
+        let query = try Self.query(requests[0])
+        XCTAssertEqual(query["SortBy"], "Random")
+        XCTAssertEqual(query["Limit"], "16")
+        XCTAssertEqual(query["StartIndex"], "0")
+        XCTAssertEqual(query["ParentId"], "library")
     }
 
     func testGenrePaginationAdvancesByWireCountAndUsesTotalsWhenPresent() async throws {

@@ -66,6 +66,24 @@ final class ConnectionScreenUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["The chorus arrives now"].exists)
     }
 
+    func testVinylToggleSwitchesNowPlayingArtworkToCircularDisc() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-player-artwork"]
+        app.launch()
+
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        let toggle = app.buttons["now-playing-vinyl-toggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertEqual(toggle.value as? String, "Square")
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "Vinyl")
+        XCTAssertTrue(app.descendants(matching: .any)["now-playing-vinyl-disc"].waitForExistence(timeout: 3))
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "Square")
+        XCTAssertFalse(app.descendants(matching: .any)["now-playing-vinyl-disc"].exists)
+    }
+
     func testRestoredPlaybackPositionDrivesNowPlayingPresentation() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-restored-playback"]

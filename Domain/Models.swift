@@ -22,8 +22,8 @@ struct Album: Identifiable, Codable, Hashable, Sendable {
     let artist: String
     let productionYear: Int?
     let imageTag: String?
-    /// Jellyfin album-artist item ID when the browse/search payload included it.
-    /// Absent from older cache payloads, which decode to `nil`.
+    /// Album-artist item ID from Jellyfin (`AlbumArtists` / related fields).
+    /// Optional so older cache payloads decode without it.
     let artistID: String?
 
     init(
@@ -42,8 +42,7 @@ struct Album: Identifiable, Codable, Hashable, Sendable {
         self.artistID = artistID
     }
 
-    /// The album artist as a library destination, when Jellyfin gave us that
-    /// artist's item ID. Name-only albums stay non-tappable.
+    /// The album artist library item, when Jellyfin gave us that artist's ID.
     var artistDestination: Artist? {
         guard let artistID, !artist.isEmpty else { return nil }
         return Artist(id: artistID, name: artist, imageTag: nil)
