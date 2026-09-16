@@ -558,11 +558,16 @@ struct JellyfinAPI: Sendable {
         catch { return .transient }
     }
 
+    /// Library browse defaults to alphabetical `SortName`. Home's Listen Now
+    /// shelf passes `sortBy: "Random"` for a fixed-size rotating sample —
+    /// pagination belongs on the Library Genres screen, not the chip row.
     func genres(
         userID: String,
         libraryID: String?,
         startIndex: Int = 0,
-        limit: Int = 100
+        limit: Int = 100,
+        sortBy: String = "SortName",
+        sortOrder: String = "Ascending"
     ) async throws -> GenrePage {
         var query = [
             URLQueryItem(name: "userId", value: userID),
@@ -574,8 +579,8 @@ struct JellyfinAPI: Sendable {
             URLQueryItem(name: "StartIndex", value: String(startIndex)),
             URLQueryItem(name: "Limit", value: String(limit)),
             URLQueryItem(name: "EnableTotalRecordCount", value: "true"),
-            URLQueryItem(name: "SortBy", value: "SortName"),
-            URLQueryItem(name: "SortOrder", value: "Ascending"),
+            URLQueryItem(name: "SortBy", value: sortBy),
+            URLQueryItem(name: "SortOrder", value: sortOrder),
         ]
         if let libraryID {
             query.append(URLQueryItem(name: "ParentId", value: libraryID))
