@@ -144,12 +144,12 @@ Minimum text size anywhere in the app is 10px (tab bar label) — never go small
 ### 4.5 Now Playing (full screen, always dark regardless of theme)
 - Background: `radial-gradient(circle at 50% 0%, oklch(38% 0.1 <hue>), oklch(12% 0.01 <hue>) 70%)` — a moody wash tinted from the current track's hue, not a flat black.
 - Header row: 34×34 glass chevron-down (close) — centered album-name eyebrow (11px/700, uppercase, 0.5px tracking, white 60% opacity) — 34×34 glass "more" button.
-- Artwork: 290×290, 20px radius, `0 30px 60px rgba(0,0,0,0.5)` shadow — swaps for a lyrics view (word-by-word) when toggled.
+- Artwork: 290×290, 20px radius, `0 30px 60px rgba(0,0,0,0.5)` shadow — swaps for a lyrics view (word-by-word) when toggled. Optional **vinyl mode** (footer disc toggle): circular LP with groove ring + centre label art; rotates while playing (~12s/rev), freezes on pause, static under Reduce Motion. Preference persists (`nowPlayingShowsVinylDisc`).
 - **Lyrics mode**: lines center-stacked, inactive lines at 0.55 opacity / scale 1.0, active line 1.0 opacity / scale 1.04. Within the active line: sung words → white; current word → accent colour + scale(1.08); unsung words → white @ 40% opacity. Transition 0.25–0.3s on colour/transform.
 - Track title 21px/800 white, artist 14.5px white @ 65%, heart icon top-right of that block (21×21, scale-on-press to 0.8).
 - Scrub bar: 4px track (white @ 25%), white fill, 12px round thumb with a small drop shadow, expands to `scaleY(1.8)` on press. Time labels 11.5px, white @ 55%, elapsed left / remaining (as `-M:SS`) right.
 - Transport row: shuffle (20px icon) — prev (26px) — **play/pause 68×68 solid white circle, black glyph** — next (26px) — repeat (20px, coral "1" badge super-scripted when repeat-one). All icons default to white @ 85% opacity, switch to accent when the mode is active (shuffle on, repeat on).
-- Footer row: "Lyrics" text toggle (12px/700, accent when open) — quality tag (e.g. "FLAC · 24-bit", 11.5px white @ 50%) — queue icon (opens Queue sheet).
+- Footer row: quality tag (e.g. "FLAC · 24-bit", 11.5px white @ 50%) — vinyl disc icon toggle (accent when LP mode) — "Lyrics" text toggle (12px/700, accent when open) — queue icon (opens Queue sheet).
 
 ### 4.6 Queue sheet
 - Full-screen sheet, standard `background` fill (not glass), 20px side padding.
@@ -208,7 +208,7 @@ Implementation: `DesignSystem/Haptics.swift` (`JellytoneHaptics`).
 
 | Cue | Where |
 | --- | --- |
-| **Light impact** | Transport (skip / shuffle / repeat), play-from-library rows, secondary capsules, download start, queue jump, lyrics toggle |
+| **Light impact** | Transport (skip / shuffle / repeat), play-from-library rows, secondary capsules, download start, queue jump, lyrics / vinyl toggles |
 | **Medium impact** | Primary play/pause, favouriting on |
 | **Soft impact** | Unfavourite, nav chrome, expand/collapse Now Playing |
 | **Selection** | Alphabet index scrub, Now Playing seek ticks, toggles, chips, appearance picker |

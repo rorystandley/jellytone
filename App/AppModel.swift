@@ -82,6 +82,7 @@ final class AppModel: ObservableObject {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--ui-testing") {
             defaults.removeObject(forKey: Self.profileKey)
+            defaults.removeObject(forKey: "nowPlayingShowsVinylDisc")
             KeychainTokenStore.delete()
         }
         if defaults.string(forKey: Self.deviceIDKey) == nil {
