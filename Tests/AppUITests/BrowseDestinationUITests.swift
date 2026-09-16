@@ -70,6 +70,13 @@ final class BrowseDestinationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["album-play-all"].isHittable)
         XCTAssertTrue(app.buttons["album-shuffle"].isHittable)
         capture("album-artwork-multidisc", app: app)
+
+        let albumArtist = element("album-artist", in: app)
+        XCTAssertTrue(albumArtist.waitForExistence(timeout: 4))
+        albumArtist.tap()
+        XCTAssertTrue(app.navigationBars["Björk Guðmundsdóttir"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Top Songs"].waitForExistence(timeout: 4))
+        capture("album-artist-destination", app: app)
     }
 
     func testLibraryArtistAlbumTapOpensAlbumNotArtist() {

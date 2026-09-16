@@ -286,7 +286,14 @@ struct Track: Identifiable, Codable, Hashable, Sendable {
     /// The album this track belongs to, when Jellyfin gave us that album's item ID.
     var albumDestination: Album? {
         guard let albumID, !album.isEmpty else { return nil }
-        return Album(id: albumID, name: album, artist: artist, productionYear: nil, imageTag: imageTag)
+        return Album(
+            id: albumID,
+            name: album,
+            artist: artist,
+            productionYear: nil,
+            imageTag: imageTag,
+            artistID: artistID
+        )
     }
 
     /// The performing (or album) artist this track belongs to, when Jellyfin

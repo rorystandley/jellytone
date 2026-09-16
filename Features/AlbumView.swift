@@ -122,6 +122,8 @@ struct AlbumView: View {
                 Text(artist.name)
                     .font(.jtBody.weight(.medium))
                     .foregroundStyle(Color.jtTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.jtPressScale(JellytoneTheme.Motion.pressScaleLarge))
             .accessibilityIdentifier("album-artist")
