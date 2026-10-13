@@ -5,4 +5,4 @@
 // Then set your Apple Development Team ID and preferred reverse-DNS bundle.
 
 APP_TEAM_ID = YOUR_TEAM_ID
-APP_BUNDLE_ID = uk.co.example.jellytone
+APP_BUNDLE_ID = org.example.jellytone

@@ -24,7 +24,7 @@ class NetworkLabTests(unittest.TestCase):
         rendered = json.dumps(self.report, sort_keys=True).lower()
         for forbidden in (
             "x-emby-token", "authorization", "access_token", '"serverid":', '"userid":',
-            "127.0.0.1", "::1", "localhost", ".local", "rory",
+            "127.0.0.1", "::1", "localhost", ".local",
         ):
             self.assertNotIn(forbidden, rendered)
         self.assertFalse(self.report["privacy"]["credentialsPersisted"])

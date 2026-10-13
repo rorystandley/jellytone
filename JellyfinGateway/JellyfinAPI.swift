@@ -1297,7 +1297,7 @@ struct JellyfinAPI: Sendable {
 
     private func addAuthorization(to request: inout URLRequest) {
         request.setValue(
-            "MediaBrowser Client=\"Jellytone\", Device=\"Apple Mobile\", DeviceId=\"\(deviceID)\", Version=\"0.1.0\"",
+            "MediaBrowser Client=\"Jellytone\", Device=\"Apple Mobile\", DeviceId=\"\(deviceID)\", Version=\"1.0.0\"",
             forHTTPHeaderField: "X-Emby-Authorization"
         )
         if let token { request.setValue(token, forHTTPHeaderField: "X-Emby-Token") }

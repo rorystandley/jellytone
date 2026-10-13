@@ -1,6 +1,6 @@
 name: Repository validation
 
-# Private repo; macos-hosted gates are expensive.
+# macOS-hosted gates are expensive.
 # Verify locally (tools/phase0/validate.sh, ./scripts/test.sh,
 # ./scripts/test-ui.sh, ./scripts/test-integration.sh, ./scripts/build-release.sh).
 # Dispatch this workflow only when a hosted check is wanted.
