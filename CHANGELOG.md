@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Instant Mix tiles skip a recently played track when its artist is already a seed. Those tracks were also appearing as their own mix.
 - Artwork cache tests await actor results into locals before `XCTAssert`. Those macros take synchronous autoclosures, so an inline `await` does not compile under Swift 6.
 - Made `Item.ArtistItems` and `Item.AlbumArtists` private. They use the private nested `NameIdPair` type, which Swift rejects on an internal property.
 - Device proof remote-command handlers touch the player on the main actor.
