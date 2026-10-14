@@ -21,18 +21,26 @@ Jellytone is a music client. It does not play video, and it does not manage the 
 - A Jellyfin server. The automated contracts cover 10.11.11 and 10.10.7.
 - For development: a Mac with Xcode 26.6, and the iOS 18.4 SDK or newer.
 
-## Install
+## Getting started
 
 There is no App Store build yet. Build it from source and install it with Xcode.
+
+The Xcode project is generated from `project.yml`. Install XcodeGen 2.46.0 and generate the project before you open it. Opening `Jellytone.xcodeproj` before that step fails, because Xcode looks for `project.pbxproj` and that file is created by XcodeGen.
 
 ```sh
 git clone https://github.com/rorystandley/jellytone.git
 cd jellytone
-./scripts/bootstrap.sh
+brew install xcodegen
+xcodegen --version
+xcodegen generate --spec project.yml
+mkdir -p Jellytone.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+cp Config/Package.resolved Jellytone.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 open Jellytone.xcodeproj
 ```
 
-`bootstrap.sh` downloads pinned XcodeGen 2.46.0 and generates the Xcode project.
+`xcodegen --version` must report 2.46.0. This repo pins that release. The `cp` line puts the committed GRDB.swift 7.11.1 lockfile into the generated project.
+
+If Homebrew installs a different XcodeGen, run `./scripts/bootstrap.sh` instead of the `brew`, `xcodegen`, `mkdir`, and `cp` lines. The script downloads XcodeGen 2.46.0, checks the archive checksum, generates `Jellytone.xcodeproj`, and copies the lockfile.
 
 To run on a device, set your Apple team:
 
@@ -85,13 +93,13 @@ The disposable Jellyfin versions used by integration tests are pinned in `infra/
 ./scripts/build-release.sh
 ```
 
-`test.sh` and `test-ui.sh` need Xcode and an iOS Simulator. `test-integration.sh` runs against disposable Jellyfin containers and needs Docker. `build-release.sh` produces an unsigned simulator Release build.
+`test.sh`, `test-ui.sh`, and `build-release.sh` call `scripts/bootstrap.sh` first, which generates `Jellytone.xcodeproj` with XcodeGen 2.46.0. `test.sh` and `test-ui.sh` need Xcode and an iOS Simulator. `test-integration.sh` runs against disposable Jellyfin containers and needs Docker. `build-release.sh` produces an unsigned simulator Release build.
 
 The product target depends on GRDB.swift 7.11.1 and Apple frameworks. Jellyfin HTTP is implemented in this repo. XcodeGen is a build tool only.
 
 UI work uses the tokens in `DesignSystem/Theme.swift`. See `docs/design/design-system.md`.
 
-Do not commit `Config/Local.xcconfig`, tokens, server addresses, or device logs.
+Do not commit `Jellytone.xcodeproj`, `Config/Local.xcconfig`, tokens, server addresses, or device logs.
 
 ## Licence
 

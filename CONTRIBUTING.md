@@ -4,7 +4,7 @@ Issues and pull requests are welcome.
 
 ## Setup
 
-You need a Mac with Xcode 26.6 and the iOS 18.4 SDK or newer.
+You need a Mac with Xcode 26.6 and the iOS 18.4 SDK or newer. Generate `Jellytone.xcodeproj` before you open it. The README lists the XcodeGen 2.46.0 commands. This downloads that pinned binary and generates the project:
 
 ```sh
 ./scripts/bootstrap.sh
@@ -44,6 +44,7 @@ Python contract tests live under `Tests/Phase0*` and run as part of `tools/phase
 - Server hostnames, Tailscale names, or LAN addresses from your own setup.
 - Device names, UDIDs, or signing identities.
 - `Config/Local.xcconfig`.
+- `Jellytone.xcodeproj`. Generate it locally. The committed package lockfile is `Config/Package.resolved`.
 
 Use placeholders such as `https://jellyfin.example.com` in docs and tests.
 

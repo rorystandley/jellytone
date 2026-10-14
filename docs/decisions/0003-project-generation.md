@@ -18,9 +18,13 @@ Autonomous agents need reviewable, reproducible project changes. Hand-edited
 
 Pin XcodeGen 2.46.0. Its release archive SHA-256 is
 `4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806`.
-`project.yml` will be authoritative beginning in Phase 1; generated projects
-are derived and not committed. Commit `Package.resolved`. CI generates into a
-clean path, builds that output, and runs the same underlying repository gates.
+`project.yml` is authoritative. Generated projects are derived. Do not commit
+`Jellytone.xcodeproj`. Commit the Swift package lockfile at
+`Config/Package.resolved`. `scripts/bootstrap.sh` copies that file into the
+generated project after `xcodegen generate`. A partial `Jellytone.xcodeproj`
+that only contains the lockfile makes Xcode look for a missing
+`project.pbxproj`. CI generates into a clean path, builds that output, and
+runs the same underlying repository gates.
 
 ## Consequences
 

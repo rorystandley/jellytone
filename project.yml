@@ -1,5 +1,6 @@
 name: Jellytone
 options:
+  minimumXcodeGenVersion: 2.46.0
   bundleIdPrefix: org.example.jellytone
   deploymentTarget:
     iOS: "18.4"
