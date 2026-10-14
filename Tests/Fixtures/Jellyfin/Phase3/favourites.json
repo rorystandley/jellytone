@@ -1,0 +1,16 @@
+{
+  "Items": [
+    { "Id": "artist-a", "Name": "Shared Artist", "Type": "MusicArtist", "ImageTags": { "Primary": "artist-art-a" }, "UserData": { "IsFavorite": true } },
+    { "Id": "artist-a", "Name": "Shared Artist", "Type": "MusicArtist", "UserData": { "IsFavorite": true } },
+    { "Id": "artist-not-favourite", "Name": "Contradiction", "Type": "MusicArtist", "UserData": { "IsFavorite": false } },
+    { "Id": "album-a", "Name": "Shared Album", "Type": "MusicAlbum", "AlbumArtist": "Various Artists", "UserData": { "IsFavorite": true } },
+    { "Id": "album-a", "Name": "Shared Album", "Type": "MusicAlbum", "UserData": { "IsFavorite": true } },
+    { "Id": "track-a", "Name": "Repeated", "Type": "Audio", "Artists": ["Artist A"], "UserData": { "IsFavorite": true } },
+    { "Id": "track-a", "Name": "Repeated", "Type": "Audio", "Artists": ["Artist A"], "UserData": { "IsFavorite": true } },
+    91,
+    { "Id": "track-not-favourite", "Name": "Contradiction", "Type": "Audio", "UserData": { "IsFavorite": false } },
+    { "Id": "wrong-type", "Name": "Video", "Type": "Video", "UserData": { "IsFavorite": true } },
+    { "Name": "Missing identity", "Type": "Audio", "UserData": { "IsFavorite": true } }
+  ],
+  "TotalRecordCount": 11
+}

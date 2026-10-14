@@ -1,0 +1,73 @@
+{
+  "Items": [
+    {
+      "Id": "album-compilation-001",
+      "Name": "Synthetic Sampler",
+      "Type": "MusicAlbum",
+      "AlbumArtist": "Various Artists",
+      "AlbumArtists": [{"Name": "Various Artists", "Id": "artist-various"}],
+      "Artists": ["Synthetic Soloist"],
+      "ArtistItems": [{"Name": "Synthetic Soloist", "Id": "artist-compilation-soloist"}],
+      "ProductionYear": 2024,
+      "ImageTags": {"Primary": "art-compilation-v1"}
+    },
+    {
+      "Id": "album-duplicate-a",
+      "Name": "Shared Display Name",
+      "Type": "MusicAlbum",
+      "AlbumArtist": "Duplicate Artist",
+      "AlbumArtists": [{"Name": "Duplicate Artist", "Id": "artist-duplicate"}],
+      "ImageTags": {"Primary": "art-duplicate-a"}
+    },
+    {
+      "Id": "album-duplicate-b",
+      "Name": "Shared Display Name",
+      "Type": "MusicAlbum",
+      "AlbumArtist": "Duplicate Artist",
+      "AlbumArtists": [{"Name": "Duplicate Artist", "Id": "artist-duplicate"}]
+    },
+    {
+      "Id": "album-unicode-composed",
+      "Name": "Caf\u00e9 \u6771\u4eac \ud83c\udfa7",
+      "Type": "MusicAlbum",
+      "Artists": ["Zo\u00eb"],
+      "ArtistItems": [{"Name": "Zo\u00eb", "Id": "artist-zoe"}],
+      "ArtistIds": ["artist-zoe-legacy"]
+    },
+    {
+      "Id": "album-unicode-decomposed",
+      "Name": "Cafe\u0301 Sessions",
+      "Type": "MusicAlbum",
+      "AlbumArtist": "A\u030angstr\u00f6m",
+      "AlbumArtists": [{"Name": "A\u030angstr\u00f6m", "Id": "artist-angstrom"}]
+    },
+    {
+      "Id": "album-minimal",
+      "Name": "Metadata Optional",
+      "Type": "MusicAlbum"
+    },
+    {
+      "Id": "album-malformed-optionals",
+      "Name": "Valid Despite Optional Damage",
+      "Type": "MusicAlbum",
+      "AlbumArtist": 42,
+      "Artists": "not-an-array",
+      "AlbumArtists": "not-an-array",
+      "ProductionYear": "not-a-year",
+      "ImageTags": ["not-a-map"]
+    },
+    {
+      "Name": "Missing Identity"
+    },
+    {
+      "Id": "album-blank-name",
+      "Name": "  \n "
+    },
+    {
+      "Id": 99,
+      "Name": "Non-string Identity"
+    },
+    "partially-malformed-record"
+  ],
+  "TotalRecordCount": 11
+}

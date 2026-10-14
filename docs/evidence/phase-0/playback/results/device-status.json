@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "proofId": "phase0-playback-device-status",
+  "capturedAt": "2026-07-16T11:29:33Z",
+  "command": "./tools/device-proof/test.sh && ./tools/device-proof/build.sh && ./tools/device-proof/install.sh && ./tools/device-proof/launch.sh <ephemeral-redacted-lan-url>",
+  "environment": {"harness": "isolated-phase0-device-proof", "deviceClass": "iPhone 13", "deviceOS": "iOS 26.5.2"},
+  "owner": {"phase": "Phase 0", "workstream": "playback"},
+  "status": "blocked",
+  "limitations": ["The device was locked, so signed build and installation do not prove runtime codec, playback, route, background, endurance, or acoustic behavior."],
+  "privacy": {"redacted": true, "committedEvidenceContainsSecrets": false, "privateServerDataPersisted": false, "omitted": ["device identifier", "signing identity", "team identifier", "runtime endpoint"]},
+  "physicalDeviceDetected": true,
+  "physicalDevice": {"model":"iPhone 13 (iPhone14,5)","os":"26.5.2","pairingState":"available-paired-via-CoreDevice"},
+  "codeSigningIdentitiesDetected": 3,
+  "signedPlaybackProbeBuilt": true,
+  "signedPlaybackProbeInstalled": true,
+  "deviceProcedureExecuted": false,
+  "simulatorRuntimesDetected": ["iOS 26.2", "iOS 26.5"],
+  "blockedClaims": [
+    "background suspension and eight-hour locked playback",
+    "call and Siri interruptions",
+    "wired, Bluetooth and AirPlay route changes",
+    "external accessory remote commands",
+    "CarPlay hardware behavior",
+    "acoustic gapless and crossfade output"
+  ],
+  "harnessCoverage": {
+    "requiredLocalCodecPreparationPaths": ["mp3", "aac", "alac", "flac", "vorbis_ogg", "opus_ogg"],
+    "requiredRemoteHTTPCodecPreparationPaths": ["mp3", "aac", "alac", "flac", "vorbis_ogg", "opus_ogg"],
+    "supplementalCodecPreparationPaths": ["opus_mp4"],
+    "runtimeEventsCollected": false
+  },
+  "reason": "A signed isolated iOS playback probe builds and installs with background audio and narrow local-network configuration. Its single bounded launch attempt was rejected because the paired phone was locked, so no codec, playback, background, route, or acoustic runtime event exists. Simulator logic/build/install evidence is not promoted to hardware proof."
+}

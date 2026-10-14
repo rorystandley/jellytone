@@ -1,0 +1,44 @@
+{
+  "Items": [
+    {
+      "Id": "genre-rock-a",
+      "Name": "Rock",
+      "Type": "MusicGenre",
+      "ImageTags": { "Primary": "genre-art-rock-a" },
+      "SongCount": 12,
+      "AlbumCount": 3
+    },
+    {
+      "Id": "genre-rock-b",
+      "Name": "Rock",
+      "Type": "MusicGenre",
+      "RecursiveItemCount": 7,
+      "AlbumCount": 2
+    },
+    {
+      "Id": "genre-unicode",
+      "Name": "Café 東京 🎧",
+      "Type": "MusicGenre",
+      "ChildCount": 4
+    },
+    17,
+    { "Id": "genre-no-name", "Type": "MusicGenre" },
+    { "Name": "No identity", "Type": "MusicGenre" },
+    { "Id": "genre-video", "Name": "Documentary", "Type": "Movie" },
+    {
+      "Id": "genre-damaged-counts",
+      "Name": "Damaged Counts",
+      "Type": "MusicGenre",
+      "SongCount": "many",
+      "AlbumCount": { "invalid": true },
+      "ImageTags": "invalid"
+    },
+    {
+      "Id": "genre-legacy",
+      "Name": "Legacy Music",
+      "RecursiveItemCount": 5,
+      "AlbumCount": 1
+    }
+  ],
+  "TotalRecordCount": 9
+}

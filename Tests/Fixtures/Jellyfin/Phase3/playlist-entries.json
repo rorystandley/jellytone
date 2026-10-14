@@ -1,0 +1,13 @@
+{
+  "Items": [
+    {"Id":"track-a","PlaylistItemId":"occurrence-a-1","Name":"Opening","Type":"Audio","Artists":["Synthetic Artist"],"Album":"Synthetic Album","AlbumId":"album-a","IndexNumber":1,"ParentIndexNumber":1,"RunTimeTicks":610000000},
+    {"Id":"track-duplicate","PlaylistItemId":"occurrence-duplicate-1","Name":"Repeated Song","Type":"Audio","Artists":["First Artist"],"Album":"Duplicates","IndexNumber":2,"ParentIndexNumber":1,"RunTimeTicks":620000000},
+    {"Id":"video-sibling","PlaylistItemId":"occurrence-video","Name":"Music Video","Type":"Video"},
+    {"Id":"track-duplicate","PlaylistItemId":"occurrence-duplicate-2","Name":"Repeated Song","Type":"Audio","Artists":["First Artist"],"Album":"Duplicates","IndexNumber":2,"ParentIndexNumber":1,"RunTimeTicks":620000000},
+    {"Id":"","PlaylistItemId":"occurrence-malformed","Name":"Missing Track Identity","Type":"Audio"},
+    "malformed-wire-record",
+    {"Id":"track-unicode","PlaylistItemId":"occurrence-unicode","Name":"Café Finale 東京","Type":"Audio","AlbumArtist":"Unicode Artist","RunTimeTicks":"damaged"},
+    {"Id":"track-fallback","Name":"Fallback Occurrence","Type":"Audio"}
+  ],
+  "TotalRecordCount": 8
+}

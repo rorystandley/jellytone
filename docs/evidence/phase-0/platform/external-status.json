@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "proofId": "phase0-platform-external-status",
+  "capturedAt": "2026-07-16T11:29:33Z",
+  "command": "find . -type f ( -name '*.entitlements' -o -name '*.mobileprovision' -o -name 'project.yml' ) plus redacted signing/device probes",
+  "environment": {"repositoryPhase": 0, "productionAppTargetPresent": false},
+  "owner": {"phase": "Phase 0", "workstream": "platform"},
+  "status": "blocked",
+  "limitations": ["Managed CarPlay capability and device runtime behavior require unavailable external Apple state or an unlocked physical device."],
+  "checks": [
+    {
+      "id": "carplay-audio-entitlement",
+      "status": "blocked",
+      "facts": {"repositorySubmissionEvidencePresent": false, "externalRequestStatus": "not-verifiable-locally", "managedCapabilityLocallyProven": false, "requiredEntitlement": "com.apple.developer.carplay-audio"},
+      "limitations": ["No production App ID or profile exists in the repository. Apple Developer portal submission/approval was not accessed, so this external gate is blocked rather than inferred. It is not waived."]
+    },
+    {
+      "id": "background-download-device-proof",
+      "status": "blocked",
+      "facts": {"attachedCompatibleDeviceDiscovered": true, "testHarnessPresent": true, "signedHarnessInstalled": true, "deviceRuntimeEventsCollected": false},
+      "limitations": ["The isolated harness schedules three manifest-backed background URLSession transfers and tests validation, restoration, atomic publication, final-file probing, and duplicate acknowledgement rejection. SpringBoard denied the single bounded launch because the paired device was locked. Suspension, termination, relaunch delivery, cancellation/resume, and exactly-once runtime acknowledgement remain unproven; simulator evidence does not replace this gate."]
+    },
+    {
+      "id": "signed-device-install",
+      "status": "pass",
+      "facts": {"developmentIdentityPresent": true, "productionTargetPresent": false, "provisioningProfileSelectedAtRuntime": true, "signedHarnessInstalled": true, "signedHarnessLaunched": false},
+      "limitations": ["This proves only local development signing and installation of the isolated harness. It does not prove production signing or execution; the launch remains blocked by the locked device."]
+    }
+  ],
+  "privacy": {"redacted": true, "committedEvidenceContainsSecrets": false, "privateServerDataPersisted": false, "omitted": ["team IDs", "certificate names and hashes", "device names and identifiers"]}
+}

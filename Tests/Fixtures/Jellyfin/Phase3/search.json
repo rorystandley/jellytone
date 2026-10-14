@@ -1,0 +1,52 @@
+{
+  "Items": [
+    {
+      "Id": "artist-duplicate-a",
+      "Name": "Same Artist",
+      "Type": "MusicArtist",
+      "ImageTags": {"Primary": "artist-a-image"}
+    },
+    {
+      "Id": "artist-duplicate-b",
+      "Name": "Same Artist",
+      "Type": "MusicArtist"
+    },
+    {
+      "Id": "artist-unicode",
+      "Name": "M\u00e9lodie Synth \u6771\u4eac",
+      "Type": "MusicArtist"
+    },
+    {
+      "Id": "album-search-a",
+      "Name": "Same Album",
+      "Type": "MusicAlbum",
+      "AlbumArtist": "Same Artist"
+    },
+    {
+      "Id": "album-search-b",
+      "Name": "Same Album",
+      "Type": "MusicAlbum",
+      "Artists": ["Same Artist"]
+    },
+    {
+      "Id": "album-search-unicode",
+      "Name": "Cafe\u0301 \ud83c\udfb6",
+      "Type": "MusicAlbum",
+      "AlbumArtist": "M\u00e9lodie Synth \u6771\u4eac"
+    },
+    {
+      "Id": "album-search-malformed",
+      "Name": "Search Sibling Survives",
+      "Type": "MusicAlbum",
+      "ProductionYear": false,
+      "ImageTags": "invalid"
+    },
+    {
+      "Id": "artist-invalid-name",
+      "Name": null,
+      "Type": "MusicArtist"
+    },
+    17
+  ],
+  "TotalRecordCount": 9
+}

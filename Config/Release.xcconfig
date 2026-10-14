@@ -1,0 +1,10 @@
+// Shared Release build settings for the Xcode GUI.
+// Personal team / reverse-DNS overrides go in Local.xcconfig (gitignored).
+//
+// CLI gates can still override on the xcodebuild command line:
+//   APP_BUNDLE_ID=… APP_TEAM_ID=… xcodebuild …
+
+APP_BUNDLE_ID = org.example.jellytone.local
+
+// Optional personal overrides (team ID, preferred bundle id) — last assignment wins.
+#include? "Local.xcconfig"

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "proofId": "phase0-disposable-jellyfin-images",
+  "capturedAt": "2026-07-16T10:37:54Z",
+  "command": "tools/phase0/jellyfin.sh reset && tools/phase0/jellyfin.sh verify",
+  "environment": {"runtime": "Docker Desktop 4.79.0", "engine": "29.5.3", "architecture": "arm64", "fixtureGenerator": "FFmpeg 8.1.2"},
+  "owner": {"phase": "Phase 0", "workstream": "automation"},
+  "status": "pass",
+  "limitations": [
+    "Container readiness and synthetic library population do not prove client connectivity, playback, device, or external network behavior."
+  ],
+  "checks": [
+    {
+      "id": "current-stable",
+      "status": "pass",
+      "facts": {"version": "10.11.11", "port": 18096, "digest": "sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db", "startupWizardCompleted": true, "syntheticTrackCount": 13, "releaseSource": "https://github.com/jellyfin/jellyfin/releases/tag/v10.11.11"},
+      "limitations": ["Loopback container proof does not establish remote networking, TLS, Tailscale, playback, or device behavior."]
+    },
+    {
+      "id": "previous-supported-line",
+      "status": "pass",
+      "facts": {"version": "10.10.7", "port": 18097, "digest": "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2", "startupWizardCompleted": true, "syntheticTrackCount": 13, "releaseSource": "https://github.com/jellyfin/jellyfin/releases/tag/v10.10.7"},
+      "limitations": ["This is the final 10.10 patch, not the immediately previous 10.11 patch."]
+    }
+  ],
+  "privacy": {
+    "redacted": true,
+    "committedEvidenceContainsSecrets": false,
+    "privateServerDataPersisted": false,
+    "omitted": ["server IDs", "access tokens", "generated fixture passwords"]
+  }
+}

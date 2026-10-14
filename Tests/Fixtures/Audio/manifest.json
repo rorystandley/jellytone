@@ -1,0 +1,62 @@
+{
+  "durationSeconds": 2,
+  "fixtures": [
+    {
+      "bytes": 49581,
+      "file": "tone-a.mp3",
+      "id": "mp3",
+      "sha256": "9c0dc2e014d545e5b6625d306d7ca92d3d3b6c74d978f51623388fb5d0ebb994"
+    },
+    {
+      "bytes": 49751,
+      "file": "tone-a.m4a",
+      "id": "aac",
+      "sha256": "a91616550d7d4b314a14766abdbcadfec564516facc19ab39f24dfd3320f31d3"
+    },
+    {
+      "bytes": 63591,
+      "file": "tone-a-alac.m4a",
+      "id": "alac",
+      "sha256": "81ee3ac54ee5a46fcb76a7f7b6b327969ef795f259c5503b87db2373d1106755"
+    },
+    {
+      "bytes": 38221,
+      "file": "tone-a.flac",
+      "id": "flac",
+      "sha256": "baffd5d33ff80a516bf8dbe409fc87478873dfec95e5a4f9fb24e9bb3fc6f5cc"
+    },
+    {
+      "bytes": 10785,
+      "file": "tone-a-vorbis.ogg",
+      "id": "vorbis_ogg",
+      "sha256": "10b6a74d7b42ac95fb4749212c2087eb8e97ca28d912f5d96ea242a222e8d73e"
+    },
+    {
+      "bytes": 45320,
+      "file": "tone-a-opus.ogg",
+      "id": "opus_ogg",
+      "sha256": "3df70b4e5b92cdbec0fd24e67da04723f6983e120d759c61f086886f7cffb771"
+    },
+    {
+      "bytes": 46102,
+      "file": "tone-a-opus.mp4",
+      "id": "opus_mp4",
+      "sha256": "2c343130a01477423e1e1d3cd3206076875dadc0c8d4f2ac70b315567fbcbb61"
+    },
+    {
+      "bytes": 384044,
+      "file": "tone-a.wav",
+      "id": "pcm_a",
+      "sha256": "94d14a2d288ba2a99ca85b981aabbb66fb9e60846e8dce237818d8fa0dc8ef52"
+    },
+    {
+      "bytes": 384044,
+      "file": "tone-b.wav",
+      "id": "pcm_b",
+      "sha256": "7205e4a2dcd0c0de203ce0d8b3e7ceb5e69c8b306ec2fbfcb11e7214c0323cdc"
+    }
+  ],
+  "sampleRate": 48000,
+  "schemaVersion": 1,
+  "source": "synthetic sine waves; no private media"
+}

@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "proofId": "phase0-device-execution-status",
+  "capturedAt": "2026-07-16T14:54:01Z",
+  "command": "./scripts/deploy-device.sh && ./tools/device-proof/launch.sh <ephemeral-redacted-lan-url> && ./tools/device-proof/collect.sh && ./tools/device-proof/privacy-scan.sh",
+  "environment": {"platform": "physical iOS device", "harnessType": "isolated non-production proof"},
+  "owner": {"phase": "Phase 0", "workstream": "device"},
+  "status": "blocked",
+  "limitations": [
+    "The strict runtime summary remains blocked because the observed interruption has no matching ended event.",
+    "Background transfers completed and were validated atomically, but process restoration and exactly-once delegate acknowledgement were not exercised.",
+    "Cancellation and resume remains an operator-only follow-up procedure."
+  ],
+  "harness": "isolated-phase0-device-proof",
+  "device": {
+    "identifier": "redacted",
+    "model": "iPhone 13",
+    "os": "iOS 26.5.2"
+  },
+  "results": [
+    {
+      "command": "./tools/device-proof/test.sh",
+      "status": "pass",
+      "evidence": "12 XCTest cases, 0 failures; covers redaction/reset, run and sequence restoration, stale callback rejection, manifest payload validation, distinct concurrent staging paths, restoration state, monotonic phase handling, duplicate acknowledgement rejection, and bounded cancellation/resume policy"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s Tests/Phase0Device -p 'test_*.py' -v",
+      "status": "pass",
+      "evidence": "11 Python device-contract tests, 0 failures; includes an explicit byte-range response regression plus fail-closed summary and device-selection contracts"
+    },
+    {
+      "command": "./tools/device-proof/build.sh",
+      "status": "pass",
+      "evidence": "clean arm64 iOS 18.4 development-signed build using local signing state and neutral org.example proof bundle prefix; the build gate proves all eight manifest-pinned resources are bundled and Info.plist permits local networking without a broad ATS override"
+    },
+    {
+      "command": "./tools/device-proof/install.sh",
+      "status": "pass",
+      "evidence": "devicectl installed the signed application on paired hardware"
+    },
+    {
+      "command": "./tools/device-proof/launch.sh <ephemeral-redacted-lan-url>",
+      "status": "pass",
+      "evidence": "devicectl launched the installed harness on unlocked paired hardware against a redacted synthetic LAN fixture endpoint"
+    },
+    {
+      "command": "./tools/device-proof/collect.sh",
+      "status": "blocked",
+      "reason": "52 strict-sequence single-run events prove the full local and remote codec matrix, trusted HTTPS and consented local HTTP, five-minute background playback, play/pause/seek/previous/next receipts, a Bluetooth route change, and validated AAC/MP3/FLAC downloads; interruption ended, session restoration, and exactly-once background delegate acknowledgement remain missing"
+    },
+    {
+      "command": "./tools/device-proof/privacy-scan.sh",
+      "status": "pass",
+      "evidence": "configured source/evidence targets passed the repository credential, private-endpoint, device-identifier, broad-ATS, and certificate-bypass pattern scan; runtime build/install logs were redacted"
+    }
+  ],
+  "capability_status": {
+    "background_audio": "pass_five_minute_locked_playback",
+    "remote_commands": "pass_play_pause_seek_previous_next",
+    "route_changes": "pass_bluetooth_route_change",
+    "audio_interruption": "blocked_missing_ended_event",
+    "background_download": "partial_atomic_validation_passed_restoration_blocked",
+    "ats_local_connectivity": "pass_https_and_consented_local_http",
+    "codec_preparation": "pass_required_local_and_remote_http_matrix"
+  },
+  "harness_status": {
+    "required_local_codec_paths": ["mp3", "aac", "alac", "flac", "vorbis_ogg", "opus_ogg"],
+    "required_remote_http_codec_paths": ["mp3", "aac", "alac", "flac", "vorbis_ogg", "opus_ogg"],
+    "supplemental_codec_paths": ["opus_mp4"],
+    "background_manifest_task_count": 3,
+    "background_validation": ["http_status", "content_type", "byte_count", "sha256", "atomic_publication", "reopen", "avfoundation_audio_probe", "exactly_once_acknowledgement"],
+    "cancellation_resume": "operator_device_procedure_required"
+  },
+  "privacy": {
+    "redacted": true,
+    "committedEvidenceContainsSecrets": false,
+    "privateServerDataPersisted": false,
+    "omitted": ["device identifier", "device name", "team identifier", "provisioning profile", "runtime endpoint"],
+    "synthetic_media_only": true,
+    "portal_changes": false,
+    "entitlement_requests": false,
+    "arbitrary_ats_loads": false,
+    "certificate_bypass": false
+  },
+  "operation_timeout_seconds": 30
+}

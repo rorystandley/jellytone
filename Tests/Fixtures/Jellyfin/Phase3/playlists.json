@@ -1,0 +1,13 @@
+{
+  "Items": [
+    {"Id":"playlist-road-a","Name":"Road Mix","Type":"Playlist","ChildCount":4,"ImageTags":{"Primary":"playlist-art-a"}},
+    {"Id":"playlist-road-b","Name":"Road Mix","Type":"Playlist","ChildCount":0},
+    {"Id":"playlist-unicode","Name":"Café 東京 🎧","Type":"Playlist","ChildCount":3,"ImageTags":{"Primary":"playlist-art-unicode"}},
+    {"Id":"playlist-no-count","Name":"No Count","Type":"Playlist"},
+    {"Id":"","Name":"Missing Identity","Type":"Playlist","ChildCount":1},
+    {"Id":"playlist-no-name","Type":"Playlist","ChildCount":1},
+    {"Id":"album-sibling","Name":"Not a Playlist","Type":"MusicAlbum"},
+    17
+  ],
+  "TotalRecordCount": 8
+}
