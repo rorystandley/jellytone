@@ -39,17 +39,22 @@ final class ArtworkCacheTests: XCTestCase {
         let key = ArtworkCache.key(serverID: "server-a", itemID: "item-1")
 
         await cache.store(Self.tinyPNGData(color: .systemRed), forKey: key)
-        XCTAssertTrue(await cache.takeRevalidation(forKey: key))
-        XCTAssertFalse(await cache.takeRevalidation(forKey: key), "Only the first reader fetches")
+        let firstRevalidation = await cache.takeRevalidation(forKey: key)
+        XCTAssertTrue(firstRevalidation)
+        let secondRevalidation = await cache.takeRevalidation(forKey: key)
+        XCTAssertFalse(secondRevalidation, "Only the first reader fetches")
 
         await cache.store(Self.tinyPNGData(color: .systemBlue), forKey: key)
-        XCTAssertNotNil(await cache.image(forKey: key))
+        let overwritten = await cache.image(forKey: key)
+        XCTAssertNotNil(overwritten)
 
         await cache.allowRevalidation(forKey: key)
-        XCTAssertTrue(await cache.takeRevalidation(forKey: key))
+        let afterAllow = await cache.takeRevalidation(forKey: key)
+        XCTAssertTrue(afterAllow)
 
         await cache.clear()
-        XCTAssertTrue(await cache.takeRevalidation(forKey: key), "Clear resets the session revalidation set")
+        let afterClear = await cache.takeRevalidation(forKey: key)
+        XCTAssertTrue(afterClear, "Clear resets the session revalidation set")
     }
 
     func testNonImagePayloadAndHostileKeysAreContained() async throws {

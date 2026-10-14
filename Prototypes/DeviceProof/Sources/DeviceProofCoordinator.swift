@@ -190,30 +190,50 @@ final class DeviceProofCoordinator: NSObject, ObservableObject {
 
     private func installRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()
-        center.playCommand.addTarget { [weak self] _ in self?.player?.play(); self?.events.append(category: "remote", action: "play", result: "pass"); return .success }
-        center.pauseCommand.addTarget { [weak self] _ in self?.player?.pause(); self?.events.append(category: "remote", action: "pause", result: "pass"); return .success }
+        // These callbacks are nonisolated. The player lives on the main actor.
+        center.playCommand.addTarget { [weak self] _ in
+            Task { @MainActor in
+                self?.player?.play()
+                self?.events.append(category: "remote", action: "play", result: "pass")
+            }
+            return .success
+        }
+        center.pauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor in
+                self?.player?.pause()
+                self?.events.append(category: "remote", action: "pause", result: "pass")
+            }
+            return .success
+        }
         center.togglePlayPauseCommand.addTarget { [weak self] _ in
-            guard let self else { return .commandFailed }
-            self.player?.timeControlStatus == .playing ? self.player?.pause() : self.player?.play()
-            self.events.append(category: "remote", action: "toggle", result: "pass")
+            Task { @MainActor in
+                guard let self else { return }
+                self.player?.timeControlStatus == .playing ? self.player?.pause() : self.player?.play()
+                self.events.append(category: "remote", action: "toggle", result: "pass")
+            }
             return .success
         }
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let self, let position = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            self.player?.seek(to: CMTime(seconds: position.positionTime, preferredTimescale: 600))
-            self.events.append(category: "remote", action: "seek", result: "pass")
+            guard let position = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+            let seconds = position.positionTime
+            Task { @MainActor in
+                self?.player?.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
+                self?.events.append(category: "remote", action: "seek", result: "pass")
+            }
             return .success
         }
         center.previousTrackCommand.addTarget { [weak self] _ in
-            guard let self else { return .commandFailed }
-            self.player?.seek(to: .zero)
-            self.events.append(category: "remote", action: "previous", result: "pass")
+            Task { @MainActor in
+                self?.player?.seek(to: .zero)
+                self?.events.append(category: "remote", action: "previous", result: "pass")
+            }
             return .success
         }
         center.nextTrackCommand.addTarget { [weak self] _ in
-            guard let self else { return .commandFailed }
-            self.player?.seek(to: .zero)
-            self.events.append(category: "remote", action: "next", result: "pass")
+            Task { @MainActor in
+                self?.player?.seek(to: .zero)
+                self?.events.append(category: "remote", action: "next", result: "pass")
+            }
             return .success
         }
         events.append(category: "remote", action: "registered", result: "pass", facts: [

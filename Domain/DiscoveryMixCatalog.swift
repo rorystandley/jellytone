@@ -32,7 +32,10 @@ enum DiscoveryMixCatalog {
 
         for track in recentlyPlayedTracks {
             guard mixes.count < limit else { break }
-            if let artistID = track.artistID, seenSeeds.insert(artistID).inserted {
+            if let artistID = track.artistID {
+                // A track whose artist is already a tile is the same seed.
+                // Only tracks with no artist id become their own mix.
+                guard seenSeeds.insert(artistID).inserted else { continue }
                 mixes.append(
                     DiscoveryMix(
                         id: "mix-artist-\(artistID)",
