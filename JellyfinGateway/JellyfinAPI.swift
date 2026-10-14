@@ -1350,8 +1350,10 @@ private struct Item: Decodable {
     let CollectionType: String?
     let AlbumArtist: String?
     let Artists: [String]?
-    let ArtistItems: [NameIdPair]?
-    let AlbumArtists: [NameIdPair]?
+    // NameIdPair is private, so these decoded fields stay private too.
+    // Callers use artistID(matching:) and albumArtistID(matching:).
+    private let ArtistItems: [NameIdPair]?
+    private let AlbumArtists: [NameIdPair]?
     let ArtistIds: [String]?
     let Album: String?
     let AlbumId: String?
