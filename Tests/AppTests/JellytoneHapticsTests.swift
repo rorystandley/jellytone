@@ -3,9 +3,11 @@ import XCTest
 
 @MainActor
 final class JellytoneHapticsTests: XCTestCase {
-    override func tearDown() {
-        JellytoneHaptics.testObserver = nil
-        super.tearDown()
+    override func tearDown() async throws {
+        await MainActor.run {
+            JellytoneHaptics.testObserver = nil
+        }
+        try await super.tearDown()
     }
 
     func testEveryStyleInvokesObserverWithoutCrashing() {

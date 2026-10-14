@@ -7,6 +7,10 @@ import UIKit
 /// immediate. System haptic settings are respected automatically.
 ///
 /// See `docs/design/design-system.md` §8 and `AGENTS.md` / `PRODUCT_PLAN.md`.
+///
+/// UIKit feedback generators are main-actor types. The namespace is isolated
+/// so the shared generators, `prepare()`, and the test observer stay on that actor.
+@MainActor
 enum JellytoneHaptics {
     enum Style: Equatable {
         /// Index rails, scrub ticks, chips, toggles, segmented choices.
@@ -27,8 +31,8 @@ enum JellytoneHaptics {
         case error
     }
 
-    /// Test seam — observes plays without replacing the real generators.
-    static var testObserver: ((Style) -> Void)?
+    /// Test seam. Observes plays without replacing the real generators.
+    static var testObserver: (@MainActor (Style) -> Void)?
 
     private static let lightImpact = UIImpactFeedbackGenerator(style: .light)
     private static let mediumImpact = UIImpactFeedbackGenerator(style: .medium)
