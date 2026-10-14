@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Jellytone theme
 //
@@ -162,6 +163,34 @@ extension Font {
     static let jtRowSubtitle = Font.system(size: 12.5, weight: .medium)
     static let jtCaption = Font.system(size: 12, weight: .semibold)
     static let jtEyebrow = Font.system(size: 11, weight: .bold)
+
+    /// Design-system point size that follows Dynamic Type. Capped so editorial
+    /// shelves stay intact at the largest accessibility sizes (the ratio is the
+    /// growth of `style`, not an unbounded content-size multiplier).
+    static func jtScaled(
+        size: CGFloat,
+        weight: UIFont.Weight,
+        relativeTo style: UIFont.TextStyle,
+        maximumScale: CGFloat = 1.6
+    ) -> Font {
+        let base = UIFont.systemFont(ofSize: size, weight: weight)
+        let scaled = UIFontMetrics(forTextStyle: style).scaledFont(
+            for: base,
+            maximumPointSize: size * maximumScale
+        )
+        return Font(scaled)
+    }
+
+    static var jtScaledLargeTitle: Font { jtScaled(size: 38, weight: .heavy, relativeTo: .largeTitle) }
+    static var jtScaledDetailTitle: Font { jtScaled(size: 24, weight: .heavy, relativeTo: .title2) }
+    static var jtScaledSectionHeader: Font { jtScaled(size: 22, weight: .heavy, relativeTo: .title2) }
+    static var jtScaledHeroCardTitle: Font { jtScaled(size: 18, weight: .heavy, relativeTo: .headline) }
+    static var jtScaledSubsectionHeader: Font { jtScaled(size: 17, weight: .heavy, relativeTo: .headline) }
+    static var jtScaledRowTitle: Font { jtScaled(size: 14.5, weight: .semibold, relativeTo: .subheadline) }
+    static var jtScaledBody: Font { jtScaled(size: 14.5, weight: .regular, relativeTo: .body) }
+    static var jtScaledRowSubtitle: Font { jtScaled(size: 12.5, weight: .medium, relativeTo: .footnote) }
+    static var jtScaledCaption: Font { jtScaled(size: 12, weight: .semibold, relativeTo: .caption) }
+    static var jtScaledEyebrow: Font { jtScaled(size: 11, weight: .bold, relativeTo: .caption2) }
 }
 
 extension View {
@@ -170,6 +199,25 @@ extension View {
         font(.jtEyebrow)
             .textCase(.uppercase)
             .tracking(1.5)
+    }
+
+    /// Eyebrow that grows with Dynamic Type. Same tracking and case as `jtEyebrowStyle()`.
+    func jtScaledEyebrowStyle() -> some View {
+        font(.jtScaledEyebrow)
+            .textCase(.uppercase)
+            .tracking(1.5)
+    }
+
+    /// Large title (38/heavy, −1.2 tracking) with an optional Dynamic Type scale.
+    func jtLargeTitleStyle(scaled: Bool = false) -> some View {
+        font(scaled ? .jtScaledLargeTitle : .jtLargeTitle)
+            .tracking(-1.2)
+    }
+
+    /// Section header (22/heavy, −0.4 tracking) with an optional Dynamic Type scale.
+    func jtSectionHeaderStyle(scaled: Bool = false) -> some View {
+        font(scaled ? .jtScaledSectionHeader : .jtSectionHeader)
+            .tracking(-0.4)
     }
 }
 
@@ -261,6 +309,44 @@ extension View {
                 startPoint: .bottom, endPoint: .init(x: 0.5, y: 0.45)
             )
         )
+    }
+}
+
+// MARK: - Ambient wash
+
+/// Soft top wash tinted from a featured item's placeholder hue.
+/// Light mode stays a pale complementary tint; dark mode is a low glow
+/// that dissolves into the near-black background. Sits behind scrolling
+/// content — the page background token always shows through the tail.
+struct JellytoneAmbientWash: View {
+    var hue: Double
+    var height: CGFloat
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let dark = colorScheme == .dark
+        // Translucent on purpose: the page background shows through so light
+        // mode stays off-white and dark mode stays near-black. Opacities are
+        // capped so secondary text on the masthead still clears 4.5:1.
+        let top = Color(
+            hue: hue,
+            saturation: dark ? 0.50 : 0.34,
+            lightness: dark ? 0.34 : 0.74
+        )
+        LinearGradient(
+            stops: [
+                .init(color: top.opacity(0.42), location: 0),
+                .init(color: top.opacity(dark ? 0.16 : 0.14), location: 0.42),
+                .init(color: Color.jtBackground.opacity(0), location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: height, alignment: .top)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
