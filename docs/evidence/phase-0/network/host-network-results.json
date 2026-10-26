@@ -1,0 +1,90 @@
+{
+  "capturedAt": "2026-07-16T11:40:41Z",
+  "command": "tools/network-lab/run.sh",
+  "environment": {
+    "runtime": "CPython 3.9.6",
+    "tlsLibrary": "LibreSSL 2.8.3",
+    "upstream": "digest-pinned-disposable-jellyfin-current"
+  },
+  "evidenceDate": "2026-07-16",
+  "limitations": [
+    "Host TLS validation is not iOS ATS or physical-device evidence.",
+    "UDP discovery uses the Jellyfin discovery request/response shape on loopback; Local Network permission remains a device gate.",
+    "Live Tailscale proof remains blocked unless tailscaleEnvironment reports AVAILABLE."
+  ],
+  "owner": {
+    "phase": "Phase 0",
+    "workstream": "network"
+  },
+  "privacy": {
+    "committedEvidenceContainsSecrets": false,
+    "credentialsPersisted": false,
+    "privateServerDataPersisted": false,
+    "redacted": true,
+    "serverAddressesPersisted": false,
+    "serverIdentifiersPersisted": false
+  },
+  "proofId": "phase0-host-network-lab",
+  "proofs": {
+    "dnsFailureClassification": "PASS",
+    "httpsDowngradeRejected": {
+      "result": "PASS",
+      "statuses": [
+        301,
+        302,
+        303,
+        307,
+        308
+      ]
+    },
+    "localNameResolution": {
+      "addressFamilies": [
+        "IPv4",
+        "IPv6"
+      ],
+      "result": "PASS"
+    },
+    "loopbackAddressFamilies": {
+      "IPv4": "PASS",
+      "IPv6": "PASS"
+    },
+    "redirectCredentialIsolation": {
+      "crossOriginDifferentServer": "PASS",
+      "crossOriginSameServer": "PASS",
+      "sameOrigin": "PASS",
+      "statuses": [
+        301,
+        302,
+        303,
+        307,
+        308
+      ]
+    },
+    "reverseProxyBasePath": "PASS",
+    "serverUnavailableRecovery": "PASS",
+    "tailscaleClassification": {
+      "magicDNS": "magicdns-short-name-candidate",
+      "ordinaryDNS": "ordinary-dns-name",
+      "serveHTTPS": "tailscale-serve-https",
+      "tailnetIP": "tailnet-ip"
+    },
+    "tailscaleEnvironment": {
+      "blocker": "Tailscale CLI is not installed, so no connected tailnet, MagicDNS answer, or Serve HTTPS endpoint can be exercised.",
+      "cliAvailable": false,
+      "connectedTailnet": false,
+      "liveProof": "BLOCKED"
+    },
+    "tls": {
+      "expiredRejected": "PASS",
+      "explicitTestCATrust": "PASS",
+      "systemTrustDoesNotTrustTestCA": "PASS",
+      "untrustedIssuerRejected": "PASS",
+      "wrongHostRejected": "PASS"
+    },
+    "udpDiscoveryProtocol": "PASS"
+  },
+  "result": "PASS",
+  "schemaVersion": 1,
+  "scope": "host-loopback-and-local-resolver",
+  "status": "blocked"
+}

@@ -1,0 +1,544 @@
+{
+  "capturedAt": "2026-07-16T11:35:19Z",
+  "command": "PYTHONDONTWRITEBYTECODE=1 python3 tools/connectivity/live_contract_probe.py > docs/evidence/phase-0/connectivity/live-contract-results.json",
+  "environment": {
+    "architecture": "arm64",
+    "ffprobe": "ffprobe version 8.1.2 Copyright (c) 2007-2026 the FFmpeg developers",
+    "hostOS": "26.5.2",
+    "python": "3.9.6",
+    "serverRuntime": "loopback-only disposable Docker containers"
+  },
+  "limitations": [
+    "Loopback server delivery does not prove iOS decode, audibility, timing, route behavior, or device playback.",
+    "Jellyfin exposes expired and unknown Quick Connect secrets through the same rejection class.",
+    "A server 401 does not distinguish token expiry from another invalid credential unless local logout revocation is already known.",
+    "The report-sink privacy scan does not inspect process memory or prove Phase 1 Keychain storage."
+  ],
+  "owner": {
+    "phase": "Phase 0",
+    "workstream": "connectivity"
+  },
+  "privacy": {
+    "committedEvidenceContainsSecrets": false,
+    "notes": [
+      "The complete final JSON sink is scanned against process-local sensitive values and forbidden private field names before output.",
+      "This record does not claim memory inspection, Keychain integration, device decode, audibility, or Apple-device playback."
+    ],
+    "omitted": [
+      "server endpoints and identities",
+      "user, item, media-source, and play-session identities",
+      "passwords and access credentials",
+      "Quick Connect codes and secrets",
+      "authenticated media request URLs"
+    ],
+    "privateServerDataPersisted": false,
+    "redacted": true
+  },
+  "proofId": "phase0-connectivity-live-contracts",
+  "reportPrivacy": {
+    "reportContainsSecrets": false,
+    "result": "PASS",
+    "scannedSink": "final-json-report"
+  },
+  "result": "PASS",
+  "schemaVersion": 2,
+  "servers": [
+    {
+      "authenticatedIdentityMatch": "PASS",
+      "credentialRejection": {
+        "expiredOrUnrecognized": "expired-or-invalid-reauthentication",
+        "logoutRevocation": "known-logout-revocation"
+      },
+      "expectedVersion": "10.11.11",
+      "label": "current",
+      "logoutCredentialRejected": "PASS",
+      "musicLibrary": {
+        "audioItemsPresent": true,
+        "result": "PASS"
+      },
+      "passwordAuthentication": "PASS",
+      "playbackInfo": {
+        "mediaSourcePresent": true,
+        "result": "PASS"
+      },
+      "playbackReporting": {
+        "progress": "PASS",
+        "start": "PASS",
+        "stop": "PASS"
+      },
+      "publicIdentity": "PASS",
+      "quickConnect": {
+        "boundedTimeout": "timed_out",
+        "clientCancellation": "cancelled",
+        "disabledInitiateStatusClass": "4xx",
+        "disabledState": "PASS",
+        "enabledFullExchange": "PASS",
+        "expiredOrUnknownSecretStatusClass": "4xx",
+        "initialStateRecorded": true,
+        "pendingPoll": "pending",
+        "restoredOriginalState": true,
+        "serverDisabledDenialStatusClass": "4xx"
+      },
+      "serverDeliveryMatrix": [
+        {
+          "fixture": "mp3",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 17034,
+            "bytesPresent": true,
+            "contentType": "audio/mpeg",
+            "detectedCodec": "mp3",
+            "detectedContainer": "mp3",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18269,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "mp3"
+        },
+        {
+          "fixture": "aac",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 17596,
+            "bytesPresent": true,
+            "contentType": "audio/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18073,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "aac"
+        },
+        {
+          "fixture": "alac",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 19046,
+            "bytesPresent": true,
+            "contentType": "audio/mp4",
+            "detectedCodec": "alac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18270,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "alac"
+        },
+        {
+          "fixture": "flac",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 22017,
+            "bytesPresent": true,
+            "contentType": "audio/flac",
+            "detectedCodec": "flac",
+            "detectedContainer": "flac",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18270,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "flac"
+        },
+        {
+          "fixture": "vorbis",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 7253,
+            "bytesPresent": true,
+            "contentType": "audio/ogg",
+            "detectedCodec": "vorbis",
+            "detectedContainer": "ogg",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18148,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "vorbis"
+        },
+        {
+          "fixture": "opus",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 17382,
+            "bytesPresent": true,
+            "contentType": "audio/ogg",
+            "detectedCodec": "opus",
+            "detectedContainer": "ogg",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18085,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "opus"
+        }
+      ]
+    },
+    {
+      "authenticatedIdentityMatch": "PASS",
+      "credentialRejection": {
+        "expiredOrUnrecognized": "expired-or-invalid-reauthentication",
+        "logoutRevocation": "known-logout-revocation"
+      },
+      "expectedVersion": "10.10.7",
+      "label": "previous",
+      "logoutCredentialRejected": "PASS",
+      "musicLibrary": {
+        "audioItemsPresent": true,
+        "result": "PASS"
+      },
+      "passwordAuthentication": "PASS",
+      "playbackInfo": {
+        "mediaSourcePresent": true,
+        "result": "PASS"
+      },
+      "playbackReporting": {
+        "progress": "PASS",
+        "start": "PASS",
+        "stop": "PASS"
+      },
+      "publicIdentity": "PASS",
+      "quickConnect": {
+        "boundedTimeout": "timed_out",
+        "clientCancellation": "cancelled",
+        "disabledInitiateStatusClass": "4xx",
+        "disabledState": "PASS",
+        "enabledFullExchange": "PASS",
+        "expiredOrUnknownSecretStatusClass": "4xx",
+        "initialStateRecorded": true,
+        "pendingPoll": "pending",
+        "restoredOriginalState": true,
+        "serverDisabledDenialStatusClass": "4xx"
+      },
+      "serverDeliveryMatrix": [
+        {
+          "fixture": "mp3",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 17034,
+            "bytesPresent": true,
+            "contentType": "audio/mpeg",
+            "detectedCodec": "mp3",
+            "detectedContainer": "mp3",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18269,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "mp3"
+        },
+        {
+          "fixture": "aac",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 17596,
+            "bytesPresent": true,
+            "contentType": "audio/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18073,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "aac"
+        },
+        {
+          "fixture": "alac",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 19046,
+            "bytesPresent": true,
+            "contentType": "audio/mp4",
+            "detectedCodec": "alac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18270,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "alac"
+        },
+        {
+          "fixture": "flac",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 22017,
+            "bytesPresent": true,
+            "contentType": "audio/flac",
+            "detectedCodec": "flac",
+            "detectedContainer": "flac",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18270,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "flac"
+        },
+        {
+          "fixture": "vorbis",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 7253,
+            "bytesPresent": true,
+            "contentType": "audio/ogg",
+            "detectedCodec": "vorbis",
+            "detectedContainer": "ogg",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18148,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "vorbis"
+        },
+        {
+          "fixture": "opus",
+          "originalDelivery": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 17382,
+            "bytesPresent": true,
+            "contentType": "audio/ogg",
+            "detectedCodec": "opus",
+            "detectedContainer": "ogg",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "original-static-source",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "requestedServerTranscode": {
+            "audioStreamCount": 1,
+            "audioValidation": "ffprobe-audio-structure",
+            "boundedBytesInspected": 18085,
+            "bytesPresent": true,
+            "contentType": "video/mp4",
+            "detectedCodec": "aac",
+            "detectedContainer": "mov,mp4,m4a,3gp,3g2,mj2",
+            "deviceDecodeClaimed": false,
+            "requestDecision": "direct-play-and-direct-stream-disabled",
+            "requestedCodec": "aac",
+            "requestedContainer": "mp4",
+            "result": "PASS",
+            "statusClass": "2xx",
+            "videoStreamCount": 0
+          },
+          "sourceCodec": "opus"
+        }
+      ]
+    }
+  ],
+  "status": "pass",
+  "summary": {
+    "originalDeliveries": 12,
+    "quickConnectEdgeContracts": "pass",
+    "requestedServerTranscodes": 12,
+    "serverVersions": [
+      "10.11.11",
+      "10.10.7"
+    ],
+    "status": "pass"
+  }
+}

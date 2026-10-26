@@ -1,0 +1,90 @@
+name: Jellytone
+options:
+  minimumXcodeGenVersion: 2.46.0
+  bundleIdPrefix: org.example.jellytone
+  deploymentTarget:
+    iOS: "18.4"
+  xcodeVersion: "26.6"
+# APP_BUNDLE_ID / APP_TEAM_ID must be real build settings (not bare unset
+# env vars). Defaults live in Config/*.xcconfig so Xcode always resolves a
+# bundle ID; Config/Local.xcconfig (gitignored) supplies a personal team for
+# device installs. CLI scripts may still override both on the xcodebuild line.
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 1.0.0
+    GENERATE_INFOPLIST_FILE: YES
+    PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
+    DEVELOPMENT_TEAM: $(APP_TEAM_ID)
+    CODE_SIGN_STYLE: Automatic
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift.git
+    exactVersion: 7.11.1
+targets:
+  Jellytone:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+      - Domain
+      - JellyfinGateway
+      - LibraryStore
+      - Playback
+      - Features
+      - DesignSystem
+    dependencies:
+      - package: GRDB
+    settings:
+      base:
+        PRODUCT_NAME: Jellytone
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: App/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+  JellytoneTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests/AppTests
+      - path: Tests/Fixtures/Jellyfin/Phase3
+        buildPhase: resources
+    dependencies:
+      - target: Jellytone
+      - package: GRDB
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).tests
+  JellytoneUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - Tests/AppUITests
+    dependencies:
+      - target: Jellytone
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).uitests
+schemes:
+  Jellytone:
+    build:
+      targets:
+        Jellytone: all
+        JellytoneTests: [test]
+    test:
+      targets:
+        - JellytoneTests
+  JellytoneUI:
+    build:
+      targets:
+        Jellytone: all
+        JellytoneUITests: [test]
+    test:
+      targets:
+        - JellytoneUITests

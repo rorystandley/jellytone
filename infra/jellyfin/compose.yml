@@ -1,0 +1,26 @@
+name: jellyfin-ios-audio-phase0
+
+services:
+  current:
+    image: jellyfin/jellyfin:${JELLYFIN_CURRENT_VERSION}@${JELLYFIN_CURRENT_DIGEST}
+    ports:
+      - "127.0.0.1:18096:8096"
+    environment:
+      JELLYFIN_PublishedServerUrl: http://127.0.0.1:18096
+    volumes:
+      - ./.state/current/config:/config
+      - ./.state/current/cache:/cache
+      - ./.state/media:/media:ro
+    restart: "no"
+
+  previous:
+    image: jellyfin/jellyfin:${JELLYFIN_PREVIOUS_VERSION}@${JELLYFIN_PREVIOUS_DIGEST}
+    ports:
+      - "127.0.0.1:18097:8096"
+    environment:
+      JELLYFIN_PublishedServerUrl: http://127.0.0.1:18097
+    volumes:
+      - ./.state/previous/config:/config
+      - ./.state/previous/cache:/cache
+      - ./.state/media:/media:ro
+    restart: "no"

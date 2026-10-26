@@ -1,0 +1,13 @@
+{
+  "Items": [
+    {"Id":"track-recent","Name":"Recently Played","Type":"Audio","Artists":["Synthetic Artist"],"Album":"Synthetic Album","AlbumId":"album-synthetic","RunTimeTicks":24000000,"UserData":{"LastPlayedDate":"2026-07-16T12:00:00.0000000Z"}},
+    {"Id":"track-tie-b","Name":"Same Play Time","Type":"Audio","Artists":["B Artist"],"Album":"Tie Album","UserData":{"LastPlayedDate":"2026-07-15T12:00:00.0000000Z"}},
+    {"Id":"track-tie-a","Name":"Same Play Time","Type":"Audio","Artists":["A Artist"],"Album":"Tie Album","UserData":{"LastPlayedDate":"2026-07-15T12:00:00.0000000Z"}},
+    {"Id":"track-tie-a","Name":"Duplicate Row","Type":"Audio","Artists":["Ignored Duplicate"],"UserData":{"LastPlayedDate":"2026-07-15T12:00:00.0000000Z"}},
+    {"Id":"track-unicode","Name":"Café Finale 東京","Type":"Audio","Artists":["Unicode Artist"],"Album":"Unicode Album","UserData":{"LastPlayedDate":"invalid-date"}},
+    {"Id":"track-minimal","Name":"No Duration","Type":"Audio","UserData":{}},
+    {"Id":"podcast-row","Name":"Not Music","Type":"Episode"},
+    {"Id":"missing-name","Type":"Audio"},
+    17
+  ]
+}

@@ -1,0 +1,606 @@
+{
+  "capturedAt": "2026-07-16T12:52:23Z",
+  "command": "python3 tools/playback/run_codec_matrix.py",
+  "environment": {
+    "fixtureSource": "deterministic-synthetic-audio",
+    "host": {
+      "ffprobe": "ffprobe version 8.1.2 Copyright (c) 2007-2026 the FFmpeg developers",
+      "platform": "macOS-26.5.2-arm64-arm-64bit",
+      "swift": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)"
+    }
+  },
+  "host": {
+    "ffprobe": "ffprobe version 8.1.2 Copyright (c) 2007-2026 the FFmpeg developers",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "swift": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)"
+  },
+  "limitations": [
+    "Host macOS AVFoundation preparation is not iOS/iPadOS device decode or audibility evidence."
+  ],
+  "owner": {
+    "phase": "Phase 0",
+    "workstream": "playback"
+  },
+  "privacy": {
+    "committedEvidenceContainsSecrets": false,
+    "notes": [
+      "Synthetic media and loopback transports only."
+    ],
+    "privateServerDataPersisted": false,
+    "redacted": true
+  },
+  "proofId": "phase0-playback-codec-matrix",
+  "results": [
+    {
+      "aacTranscodeSurrogate": {
+        "ffprobe": {
+          "format": {
+            "duration": "2.000000",
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+          },
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "channels": 2,
+              "codec_name": "aac",
+              "codec_type": "audio",
+              "sample_rate": "48000"
+            }
+          ]
+        },
+        "file": "transcoded-from-mp3.m4a",
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "local",
+          "url": "transcoded-from-mp3.m4a"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "transcoded-from-mp3.m4a"
+        },
+        "sha256": "b15ec4f0010e1e8fb497c1147bc33210fbbe2d5edff50d40359b419a5076ef4d"
+      },
+      "avFoundation": {
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2.04,
+          "playable": true,
+          "transport": "local",
+          "url": "tone-a.mp3"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2.04,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "tone-a.mp3"
+        }
+      },
+      "ffprobe": {
+        "format": {
+          "duration": "2.000000",
+          "format_name": "mp3"
+        },
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "channels": 2,
+            "codec_name": "mp3",
+            "codec_type": "audio",
+            "sample_rate": "48000"
+          }
+        ]
+      },
+      "file": "tone-a.mp3",
+      "fixtureId": "mp3",
+      "sha256": "9c0dc2e014d545e5b6625d306d7ca92d3d3b6c74d978f51623388fb5d0ebb994"
+    },
+    {
+      "aacTranscodeSurrogate": {
+        "ffprobe": {
+          "format": {
+            "duration": "2.005000",
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+          },
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "channels": 2,
+              "codec_name": "aac",
+              "codec_type": "audio",
+              "sample_rate": "48000"
+            }
+          ]
+        },
+        "file": "transcoded-from-aac.m4a",
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9823333333333333,
+          "playable": true,
+          "transport": "local",
+          "url": "transcoded-from-aac.m4a"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9823333333333333,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "transcoded-from-aac.m4a"
+        },
+        "sha256": "4fd4f7be7b27db1fd054ffa958be8a81e7affc7c317075ddac9b18d5382e4df9"
+      },
+      "avFoundation": {
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "local",
+          "url": "tone-a.m4a"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "tone-a.m4a"
+        }
+      },
+      "ffprobe": {
+        "format": {
+          "duration": "2.000000",
+          "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+        },
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "channels": 2,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "sample_rate": "48000"
+          }
+        ]
+      },
+      "file": "tone-a.m4a",
+      "fixtureId": "aac",
+      "sha256": "a91616550d7d4b314a14766abdbcadfec564516facc19ab39f24dfd3320f31d3"
+    },
+    {
+      "aacTranscodeSurrogate": {
+        "ffprobe": {
+          "format": {
+            "duration": "2.000000",
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+          },
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "channels": 2,
+              "codec_name": "aac",
+              "codec_type": "audio",
+              "sample_rate": "48000"
+            }
+          ]
+        },
+        "file": "transcoded-from-alac.m4a",
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "local",
+          "url": "transcoded-from-alac.m4a"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "transcoded-from-alac.m4a"
+        },
+        "sha256": "b5b5a97fa49731ce8e643fd1d30e5d4e6469a27a3d8e9fd32a1f0195aad57421"
+      },
+      "avFoundation": {
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2,
+          "playable": true,
+          "transport": "local",
+          "url": "tone-a-alac.m4a"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "tone-a-alac.m4a"
+        }
+      },
+      "ffprobe": {
+        "format": {
+          "duration": "2.000000",
+          "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+        },
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "channels": 2,
+            "codec_name": "alac",
+            "codec_type": "audio",
+            "sample_rate": "48000"
+          }
+        ]
+      },
+      "file": "tone-a-alac.m4a",
+      "fixtureId": "alac",
+      "sha256": "81ee3ac54ee5a46fcb76a7f7b6b327969ef795f259c5503b87db2373d1106755"
+    },
+    {
+      "aacTranscodeSurrogate": {
+        "ffprobe": {
+          "format": {
+            "duration": "2.000000",
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+          },
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "channels": 2,
+              "codec_name": "aac",
+              "codec_type": "audio",
+              "sample_rate": "48000"
+            }
+          ]
+        },
+        "file": "transcoded-from-flac.m4a",
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "local",
+          "url": "transcoded-from-flac.m4a"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "transcoded-from-flac.m4a"
+        },
+        "sha256": "b5b5a97fa49731ce8e643fd1d30e5d4e6469a27a3d8e9fd32a1f0195aad57421"
+      },
+      "avFoundation": {
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2.016,
+          "playable": true,
+          "transport": "local",
+          "url": "tone-a.flac"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2.016,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "tone-a.flac"
+        }
+      },
+      "ffprobe": {
+        "format": {
+          "duration": "2.000000",
+          "format_name": "flac"
+        },
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "channels": 2,
+            "codec_name": "flac",
+            "codec_type": "audio",
+            "sample_rate": "48000"
+          }
+        ]
+      },
+      "file": "tone-a.flac",
+      "fixtureId": "flac",
+      "sha256": "baffd5d33ff80a516bf8dbe409fc87478873dfec95e5a4f9fb24e9bb3fc6f5cc"
+    },
+    {
+      "aacTranscodeSurrogate": {
+        "ffprobe": {
+          "format": {
+            "duration": "2.000000",
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+          },
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "channels": 2,
+              "codec_name": "aac",
+              "codec_type": "audio",
+              "sample_rate": "48000"
+            }
+          ]
+        },
+        "file": "transcoded-from-vorbis_ogg.m4a",
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "local",
+          "url": "transcoded-from-vorbis_ogg.m4a"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "transcoded-from-vorbis_ogg.m4a"
+        },
+        "sha256": "bf5088afeb9426ddd8824b9c658cea21a98aeb37ee9e8835e004cc2f6f2bb3b9"
+      },
+      "avFoundation": {
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2.05025,
+          "playable": true,
+          "transport": "local",
+          "url": "tone-a-vorbis.ogg"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2.05025,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "tone-a-vorbis.ogg"
+        }
+      },
+      "ffprobe": {
+        "format": {
+          "duration": "2.000000",
+          "format_name": "ogg"
+        },
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "channels": 2,
+            "codec_name": "vorbis",
+            "codec_type": "audio",
+            "sample_rate": "48000"
+          }
+        ]
+      },
+      "file": "tone-a-vorbis.ogg",
+      "fixtureId": "vorbis_ogg",
+      "sha256": "10b6a74d7b42ac95fb4749212c2087eb8e97ca28d912f5d96ea242a222e8d73e"
+    },
+    {
+      "aacTranscodeSurrogate": {
+        "ffprobe": {
+          "format": {
+            "duration": "2.000000",
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+          },
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "channels": 2,
+              "codec_name": "aac",
+              "codec_type": "audio",
+              "sample_rate": "48000"
+            }
+          ]
+        },
+        "file": "transcoded-from-opus_ogg.m4a",
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "local",
+          "url": "transcoded-from-opus_ogg.m4a"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "transcoded-from-opus_ogg.m4a"
+        },
+        "sha256": "7c41311ac8495cd2409c4e64705ed04a18f11f12348f3e593bf31dae86d0f982"
+      },
+      "avFoundation": {
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2.02,
+          "playable": true,
+          "transport": "local",
+          "url": "tone-a-opus.ogg"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2.02,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "tone-a-opus.ogg"
+        }
+      },
+      "ffprobe": {
+        "format": {
+          "duration": "2.006500",
+          "format_name": "ogg"
+        },
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "channels": 2,
+            "codec_name": "opus",
+            "codec_type": "audio",
+            "sample_rate": "48000"
+          }
+        ]
+      },
+      "file": "tone-a-opus.ogg",
+      "fixtureId": "opus_ogg",
+      "sha256": "3df70b4e5b92cdbec0fd24e67da04723f6983e120d759c61f086886f7cffb771"
+    },
+    {
+      "aacTranscodeSurrogate": {
+        "ffprobe": {
+          "format": {
+            "duration": "2.013000",
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+          },
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "channels": 2,
+              "codec_name": "aac",
+              "codec_type": "audio",
+              "sample_rate": "48000"
+            }
+          ]
+        },
+        "file": "transcoded-from-opus_mp4.m4a",
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9903333333333333,
+          "playable": true,
+          "transport": "local",
+          "url": "transcoded-from-opus_mp4.m4a"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9903333333333333,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "transcoded-from-opus_mp4.m4a"
+        },
+        "sha256": "e31757e3fd689bd59e6084c9e8a044c5e2c309de47916b2f72a67a2aaaefaedc"
+      },
+      "avFoundation": {
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2,
+          "playable": true,
+          "transport": "local",
+          "url": "tone-a-opus.mp4"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "tone-a-opus.mp4"
+        }
+      },
+      "ffprobe": {
+        "format": {
+          "duration": "2.000000",
+          "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+        },
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "channels": 2,
+            "codec_name": "opus",
+            "codec_type": "audio",
+            "sample_rate": "48000"
+          }
+        ]
+      },
+      "file": "tone-a-opus.mp4",
+      "fixtureId": "opus_mp4",
+      "sha256": "2c343130a01477423e1e1d3cd3206076875dadc0c8d4f2ac70b315567fbcbb61"
+    },
+    {
+      "aacTranscodeSurrogate": {
+        "ffprobe": {
+          "format": {
+            "duration": "2.000000",
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2"
+          },
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "channels": 2,
+              "codec_name": "aac",
+              "codec_type": "audio",
+              "sample_rate": "48000"
+            }
+          ]
+        },
+        "file": "transcoded-from-pcm_a.m4a",
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "local",
+          "url": "transcoded-from-pcm_a.m4a"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 1.9773333333333334,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "transcoded-from-pcm_a.m4a"
+        },
+        "sha256": "b5b5a97fa49731ce8e643fd1d30e5d4e6469a27a3d8e9fd32a1f0195aad57421"
+      },
+      "avFoundation": {
+        "local": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2,
+          "playable": true,
+          "transport": "local",
+          "url": "tone-a.wav"
+        },
+        "remoteLoopback": {
+          "audioTrackCount": 1,
+          "durationSeconds": 2,
+          "playable": true,
+          "transport": "remote-loopback",
+          "url": "tone-a.wav"
+        }
+      },
+      "ffprobe": {
+        "format": {
+          "duration": "2.000000",
+          "format_name": "wav"
+        },
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "channels": 2,
+            "codec_name": "pcm_s16le",
+            "codec_type": "audio",
+            "sample_rate": "48000"
+          }
+        ]
+      },
+      "file": "tone-a.wav",
+      "fixtureId": "pcm_a",
+      "sha256": "94d14a2d288ba2a99ca85b981aabbb66fb9e60846e8dce237818d8fa0dc8ef52"
+    }
+  ],
+  "schemaVersion": 1,
+  "scope": "macOS-host-probe-not-iOS-advertising-proof",
+  "status": "pass"
+}

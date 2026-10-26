@@ -1,0 +1,75 @@
+{
+  "evidenceType": "committed-large-library-scale-observation",
+  "canonicalSHA256": "795bcd37ada99d75f880189511b2056090a4317c0bc056a5317ae69f2d17dd0b",
+  "ceilings": {
+    "elapsedMilliseconds": {
+      "gateway_mapping": 30000,
+      "generation": 20000,
+      "idempotent_refresh": 30000,
+      "initial_refresh": 30000,
+      "representative_searches": 20000
+    },
+    "peakProcessResidentBytes": 1500000000
+  },
+  "configuration": {
+    "albumsPerArtist": 6,
+    "artistCount": 240,
+    "discsPerAlbum": 2,
+    "formatVersion": 1,
+    "seed": 24865808422,
+    "tracksPerDisc": 8
+  },
+  "counts": {
+    "albums": 1440,
+    "artists": 240,
+    "tracks": 23040
+  },
+  "anomalyCounts": {
+    "compilationAlbums": 131,
+    "duplicateNameAlbums": 111,
+    "duplicateNameArtists": 13,
+    "missingAlbumArtwork": 240,
+    "missingAlbumYear": 160,
+    "missingArtistArtwork": 35,
+    "missingTrackMetadata": 2094,
+    "multiDiscAlbums": 1440,
+    "unicodeNames": 600
+  },
+  "environment": {
+    "hostMemoryBytes": 25769803776,
+    "hostModel": "Mac16,10",
+    "macOS": "26.5.2 (25F84)",
+    "simulator": "iPhone 17 Pro, iOS 26.5",
+    "xcode": "26.6 (17F113)"
+  },
+  "measurements": [
+    {
+      "elapsedMilliseconds": 105.444,
+      "operation": "generation",
+      "peakProcessResidentBytes": 273481728
+    },
+    {
+      "elapsedMilliseconds": 28.049,
+      "operation": "gateway_mapping",
+      "peakProcessResidentBytes": 278593536
+    },
+    {
+      "elapsedMilliseconds": 54.362,
+      "operation": "initial_refresh",
+      "peakProcessResidentBytes": 279724032
+    },
+    {
+      "elapsedMilliseconds": 109.414,
+      "operation": "idempotent_refresh",
+      "peakProcessResidentBytes": 279805952
+    },
+    {
+      "elapsedMilliseconds": 126.051,
+      "operation": "representative_searches",
+      "peakProcessResidentBytes": 282279936
+    }
+  ],
+  "observedOn": "2026-07-17",
+  "scope": "Development-host simulator observation; absolute process RSS; not a universal device-performance claim",
+  "observationSchemaVersion": 1
+}

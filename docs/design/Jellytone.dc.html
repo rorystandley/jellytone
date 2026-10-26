@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<style>
+@keyframes jt-spin { to { transform: rotate(360deg); } }
+</style>
+</helmet>
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ isDarkChrome }}" hint-size="402,874">
+  <div style="{{ rootStyle }}">
+
+    <sc-if value="{{ isOnboarding }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;display:flex;flex-direction:column;padding:74px 28px 40px;box-sizing:border-box">
+      <div style="width:64px;height:64px;border-radius:20px;background:oklch(70% 0.19 29);display:flex;align-items:center;justify-content:center;margin-bottom:24px;box-shadow:0 8px 24px oklch(70% 0.19 29 / 0.35)">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M9 18V6l10-2v12" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" fill="#fff"/><circle cx="16" cy="16" r="3" fill="#fff"/></svg>
+      </div>
+      <div style="font-size:32px;font-weight:800;line-height:1.15;letter-spacing:-0.5px;margin-bottom:10px">Your music,<br/>on your terms.</div>
+      <div style="font-size:15px;line-height:1.5;color:var(--text2);margin-bottom:32px">Jellytone connects directly to your own Jellyfin server. Nothing leaves your library.</div>
+
+      <div style="display:flex;flex-direction:column;background:var(--surface);border-radius:16px;overflow:hidden;margin-bottom:20px">
+        <input placeholder="https://music.example.com" value="{{ serverUrl }}" onChange="{{ onServerChange }}" style="background:transparent;border:none;outline:none;color:var(--text);font-size:16px;padding:16px;font-family:inherit"/>
+        <div style="height:1px;background:var(--track-off)"></div>
+        <input placeholder="Username" value="{{ username }}" onChange="{{ onUsernameChange }}" style="background:transparent;border:none;outline:none;color:var(--text);font-size:16px;padding:16px;font-family:inherit"/>
+        <div style="height:1px;background:var(--track-off)"></div>
+        <input placeholder="Password" type="password" value="{{ password }}" onChange="{{ onPasswordChange }}" style="background:transparent;border:none;outline:none;color:var(--text);font-size:16px;padding:16px;font-family:inherit"/>
+      </div>
+
+      <button onClick="{{ connect }}" style="border:none;border-radius:16px;background:oklch(70% 0.19 29);color:#fff;font-size:16px;font-weight:700;padding:16px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">
+        <sc-if value="{{ isConnecting }}" hint-placeholder-val="{{ false }}">
+          <div style="width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;animation:jt-spin 0.7s linear infinite"></div>
+        </sc-if>
+        <sc-if value="{{ isNotConnecting }}" hint-placeholder-val="{{ true }}">Connect</sc-if>
+      </button>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:20px;color:var(--text3);font-size:12.5px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 10V7a6 6 0 1112 0v3M5 10h14v10H5V10z" stroke="var(--text3)" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        Your token stays in this device's Keychain.
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;display:flex;flex-direction:column;min-height:0;position:relative">
+
+      <div style="flex:1;overflow:auto;min-height:0;position:relative">
+
+        <sc-if value="{{ showHome }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:56px 0 32px;box-sizing:border-box">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;padding:0 20px">
+            <div>
+              <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">{{ greeting }} · {{ todayLabel }}</div>
+              <div style="font-size:38px;font-weight:800;letter-spacing:-1.2px;line-height:0.95">For You</div>
+            </div>
+            <div onClick="{{ goSettingsTab }}" style="width:34px;height:34px;border-radius:50%;background:oklch(70% 0.19 29);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;flex:none;margin-bottom:4px">JT</div>
+          </div>
+
+          <sc-if value="{{ hasCurrentTrack }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ openNowPlaying }}" style="position:relative;height:220px;margin-bottom:34px;cursor:pointer;background:{{ currentTrack.gradient }};overflow:hidden">
+            <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0.05) 55%)"></div>
+            <div style="position:absolute;top:18px;left:20px;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.8)">Continue Listening</div>
+            <div style="position:absolute;left:20px;right:88px;bottom:20px">
+              <div style="font-size:24px;font-weight:800;color:#fff;line-height:1.1;margin-bottom:4px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap">{{ currentTrack.name }}</div>
+              <div style="font-size:14px;color:rgba(255,255,255,0.75);font-weight:500">{{ currentTrack.artist }}</div>
+            </div>
+            <div onClick="{{ stopPropTogglePlay }}" style="position:absolute;right:20px;bottom:20px;width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,0.16);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;transition:transform 0.12s ease" style-active="transform:scale(0.88)">
+              <sc-if value="{{ isPlaying }}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5" fill="#fff"/><rect x="14" y="4" width="5" height="16" rx="1.5" fill="#fff"/></svg></sc-if>
+              <sc-if value="{{ isPaused }}" hint-placeholder-val="{{ true }}"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z" fill="#fff"/></svg></sc-if>
+            </div>
+          </div>
+          </sc-if>
+
+          <div style="padding:0 20px">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">
+              
+              <span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Recently Added</span>
+            </div>
+          </div>
+          <div style="height:1px;background:var(--border);margin:0 20px 18px"></div>
+          <div style="padding:0 20px 20px">
+            <div onClick="{{ recentlyAddedHero.open }}" style="position:relative;height:170px;border-radius:18px;overflow:hidden;background:{{ recentlyAddedHero.gradient }};cursor:pointer;margin-bottom:14px">
+              <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,0.68), transparent 60%)"></div>
+              <div style="position:absolute;left:18px;bottom:16px;right:18px">
+                <div style="font-size:19px;font-weight:800;color:#fff">{{ recentlyAddedHero.name }}</div>
+                <div style="font-size:13px;color:rgba(255,255,255,0.75);font-weight:500">{{ recentlyAddedHero.artist }} · Just added</div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:14px;overflow-x:auto;margin:0 0 30px;padding:0 20px 4px">
+            <sc-for list="{{ recentlyAddedRest }}" as="album" hint-placeholder-count="4">
+              <div onClick="{{ album.open }}" style="flex:none;width:112px;cursor:pointer">
+                <div style="width:112px;height:112px;border-radius:12px;background:{{ album.gradient }};margin-bottom:8px;box-shadow:0 6px 14px rgba(0,0,0,0.3)"></div>
+                <div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ album.name }}</div>
+                <div style="font-size:11.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ album.artist }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="padding:0 20px">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">
+              
+              <span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Favourite Artists</span>
+            </div>
+          </div>
+          <div style="height:1px;background:var(--border);margin:0 20px 18px"></div>
+          <div style="display:flex;gap:18px;overflow-x:auto;margin:0 0 30px;padding:0 20px 4px">
+            <sc-for list="{{ favouriteArtists }}" as="artist" hint-placeholder-count="4">
+              <div onClick="{{ artist.open }}" style="flex:none;width:88px;text-align:center;cursor:pointer">
+                <div style="width:88px;height:88px;border-radius:50%;background:{{ artist.gradient }};margin-bottom:8px;box-shadow:0 6px 14px rgba(0,0,0,0.3)"></div>
+                <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ artist.name }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="padding:0 20px">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">
+              
+              <span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Made For You</span>
+            </div>
+          </div>
+          <div style="height:1px;background:var(--border);margin:0 20px 18px"></div>
+          <div style="padding:0 20px 30px">
+            <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12px">
+              <div onClick="{{ madeForYouHero.open }}" style="border-radius:16px;padding:18px;height:140px;background:{{ madeForYouHero.gradient }};display:flex;flex-direction:column;justify-content:flex-end;cursor:pointer;position:relative;overflow:hidden">
+                <div style="font-size:18px;font-weight:800;color:#fff;line-height:1.15">{{ madeForYouHero.title }}</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:3px">{{ madeForYouHero.subtitle }}</div>
+              </div>
+              <sc-for list="{{ madeForYouRest }}" as="mix" hint-placeholder-count="1">
+                <div onClick="{{ mix.open }}" style="border-radius:16px;padding:14px;height:140px;background:{{ mix.gradient }};display:flex;flex-direction:column;justify-content:flex-end;cursor:pointer;position:relative;overflow:hidden">
+                  <div style="font-size:14px;font-weight:800;color:#fff;line-height:1.2">{{ mix.title }}</div>
+                  <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:2px">{{ mix.subtitle }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="padding:0 20px">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">
+              
+              <span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Genres &amp; Moods</span>
+            </div>
+          </div>
+          <div style="height:1px;background:var(--border);margin:0 20px 18px"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px;padding:0 20px">
+            <sc-for list="{{ genreChips }}" as="genre" hint-placeholder-count="6">
+              <div onClick="{{ genre.open }}" style="padding:9px 16px;border-radius:100px;background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border)">{{ genre.name }}</div>
+            </sc-for>
+          </div>
+
+          <div style="padding:0 20px">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px">
+              
+              <span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Rediscover</span>
+            </div>
+            <div style="font-size:13.5px;color:var(--text2);margin:0 0 16px 21px;max-width:280px">Music from your library you haven't played in a while.</div>
+          </div>
+          <div style="height:1px;background:var(--border);margin:0 20px 18px"></div>
+          <div style="display:flex;gap:14px;overflow-x:auto;margin:0;padding:0 20px 4px">
+            <sc-for list="{{ rediscover }}" as="album" hint-placeholder-count="3">
+              <div onClick="{{ album.open }}" style="flex:none;width:130px;cursor:pointer">
+                <div style="width:130px;height:130px;border-radius:14px;background:{{ album.gradient }};margin-bottom:8px;opacity:0.85"></div>
+                <div style="font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ album.name }}</div>
+                <div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ album.artist }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ showLibrary }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:56px 0 32px;box-sizing:border-box">
+          <div style="padding:0 20px;margin-bottom:22px">
+            <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">{{ libraryCountLabel }}</div>
+            <div style="font-size:38px;font-weight:800;letter-spacing:-1.2px;line-height:0.95">Library</div>
+          </div>
+          <div style="display:flex;gap:8px;overflow-x:auto;margin-bottom:16px;padding:0 20px">
+            <sc-for list="{{ libraryTabs }}" as="lt" hint-placeholder-count="5">
+              <div onClick="{{ lt.select }}" style="flex:none;padding:8px 16px;border-radius:100px;font-size:13.5px;font-weight:700;cursor:pointer;background:{{ lt.bg }};backdrop-filter:blur(16px) saturate(180%);border:0.5px solid {{ lt.border }};color:{{ lt.color }}">{{ lt.label }}</div>
+            </sc-for>
+          </div>
+          <div style="height:1px;background:var(--border);margin:0 20px 20px"></div>
+
+          <sc-if value="{{ showAlbumsGrid }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 14px;padding:0 20px">
+            <sc-for list="{{ allAlbums }}" as="album" hint-placeholder-count="6">
+              <div onClick="{{ album.open }}" style="cursor:pointer">
+                <div style="width:100%;aspect-ratio:1;border-radius:14px;background:{{ album.gradient }};margin-bottom:8px"></div>
+                <div style="font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ album.name }}</div>
+                <div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ album.artist }}</div>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ showArtistsGrid }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 12px;padding:0 20px">
+            <sc-for list="{{ allArtists }}" as="artist" hint-placeholder-count="6">
+              <div onClick="{{ artist.open }}" style="text-align:center;cursor:pointer">
+                <div style="width:100%;aspect-ratio:1;border-radius:50%;background:{{ artist.gradient }};margin-bottom:8px"></div>
+                <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ artist.name }}</div>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ showSongsList }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:0 20px">
+            <sc-for list="{{ allTracksFlat }}" as="track" hint-placeholder-count="8">
+              <div onClick="{{ track.play }}" style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer">
+                <div style="width:42px;height:42px;border-radius:8px;background:{{ track.gradient }};flex:none"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ track.name }}</div>
+                  <div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ track.artist }}</div>
+                </div>
+                <div style="font-size:12px;color:var(--text3);flex:none">{{ track.durationLabel }}</div>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ showPlaylistsList }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:14px;padding:0 20px">
+            <sc-for list="{{ allPlaylists }}" as="pl" hint-placeholder-count="4">
+              <div onClick="{{ pl.open }}" style="display:flex;align-items:center;gap:14px;cursor:pointer">
+                <div style="width:60px;height:60px;border-radius:12px;background:{{ pl.gradient }};flex:none"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:15px;font-weight:700">{{ pl.name }}</div>
+                  <div style="font-size:12.5px;color:var(--text2)">{{ pl.trackCount }} songs</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ showGenresGrid }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 20px">
+            <sc-for list="{{ genreChips }}" as="genre" hint-placeholder-count="6">
+              <div onClick="{{ genre.open }}" style="border-radius:14px;padding:16px;height:72px;background:{{ genre.gradient }};display:flex;align-items:flex-end;font-size:15px;font-weight:800;color:#fff;cursor:pointer">{{ genre.name }}</div>
+            </sc-for>
+          </div>
+          </sc-if>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ showSearch }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:56px 20px 24px;box-sizing:border-box">
+          <div style="margin-bottom:22px">
+            <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Find Something</div>
+            <div style="font-size:38px;font-weight:800;letter-spacing:-1.2px;line-height:0.95">Search</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;background:rgba(120,120,128,0.22);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;padding:11px 14px;margin-bottom:24px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="var(--text2)" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="var(--text2)" stroke-width="2" stroke-linecap="round"/></svg>
+            <input placeholder="Artists, albums, songs, playlists" value="{{ searchQuery }}" onChange="{{ onSearchChange }}" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:15px;font-family:inherit"/>
+          </div>
+
+          <sc-if value="{{ showSearchEmpty }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px"><span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Browse Categories</span></div>
+            <div style="height:1px;background:var(--border);margin-bottom:16px"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <sc-for list="{{ genreChips }}" as="genre" hint-placeholder-count="6">
+                <div onClick="{{ genre.open }}" style="border-radius:14px;padding:14px;height:64px;background:{{ genre.gradient }};display:flex;align-items:flex-end;font-size:14px;font-weight:800;color:#fff;cursor:pointer">{{ genre.name }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showSearchNoResults }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center;padding:60px 20px;color:var(--text3)">
+              <div style="font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text)">No results</div>
+              <div style="font-size:13px">Try a different artist, album or song name.</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showSearchResults }}" hint-placeholder-val="{{ false }}">
+            <sc-if value="{{ hasArtistResults }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px"><span style="font-size:18px;font-weight:800;letter-spacing:-0.3px;flex:1">Artists</span></div>
+            <div style="height:1px;background:var(--border);margin-bottom:14px"></div>
+            <div style="display:flex;gap:16px;overflow-x:auto;margin-bottom:24px">
+              <sc-for list="{{ searchArtistResults }}" as="artist" hint-placeholder-count="3">
+                <div onClick="{{ artist.open }}" style="flex:none;width:80px;text-align:center;cursor:pointer">
+                  <div style="width:80px;height:80px;border-radius:50%;background:{{ artist.gradient }};margin-bottom:6px"></div>
+                  <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ artist.name }}</div>
+                </div>
+              </sc-for>
+            </div>
+            </sc-if>
+            <sc-if value="{{ hasAlbumResults }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px"><span style="font-size:18px;font-weight:800;letter-spacing:-0.3px;flex:1">Albums</span></div>
+            <div style="height:1px;background:var(--border);margin-bottom:14px"></div>
+            <div style="display:flex;gap:14px;overflow-x:auto;margin-bottom:24px">
+              <sc-for list="{{ searchAlbumResults }}" as="album" hint-placeholder-count="3">
+                <div onClick="{{ album.open }}" style="flex:none;width:110px;cursor:pointer">
+                  <div style="width:110px;height:110px;border-radius:12px;background:{{ album.gradient }};margin-bottom:6px"></div>
+                  <div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ album.name }}</div>
+                </div>
+              </sc-for>
+            </div>
+            </sc-if>
+            <sc-if value="{{ hasTrackResults }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px"><span style="font-size:18px;font-weight:800;letter-spacing:-0.3px;flex:1">Songs</span></div>
+            <div style="height:1px;background:var(--border);margin-bottom:14px"></div>
+            <div>
+              <sc-for list="{{ searchTrackResults }}" as="track" hint-placeholder-count="4">
+                <div onClick="{{ track.play }}" style="display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer">
+                  <div style="width:38px;height:38px;border-radius:8px;background:{{ track.gradient }};flex:none"></div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ track.name }}</div>
+                    <div style="font-size:11.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ track.artist }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            </sc-if>
+          </sc-if>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ showDownloads }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:56px 20px 24px;box-sizing:border-box">
+          <div style="margin-bottom:22px">
+            <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Offline &amp; Ready</div>
+            <div style="font-size:38px;font-weight:800;letter-spacing:-1.2px;line-height:0.95">Downloads</div>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px"><span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Storage</span></div>
+          <div style="height:1px;background:var(--border);margin-bottom:16px"></div>
+          <div style="background:var(--surface);border-radius:16px;padding:16px;margin-bottom:18px">
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:8px"><span>{{ storageUsedLabel }} used</span><span>{{ storageTotalLabel }}</span></div>
+            <div style="height:6px;border-radius:100px;background:var(--border);overflow:hidden"><div style="height:100%;width:{{ storagePercent }}%;background:oklch(70% 0.19 29)"></div></div>
+          </div>
+          <div onClick="{{ toggleWifiOnly }}" style="display:flex;align-items:center;justify-content:space-between;background:rgba(120,120,128,0.2);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px 16px;margin-bottom:24px;cursor:pointer">
+            <div style="font-size:14.5px;font-weight:600">Download over Wi-Fi only</div>
+            <div style="width:44px;height:26px;border-radius:100px;background:{{ wifiOnlyBg }};position:relative;transition:background 0.2s, transform 0.12s ease" style-active="transform:scale(0.92)">
+              <div style="width:22px;height:22px;border-radius:50%;background:#fff;position:absolute;top:2px;left:{{ wifiOnlyPos }}px;transition:left 0.28s cubic-bezier(0.34,1.56,0.64,1)"></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px"><span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Downloaded Albums</span></div>
+          <div style="height:1px;background:var(--border);margin-bottom:16px"></div>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <sc-for list="{{ downloadedAlbums }}" as="album" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:14px">
+                <div onClick="{{ album.open }}" style="width:56px;height:56px;border-radius:10px;background:{{ album.gradient }};flex:none;cursor:pointer"></div>
+                <div onClick="{{ album.open }}" style="flex:1;min-width:0;cursor:pointer">
+                  <div style="font-size:14.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ album.name }}</div>
+                  <div style="font-size:12px;color:var(--text2)">{{ album.trackCount }} songs · {{ album.sizeLabel }}</div>
+                </div>
+                <div onClick="{{ album.remove }}" style="font-size:12.5px;color:oklch(70% 0.19 29);font-weight:600;cursor:pointer">Remove</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ showSettings }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:56px 0 32px;box-sizing:border-box">
+          <div style="padding:0 20px;margin-bottom:24px">
+            <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Jellytone 1.0</div>
+            <div style="font-size:38px;font-weight:800;letter-spacing:-1.2px;line-height:0.95">Settings</div>
+          </div>
+
+          <div style="padding:0 20px"><div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px"><span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Account</span></div></div>
+          <div style="height:1px;background:var(--border);margin:0 20px 14px"></div>
+          <div style="margin:0 20px 30px;background:rgba(120,120,128,0.2);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden">
+            <div style="padding:13px 16px;font-size:14.5px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)"><span>Server</span><span style="color:var(--text2)">music.example.com</span></div>
+            <div style="padding:13px 16px;font-size:14.5px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)"><span>Signed in as</span><span style="color:var(--text2)">demo</span></div>
+            <div onClick="{{ signOut }}" style="padding:13px 16px;font-size:14.5px;color:oklch(70% 0.19 29);font-weight:600;cursor:pointer">Sign Out</div>
+          </div>
+
+          <div style="padding:0 20px"><div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px"><span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Playback</span></div></div>
+          <div style="height:1px;background:var(--border);margin:0 20px 14px"></div>
+          <div style="margin:0 20px 30px;background:rgba(120,120,128,0.2);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden">
+            <div style="padding:13px 16px;font-size:14.5px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)"><span>Streaming Quality</span><span style="color:var(--text2)">Original</span></div>
+            <div style="padding:13px 16px;font-size:14.5px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)"><span>Download Quality</span><span style="color:var(--text2)">High</span></div>
+            <div onClick="{{ toggleGapless }}" style="padding:13px 16px;font-size:14.5px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);cursor:pointer">
+              <span>Gapless Playback</span>
+              <div style="width:44px;height:26px;border-radius:100px;background:{{ gaplessBg }};position:relative;transition:background 0.2s, transform 0.12s ease" style-active="transform:scale(0.92)"><div style="width:22px;height:22px;border-radius:50%;background:#fff;position:absolute;top:2px;left:{{ gaplessPos }}px;transition:left 0.28s cubic-bezier(0.34,1.56,0.64,1)"></div></div>
+            </div>
+            <div onClick="{{ toggleReplayGain }}" style="padding:13px 16px;font-size:14.5px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+              <span>Volume Normalisation</span>
+              <div style="width:44px;height:26px;border-radius:100px;background:{{ replayGainBg }};position:relative;transition:background 0.2s, transform 0.12s ease" style-active="transform:scale(0.92)"><div style="width:22px;height:22px;border-radius:50%;background:#fff;position:absolute;top:2px;left:{{ replayGainPos }}px;transition:left 0.28s cubic-bezier(0.34,1.56,0.64,1)"></div></div>
+            </div>
+          </div>
+
+          <div style="padding:0 20px"><div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px"><span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Appearance</span></div></div>
+          <div style="height:1px;background:var(--border);margin:0 20px 14px"></div>
+          <div style="margin:0 20px 30px;background:rgba(120,120,128,0.2);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.1);border-radius:14px;padding:6px;display:flex;gap:6px">
+            <div onClick="{{ setThemeDark }}" style="flex:1;text-align:center;padding:9px;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer;background:{{ themeDarkBg }}">Dark</div>
+            <div onClick="{{ setThemeLight }}" style="flex:1;text-align:center;padding:9px;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer;background:{{ themeLightBg }}">Light</div>
+            <div onClick="{{ setThemeAuto }}" style="flex:1;text-align:center;padding:9px;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer;background:{{ themeAutoBg }}">Auto</div>
+          </div>
+
+          <div style="padding:0 20px"><div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px"><span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Data &amp; Storage</span></div></div>
+          <div style="height:1px;background:var(--border);margin:0 20px 14px"></div>
+          <div style="margin:0 20px 30px;background:rgba(120,120,128,0.2);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden">
+            <div style="padding:13px 16px;font-size:14.5px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)"><span>Allow Cellular Data</span><span style="color:var(--text2)">On</span></div>
+            <div onClick="{{ clearCache }}" style="padding:13px 16px;font-size:14.5px;display:flex;justify-content:space-between;cursor:pointer"><span>Clear Cache</span><span style="color:oklch(70% 0.19 29);font-weight:600">{{ cacheLabel }}</span></div>
+          </div>
+
+          <div style="padding:0 20px"><div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px"><span style="font-size:22px;font-weight:800;letter-spacing:-0.4px;flex:1">Device</span></div></div>
+          <div style="height:1px;background:var(--border);margin:0 20px 14px"></div>
+          <div style="margin:0 20px 20px;background:rgba(120,120,128,0.2);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden">
+            <div style="padding:13px 16px;font-size:14.5px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)"><span>CarPlay</span><span style="color:var(--text2)">Enabled</span></div>
+            <div style="padding:13px 16px;font-size:14.5px;display:flex;justify-content:space-between"><span>AirPlay &amp; Handoff</span><span style="color:var(--text2)">Automatic</span></div>
+          </div>
+
+          <div style="font-size:12.5px;color:var(--text3);text-align:center;margin-top:8px">Jellytone 1.0 · Diagnostics &amp; Privacy</div>
+        </div>
+        </sc-if>
+
+      </div>
+
+      <sc-if value="{{ showDetail }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:var(--bg);overflow:auto;z-index:30">
+        <div style="position:sticky;top:0;z-index:5;display:flex;align-items:center;padding:56px 16px 8px;background:linear-gradient(to bottom, oklch(15% 0.006 40 / 0.9), transparent)">
+          <div onClick="{{ closeDetail }}" style="width:34px;height:34px;border-radius:50%;background:rgba(120,120,128,0.28);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.15);box-shadow:inset 1px 1px 1px rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.88)">
+            <svg width="10" height="16" viewBox="0 0 12 20" fill="none"><path d="M10 2L2 10l8 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+
+        <sc-if value="{{ isAlbumDetail }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:-58px;background:{{ detailAlbum.gradient }};padding:70px 24px 28px;display:flex;flex-direction:column;align-items:center;text-align:center">
+          <div style="width:200px;height:200px;border-radius:20px;background:rgba(0,0,0,0.18);box-shadow:0 20px 40px rgba(0,0,0,0.4);margin-bottom:18px"></div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.75);margin-bottom:6px">Album</div>
+          <div style="font-size:24px;font-weight:800;color:#fff;margin-bottom:4px">{{ detailAlbum.name }}</div>
+          <div onClick="{{ detailAlbum.openArtist }}" style="font-size:15px;font-weight:600;color:rgba(255,255,255,0.85);margin-bottom:6px;cursor:pointer">{{ detailAlbum.artist }}</div>
+          <div style="font-size:12.5px;color:rgba(255,255,255,0.6);margin-bottom:20px">{{ detailAlbum.year }} · {{ detailAlbum.genre }} · {{ detailAlbum.trackCount }} songs · {{ detailAlbum.durationLabel }}</div>
+          <div style="display:flex;gap:10px">
+            <div onClick="{{ detailAlbum.playAll }}" style="display:flex;align-items:center;gap:8px;background:#fff;color:#000;font-weight:700;font-size:14.5px;padding:12px 22px;border-radius:100px;cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.94)"><svg width="12" height="12" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z" fill="#000"/></svg>Play</div>
+            <div onClick="{{ detailAlbum.shuffleAll }}" style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.14);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.25);box-shadow:inset 1px 1px 1px rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:14.5px;padding:12px 22px;border-radius:100px;cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.94)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 6h3.5L15 17h4M3 18h3.5L11 12M17 6h2m0 0l-2.5-2.5M19 6l-2.5 2.5m2.5 9.5h-2m0 0l-2.5-2.5m2.5 2.5l-2.5 2.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Shuffle
+            </div>
+            <div onClick="{{ detailAlbum.toggleFav }}" style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.14);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.25);box-shadow:inset 1px 1px 1px rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.88)">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="{{ detailAlbum.favFill }}"><path d="M12 21s-7.5-4.7-10-9.3C.4 8 2 4 6 4c2.2 0 3.8 1.3 6 4 2.2-2.7 3.8-4 6-4 4 0 5.6 4 4 7.7-2.5 4.6-10 9.3-10 9.3z" stroke="#fff" stroke-width="1.5"/></svg>
+            </div>
+            <div onClick="{{ detailAlbum.toggleDownload }}" style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.14);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.25);box-shadow:inset 1px 1px 1px rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.88)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v13m0 0l-4.5-4.5M12 16l4.5-4.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 19h16" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+        </div>
+        <div style="padding:22px 20px 24px;background:linear-gradient(to bottom, {{ detailAlbum.gradientFade }}, var(--bg) 120px)">
+          <sc-for list="{{ detailAlbum.trackGroups }}" as="grp" hint-placeholder-count="1">
+            <sc-if value="{{ grp.showDiscLabel }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;font-weight:700;color:var(--text2);margin:10px 0">Disc {{ grp.discNumber }}</div></sc-if>
+            <sc-for list="{{ grp.tracks }}" as="track" hint-placeholder-count="6">
+              <div onClick="{{ track.play }}" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer">
+                <div style="width:22px;text-align:center;font-size:13px;color:{{ track.numColor }};font-weight:600;flex:none">{{ track.index }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:14.5px;font-weight:600;color:{{ track.nameColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ track.name }}</div>
+                </div>
+                <div style="font-size:12px;color:var(--text3);flex:none">{{ track.durationLabel }}</div>
+              </div>
+            </sc-for>
+          </sc-for>
+          <div style="font-size:17px;font-weight:800;margin:24px 0 12px">More by {{ detailAlbum.artist }}</div>
+          <div style="display:flex;gap:14px;overflow-x:auto">
+            <sc-for list="{{ detailAlbum.moreByArtist }}" as="album" hint-placeholder-count="3">
+              <div onClick="{{ album.open }}" style="flex:none;width:110px;cursor:pointer">
+                <div style="width:110px;height:110px;border-radius:12px;background:{{ album.gradient }};margin-bottom:6px"></div>
+                <div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ album.name }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ isArtistDetail }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:-58px;background:{{ detailArtist.gradient }};padding:80px 24px 32px;display:flex;flex-direction:column;align-items:center;text-align:center">
+          <div style="width:150px;height:150px;border-radius:50%;background:rgba(0,0,0,0.2);box-shadow:0 20px 40px rgba(0,0,0,0.45);margin-bottom:16px"></div>
+          <div style="font-size:25px;font-weight:800;color:#fff;margin-bottom:6px">{{ detailArtist.name }}</div>
+          <div style="font-size:12.5px;color:rgba(255,255,255,0.65);margin-bottom:18px">{{ detailArtist.monthlyListeners }} monthly listeners</div>
+          <div style="display:flex;gap:10px">
+            <div onClick="{{ detailArtist.playAll }}" style="display:flex;align-items:center;gap:8px;background:#fff;color:#000;font-weight:700;font-size:14.5px;padding:12px 22px;border-radius:100px;cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.94)"><svg width="12" height="12" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z" fill="#000"/></svg>Play</div>
+            <div onClick="{{ detailArtist.toggleFav }}" style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.14);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.25);box-shadow:inset 1px 1px 1px rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.88)">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="{{ detailArtist.favFill }}"><path d="M12 21s-7.5-4.7-10-9.3C.4 8 2 4 6 4c2.2 0 3.8 1.3 6 4 2.2-2.7 3.8-4 6-4 4 0 5.6 4 4 7.7-2.5 4.6-10 9.3-10 9.3z" stroke="#fff" stroke-width="1.5"/></svg>
+            </div>
+            <div onClick="{{ detailArtist.toggleDownload }}" style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.14);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.25);box-shadow:inset 1px 1px 1px rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.88)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v13m0 0l-4.5-4.5M12 16l4.5-4.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 19h16" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+        </div>
+        <div style="padding:22px 20px 24px">
+          <div style="font-size:17px;font-weight:800;margin-bottom:10px">Popular</div>
+          <sc-for list="{{ detailArtist.popularTracks }}" as="track" hint-placeholder-count="5">
+            <div onClick="{{ track.play }}" style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer">
+              <div style="width:18px;text-align:center;font-size:13px;color:var(--text3);font-weight:700;flex:none">{{ track.rank }}</div>
+              <div style="width:42px;height:42px;border-radius:8px;background:{{ track.gradient }};flex:none"></div>
+              <div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ track.name }}</div><div style="font-size:12px;color:var(--text3)">{{ track.album }}</div></div>
+            </div>
+          </sc-for>
+
+          <div style="font-size:17px;font-weight:800;margin:22px 0 12px">Albums</div>
+          <div style="display:flex;gap:14px;overflow-x:auto;margin-bottom:8px">
+            <sc-for list="{{ detailArtist.albums }}" as="album" hint-placeholder-count="3">
+              <div onClick="{{ album.open }}" style="flex:none;width:110px;cursor:pointer">
+                <div style="width:110px;height:110px;border-radius:12px;background:{{ album.gradient }};margin-bottom:6px"></div>
+                <div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ album.name }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="font-size:17px;font-weight:800;margin:22px 0 10px">About</div>
+          <div style="font-size:13.5px;line-height:1.55;color:oklch(75% 0.01 40);{{ bioClamp }}">{{ detailArtist.bio }}</div>
+          <div onClick="{{ toggleBio }}" style="font-size:13px;font-weight:700;color:oklch(70% 0.19 29);margin-top:6px;cursor:pointer">{{ bioToggleLabel }}</div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ isPlaylistDetail }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:-58px;padding:70px 24px 28px;display:flex;flex-direction:column;align-items:center;text-align:center;background:oklch(22% 0.012 40)">
+          <div style="width:180px;height:180px;border-radius:16px;display:grid;grid-template-columns:1fr 1fr;gap:2px;overflow:hidden;box-shadow:0 16px 32px rgba(0,0,0,0.4);margin-bottom:16px">
+            <sc-for list="{{ detailPlaylist.collage }}" as="c" hint-placeholder-count="4"><div style="background:{{ c.gradient }}"></div></sc-for>
+          </div>
+          <div style="font-size:23px;font-weight:800;margin-bottom:6px">{{ detailPlaylist.name }}</div>
+          <div style="font-size:12.5px;color:var(--text2);margin-bottom:18px">{{ detailPlaylist.trackCount }} songs · {{ detailPlaylist.durationLabel }}</div>
+          <div style="display:flex;gap:10px">
+            <div onClick="{{ detailPlaylist.playAll }}" style="display:flex;align-items:center;gap:8px;background:oklch(70% 0.19 29);color:#fff;font-weight:700;font-size:14.5px;padding:12px 22px;border-radius:100px;cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z" fill="#fff"/></svg>Play</div>
+            <div onClick="{{ detailPlaylist.shuffleAll }}" style="display:flex;align-items:center;gap:8px;background:oklch(70% 0.19 29 / 0.16);color:oklch(70% 0.19 29);font-weight:700;font-size:14.5px;padding:12px 22px;border-radius:100px;cursor:pointer">Shuffle</div>
+          </div>
+        </div>
+        <div style="padding:20px">
+          <sc-for list="{{ detailPlaylist.tracks }}" as="track" hint-placeholder-count="6">
+            <div onClick="{{ track.play }}" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">
+              <div style="width:42px;height:42px;border-radius:8px;background:{{ track.gradient }};flex:none"></div>
+              <div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ track.name }}</div><div style="font-size:12px;color:var(--text3)">{{ track.artist }}</div></div>
+              <div style="font-size:12px;color:var(--text3)">{{ track.durationLabel }}</div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ showMiniPlayer }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:0 8px 6px;flex:none">
+        <div style="border-radius:16px;overflow:hidden;background:rgba(120,120,128,0.28);backdrop-filter:blur(24px) saturate(180%);border:0.5px solid rgba(255,255,255,0.15);box-shadow:0 2px 6px rgba(0,0,0,0.35), inset 1px 1px 1px rgba(255,255,255,0.15)">
+          <div style="height:2px;background:rgba(255,255,255,0.15)"><div style="height:100%;width:{{ progressPercent }}%;background:oklch(70% 0.19 29)"></div></div>
+          <div onClick="{{ openNowPlaying }}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer">
+            <div style="width:38px;height:38px;border-radius:9px;background:{{ currentTrack.gradient }};flex:none"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ currentTrack.name }}</div>
+              <div style="font-size:11.5px;color:rgba(255,255,255,0.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ currentTrack.artist }}</div>
+            </div>
+            <div onClick="{{ stopPropTogglePlay }}" style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;flex:none;transition:transform 0.12s ease" style-active="transform:scale(0.88)">
+              <sc-if value="{{ isPlaying }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5" fill="#fff"/><rect x="14" y="4" width="5" height="16" rx="1.5" fill="#fff"/></svg></sc-if>
+              <sc-if value="{{ isPaused }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z" fill="#fff"/></svg></sc-if>
+            </div>
+            <div onClick="{{ stopPropNext }}" style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;flex:none;transition:transform 0.12s ease" style-active="transform:scale(0.88)">
+              <svg width="13" height="13" viewBox="0 0 24 24"><path d="M5 4l11 8-11 8V4z" fill="#fff"/><rect x="17" y="4" width="2.5" height="16" fill="#fff"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <div style="flex:none;display:flex;background:rgba(120,120,128,0.2);backdrop-filter:blur(24px) saturate(180%);border-top:0.5px solid rgba(255,255,255,0.15);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12);padding:8px 4px 22px">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+          <div onClick="{{ t.select }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;color:{{ t.color }};transition:transform 0.12s ease" style-active="transform:scale(0.9)">
+            <div style="width:24px;height:24px" dangerouslySetInnerHTML="{{ t.iconHtml }}"></div>
+            <div style="font-size:10px;font-weight:600">{{ t.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ showNowPlaying }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:{{ nowPlayingBg }};z-index:50;display:flex;flex-direction:column;padding:56px 24px 30px;box-sizing:border-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <div onClick="{{ closeNowPlaying }}" style="width:34px;height:34px;border-radius:50%;background:rgba(120,120,128,0.28);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.15);box-shadow:inset 1px 1px 1px rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.88)">
+          <svg width="18" height="10" viewBox="0 0 18 10" fill="none"><path d="M1 1l8 8 8-8" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.6)">{{ currentTrack.album }}</div>
+        <div style="width:34px;height:34px;border-radius:50%;background:rgba(120,120,128,0.28);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.15);box-shadow:inset 1px 1px 1px rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.85);font-size:18px">⋯</div>
+      </div>
+
+      <sc-if value="{{ lyricsOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:16px;overflow:hidden;padding:0 4px">
+        <sc-for list="{{ lyricsLines }}" as="line" hint-placeholder-count="7">
+          <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:0 8px;transition:all 0.3s;opacity:{{ line.opacity }};transform:{{ line.scale }}">
+            <sc-for list="{{ line.words }}" as="word" hint-placeholder-count="4">
+              <span style="font-size:19px;font-weight:700;transition:color 0.25s, transform 0.25s;color:{{ word.color }};transform:{{ word.scale }};display:inline-block">{{ word.text }}</span>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ lyricsClosed }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0">
+        <div style="width:290px;height:290px;max-width:100%;max-height:100%;border-radius:20px;background:{{ currentTrack.gradient }};box-shadow:0 30px 60px rgba(0,0,0,0.5)"></div>
+      </div>
+      </sc-if>
+
+      <div style="flex:none">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px">
+          <div style="min-width:0">
+            <div style="font-size:21px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ currentTrack.name }}</div>
+            <div style="font-size:14.5px;color:rgba(255,255,255,0.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ currentTrack.artist }}</div>
+          </div>
+          <div onClick="{{ toggleFavCurrent }}" style="flex:none;margin-left:12px;padding-top:4px;transition:transform 0.12s ease" style-active="transform:scale(0.8)">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="{{ currentTrackFavFill }}"><path d="M12 21s-7.5-4.7-10-9.3C.4 8 2 4 6 4c2.2 0 3.8 1.3 6 4 2.2-2.7 3.8-4 6-4 4 0 5.6 4 4 7.7-2.5 4.6-10 9.3-10 9.3z" stroke="#fff" stroke-width="1.5"/></svg>
+          </div>
+        </div>
+
+        <div style="height:4px;border-radius:100px;background:rgba(255,255,255,0.25);margin-bottom:6px;position:relative;cursor:pointer;padding:8px 0;margin-top:-8px;background-clip:content-box;transition:transform 0.12s ease" style-active="transform:scaleY(1.8)" onClick="{{ seekFromClick }}">
+          <div style="height:4px;width:{{ progressPercent }}%;background:#fff;border-radius:100px;position:relative"><div style="position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;color:rgba(255,255,255,0.55);margin-bottom:22px"><span>{{ elapsedLabel }}</span><span>{{ remainingLabel }}</span></div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:26px">
+          <div onClick="{{ toggleShuffle }}" style="cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.85)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 6h3.5L15 17h4M3 18h3.5L11 12M17 6h2m0 0l-2.5-2.5M19 6l-2.5 2.5m2.5 9.5h-2m0 0l-2.5-2.5m2.5 2.5l-2.5 2.5" stroke="{{ shuffleColor }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div onClick="{{ prevTrack }}" style="cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.85)"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M19 5L8 12l11 7V5z" fill="#fff"/><rect x="5" y="5" width="2.5" height="14" fill="#fff"/></svg></div>
+          <div onClick="{{ togglePlay }}" style="width:68px;height:68px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.92)">
+            <sc-if value="{{ isPlaying }}" hint-placeholder-val="{{ false }}"><svg width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5" fill="#000"/><rect x="14" y="4" width="5" height="16" rx="1.5" fill="#000"/></svg></sc-if>
+            <sc-if value="{{ isPaused }}" hint-placeholder-val="{{ true }}"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M7 4l14 8-14 8V4z" fill="#000"/></svg></sc-if>
+          </div>
+          <div onClick="{{ nextTrack }}" style="cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.85)"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M5 5l11 7-11 7V5z" fill="#fff"/><rect x="16.5" y="5" width="2.5" height="14" fill="#fff"/></svg></div>
+          <div onClick="{{ cycleRepeat }}" style="cursor:pointer;position:relative;transition:transform 0.12s ease" style-active="transform:scale(0.85)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 014-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" stroke="{{ repeatColor }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <sc-if value="{{ repeatIsOne }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:-6px;right:-6px;font-size:9px;font-weight:800;color:oklch(70% 0.19 29)">1</div></sc-if>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div onClick="{{ toggleLyrics }}" style="font-size:12px;font-weight:700;color:{{ lyricsColor }};cursor:pointer">Lyrics</div>
+          <div style="font-size:11.5px;color:rgba(255,255,255,0.5);font-weight:600">{{ currentTrack.quality }}</div>
+          <div onClick="{{ openQueue }}" style="cursor:pointer;transition:transform 0.12s ease" style-active="transform:scale(0.85)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M3 6h13M3 12h13M3 18h9" stroke="rgba(255,255,255,0.85)" stroke-width="2" stroke-linecap="round"/><path d="M19 9v9m0 0l-3-3m3 3l3-3" stroke="rgba(255,255,255,0.85)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ showQueue }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:var(--bg);z-index:60;display:flex;flex-direction:column;padding:56px 20px 24px;box-sizing:border-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div style="font-size:19px;font-weight:800">Playback Queue</div>
+        <div onClick="{{ closeQueue }}" style="font-size:14.5px;font-weight:700;color:oklch(70% 0.19 29);cursor:pointer">Done</div>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">Now Playing</div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px;background:oklch(70% 0.19 29 / 0.16);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid oklch(70% 0.19 29 / 0.3);border-radius:12px;margin-bottom:20px">
+        <div style="width:42px;height:42px;border-radius:8px;background:{{ currentTrack.gradient }};flex:none"></div>
+        <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ currentTrack.name }}</div><div style="font-size:12px;color:var(--text2)">{{ currentTrack.artist }}</div></div>
+        <svg width="15" height="15" viewBox="0 0 24 24"><path d="M4 10v4M9 6v12M14 3v18M19 8v8" stroke="oklch(70% 0.19 29)" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px">Up Next</div>
+        <div onClick="{{ clearQueue }}" style="font-size:12.5px;font-weight:600;color:var(--text2);cursor:pointer">Clear</div>
+      </div>
+      <div style="flex:1;overflow:auto">
+        <sc-if value="{{ queueEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13.5px">Nothing up next. The current track will keep playing.</div>
+        </sc-if>
+        <sc-for list="{{ upcomingEntries }}" as="entry" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
+            <svg width="13" height="13" viewBox="0 0 24 24"><circle cx="5" cy="7" r="1.6" fill="var(--text3)"/><circle cx="5" cy="12" r="1.6" fill="var(--text3)"/><circle cx="5" cy="17" r="1.6" fill="var(--text3)"/><circle cx="12" cy="7" r="1.6" fill="var(--text3)"/><circle cx="12" cy="12" r="1.6" fill="var(--text3)"/><circle cx="12" cy="17" r="1.6" fill="var(--text3)"/></svg>
+            <div onClick="{{ entry.jump }}" style="width:38px;height:38px;border-radius:8px;background:{{ entry.gradient }};flex:none;cursor:pointer"></div>
+            <div onClick="{{ entry.jump }}" style="flex:1;min-width:0;cursor:pointer"><div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ entry.name }}</div><div style="font-size:12px;color:var(--text3)">{{ entry.artist }}</div></div>
+            <div onClick="{{ entry.remove }}" style="width:26px;height:26px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+              <svg width="10" height="10" viewBox="0 0 24 24"><path d="M4 4l16 16M20 4L4 20" stroke="oklch(75% 0.01 40)" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div onClick="{{ saveQueueAsPlaylist }}" style="text-align:center;padding:14px;background:rgba(120,120,128,0.2);backdrop-filter:blur(16px) saturate(180%);border:0.5px solid rgba(255,255,255,0.1);border-radius:14px;font-size:14px;font-weight:700;color:oklch(70% 0.19 29);margin-top:12px;cursor:pointer">Save Queue as Playlist</div>
+    </div>
+    </sc-if>
+
+  </div>
+</x-import>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const HUES = [29, 260, 145, 200, 330, 55, 190, 15, 280, 100];
+const THEMES = {
+  dark: { bg:'oklch(15% 0.006 40)', surface:'oklch(24% 0.012 40)', text:'oklch(97% 0.004 40)', text2:'oklch(65% 0.01 40)', text3:'oklch(55% 0.01 40)', border:'oklch(30% 0.01 40)', trackOff:'oklch(35% 0.01 40)' },
+  light: { bg:'oklch(97% 0.006 90)', surface:'oklch(91% 0.008 90)', text:'oklch(22% 0.01 40)', text2:'oklch(42% 0.012 40)', text3:'oklch(56% 0.01 40)', border:'oklch(84% 0.008 40)', trackOff:'oklch(80% 0.008 40)' },
+};
+function grad(hue, dark) {
+  const l1 = 42, l2 = 20;
+  const c = 0.13;
+  return `linear-gradient(135deg, oklch(${l1}% ${c} ${hue}), oklch(${l2}% ${c} ${(hue+30)%360}))`;
+}
+function fmtTime(s) {
+  s = Math.max(0, Math.round(s));
+  return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
+}
+const ADJ = ['Amber','Slow','Paper','Neon','Quiet','Static','Velvet','Hollow','Bright','Faded','Wild','Low','Blue','Golden','Broken'];
+const NOUN = ['Light','Static','Moons','Horizon','Signal','Ceiling','Shoreline','Static','Room','Fever','Season','Radio','Habit','Coastline','Ghost'];
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.buildData();
+    this.state = {
+      screen: 'onboarding', isConnecting: false,
+      serverUrl: '', username: '', password: '',
+      tab: 'home', libraryTab: 'albums', libraryView: 'grid',
+      detail: null, // {type:'album'|'artist'|'playlist', id}
+      searchQuery: '',
+      nowPlayingOpen: false, queueOpen: false, lyricsOpen: false,
+      isPlaying: false, elapsed: 0, currentIndex: 0, queue: [],
+      isShuffled: false, repeatMode: 'off',
+      favAlbums: new Set(['a2','a5']), favArtists: new Set(['ar1','ar3']), favTracks: new Set(),
+      downloadedAlbumIds: new Set(['a1','a3','a6']),
+      wifiOnly: true, gapless: true, replayGain: false, theme: 'dark',
+      bioExpanded: false,
+    };
+  }
+
+  buildData() {
+    const artists = [
+      { id:'ar1', name:'Nova Wilder', hue:29, listeners:'184K', bio:"Nova Wilder writes late-night indie folk built from tape hiss and open tunings. Recorded mostly alone in a converted garage, the songs favour patience over hooks — long fades, room noise left in, vocals mixed close enough to hear the breath before each line. Three albums in, the sound has barely changed, and that's the point." },
+      { id:'ar2', name:'The Low Tide', hue:200, listeners:'92K', bio:"A four-piece dream pop band known for reverb-heavy guitars and hushed, doubled vocals. The Low Tide's records are built for headphones — dense, layered, made to disappear into." },
+      { id:'ar3', name:'Marigold Static', hue:330, listeners:'256K', bio:"Marigold Static makes synthwave with a warmer palette than most of the genre — major-key pads, live drums under the machines, hooks that resolve instead of loop forever." },
+      { id:'ar4', name:'Reiko Anders', hue:145, listeners:'61K', bio:"Ambient composer working mostly in long-form pieces for tape loops and processed piano. Reiko Anders treats silence as an instrument." },
+      { id:'ar5', name:'Copper Youth', hue:55, listeners:'138K', bio:"Alt-R&B project blending live bass with sampled drums. Copper Youth's records move slowly and reward repeat listens." },
+      { id:'ar6', name:'Vale & Ember', hue:15, listeners:'47K', bio:"A duo making lo-fi hip-hop instrumentals, released in loose, unnumbered volumes, usually with a single field recording stitched into the intro." },
+    ];
+    const albumSeeds = [
+      { id:'a1', artistId:'ar1', name:'Amber Light', year:2023, genre:'Indie Folk', hue:29, discs:1, n:9 },
+      { id:'a2', artistId:'ar1', name:'Low Static', year:2021, genre:'Indie Folk', hue:20, discs:1, n:8 },
+      { id:'a3', artistId:'ar2', name:'Paper Moons', year:2022, genre:'Dream Pop', hue:200, discs:2, n:14 },
+      { id:'a4', artistId:'ar3', name:'Neon Habit', year:2024, genre:'Synthwave', hue:330, discs:1, n:10 },
+      { id:'a5', artistId:'ar3', name:'Quiet Fever', year:2020, genre:'Synthwave', hue:310, discs:1, n:7 },
+      { id:'a6', artistId:'ar4', name:'Hollow Ceiling', year:2019, genre:'Ambient', hue:145, discs:1, n:6 },
+      { id:'a7', artistId:'ar5', name:'Faded Coastline', year:2023, genre:'Alt R&B', hue:55, discs:1, n:11 },
+      { id:'a8', artistId:'ar6', name:'Broken Radio, Vol. 2', year:2022, genre:'Lo-fi Hip Hop', hue:15, discs:1, n:12 },
+    ];
+    let trackSeq = 0;
+    const albums = albumSeeds.map(a => {
+      const tracks = [];
+      for (let i=1;i<=a.n;i++) {
+        const nm = ADJ[trackSeq % ADJ.length] + ' ' + NOUN[(trackSeq*3+1) % NOUN.length];
+        const dur = 150 + ((trackSeq*47) % 140);
+        tracks.push({ id:'t'+(trackSeq++), name: nm, index: i, disc: a.discs>1 && i>Math.ceil(a.n/2) ? 2 : 1, duration: dur, albumId: a.id });
+      }
+      return { ...a, artist: artists.find(x=>x.id===a.artistId).name, gradient: grad(a.hue), tracks, duration: tracks.reduce((s,t)=>s+t.duration,0) };
+    });
+    const playlists = [
+      { id:'p1', name:'Late Night Focus', trackIds: [albums[0].tracks[0].id, albums[2].tracks[1].id, albums[5].tracks[0].id, albums[3].tracks[2].id] },
+      { id:'p2', name:'Sunday Reset', trackIds: [albums[1].tracks[0].id, albums[6].tracks[0].id, albums[4].tracks[1].id, albums[7].tracks[0].id] },
+      { id:'p3', name:'Drive Home', trackIds: [albums[3].tracks[0].id, albums[3].tracks[1].id, albums[4].tracks[0].id, albums[0].tracks[2].id, albums[2].tracks[0].id] },
+    ];
+    const genres = [...new Set(albums.map(a=>a.genre))];
+    this.data = { artists, albums, playlists, genres, allTracks: albums.flatMap(a=>a.tracks) };
+  }
+
+  findAlbum(id){ return this.data.albums.find(a=>a.id===id); }
+  findArtist(id){ return this.data.artists.find(a=>a.id===id); }
+  findPlaylist(id){ return this.data.playlists.find(a=>a.id===id); }
+  findTrack(id){ return this.data.allTracks.find(t=>t.id===id); }
+
+  trackVM(track, extra) {
+    const album = this.findAlbum(track.albumId);
+    return { ...track, artist: album.artist, album: album.name, gradient: album.gradient,
+      quality: 'FLAC · 24-bit', durationLabel: fmtTime(track.duration),
+      play: () => this.playTrack(track, extra || album.tracks) };
+  }
+
+  albumVM(album) {
+    return { ...album, trackCount: album.tracks.length, durationLabel: fmtTime(album.duration), sizeLabel: Math.round(album.duration/60*1.1)+' MB',
+      open: () => this.setState({ detail: { type:'album', id: album.id } }),
+      openArtist: () => this.setState({ detail: { type:'artist', id: album.artistId } }),
+      remove: (e) => { e && e.stopPropagation && e.stopPropagation(); const s=new Set(this.state.downloadedAlbumIds); s.delete(album.id); this.setState({ downloadedAlbumIds: s }); },
+      playAll: () => this.playTrack(album.tracks[0], album.tracks),
+      shuffleAll: () => this.shufflePlay(album.tracks),
+      toggleFav: () => { const s=new Set(this.state.favAlbums); s.has(album.id)?s.delete(album.id):s.add(album.id); this.setState({ favAlbums:s }); },
+      toggleDownload: () => { const s=new Set(this.state.downloadedAlbumIds); s.has(album.id)?s.delete(album.id):s.add(album.id); this.setState({ downloadedAlbumIds:s }); },
+      favFill: this.state.favAlbums.has(album.id) ? 'oklch(70% 0.19 29)' : 'none',
+    };
+  }
+
+  artistVM(artist) {
+    return { ...artist, gradient: grad(artist.hue), open: () => this.setState({ detail: { type:'artist', id: artist.id } }) };
+  }
+
+  playlistVM(pl) {
+    const tracks = pl.trackIds.map(id => this.findTrack(id));
+    return { ...pl, trackCount: tracks.length, gradient: grad(this.findAlbum(tracks[0].albumId).hue),
+      open: () => this.setState({ detail: { type:'playlist', id: pl.id } }) };
+  }
+
+  playTrack(track, queueTracks) {
+    const idx = queueTracks.findIndex(t => t.id === track.id);
+    this.setState({ queue: queueTracks, currentIndex: Math.max(0, idx), isPlaying: true, elapsed: 0 });
+  }
+  shufflePlay(tracks) {
+    const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+    this.setState({ queue: shuffled, currentIndex: 0, isPlaying: true, elapsed: 0, isShuffled: true });
+  }
+
+  componentDidMount() {
+    this._tick = setInterval(() => {
+      if (this.state.isPlaying && this.state.queue.length) {
+        const cur = this.state.queue[this.state.currentIndex];
+        if (!cur) return;
+        if (this.state.elapsed >= cur.duration) { this.goNext(); }
+        else this.setState(s => ({ elapsed: s.elapsed + 1 }));
+      }
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this._tick); }
+
+  goNext() {
+    const { queue, currentIndex, repeatMode } = this.state;
+    if (repeatMode === 'one') { this.setState({ elapsed: 0 }); return; }
+    if (currentIndex < queue.length - 1) this.setState({ currentIndex: currentIndex+1, elapsed: 0 });
+    else if (repeatMode === 'all') this.setState({ currentIndex: 0, elapsed: 0 });
+    else this.setState({ isPlaying: false });
+  }
+  goPrev() {
+    if (this.state.elapsed > 3) { this.setState({ elapsed: 0 }); return; }
+    if (this.state.currentIndex > 0) this.setState({ currentIndex: this.state.currentIndex-1, elapsed: 0 });
+    else this.setState({ elapsed: 0 });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const d = this.data;
+    const th = THEMES[s.theme === 'light' ? 'light' : 'dark'];
+    const rootStyle = {
+      width: 402, height: 874, background: th.bg, display: 'flex', flexDirection: 'column',
+      overflow: 'hidden', position: 'relative', fontFamily: "-apple-system,'SF Pro',system-ui,sans-serif", color: th.text,
+      '--bg': th.bg, '--surface': th.surface, '--text': th.text, '--text2': th.text2, '--text3': th.text3, '--border': th.border, '--track-off': th.trackOff,
+    };
+    const currentTrackRaw = s.queue[s.currentIndex] || null;
+    const currentAlbum = currentTrackRaw ? this.findAlbum(currentTrackRaw.albumId) : null;
+    const currentTrack = currentTrackRaw ? {
+      ...currentTrackRaw, artist: currentAlbum.artist, album: currentAlbum.name,
+      gradient: grad(currentAlbum.hue), quality: 'FLAC · 24-bit',
+    } : { name:'', artist:'', album:'', gradient: grad(29), quality:'' };
+
+    const hasCurrentTrack = !!currentTrackRaw;
+    const isPlaying = s.isPlaying, isPaused = !s.isPlaying;
+
+    const tabDefs = [
+      { key:'home', label:'Home', path:'M4 11l8-7 8 7v9a1 1 0 01-1 1h-4v-6H9v6H5a1 1 0 01-1-1v-9z' },
+      { key:'library', label:'Library', path:'M4 5h4v16H4zM10 4h4v17h-4zM16 6l4-1 3 15-4 1z' },
+      { key:'search', label:'Search', path:'' },
+      { key:'downloads', label:'Downloads', path:'' },
+      { key:'settings', label:'Settings', path:'' },
+    ];
+    const iconSvg = (key, active) => {
+      const c = active ? 'oklch(70% 0.19 29)' : 'rgba(255,255,255,0.55)';
+      const map = {
+        home: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 11.5L12 4l8 7.5V20a1 1 0 01-1 1h-4v-6.5H9V21H5a1 1 0 01-1-1v-8.5z" stroke="${c}" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
+        library: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4" width="5" height="16" rx="1" stroke="${c}" stroke-width="1.7"/><rect x="10" y="4" width="5" height="16" rx="1" stroke="${c}" stroke-width="1.7"/><rect x="16.6" y="5.3" width="5" height="16" rx="1" transform="rotate(15 16.6 5.3)" stroke="${c}" stroke-width="1.7"/></svg>`,
+        search: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="${c}" stroke-width="1.8"/><path d="M21 21l-4.3-4.3" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+        downloads: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+        settings: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.2" stroke="${c}" stroke-width="1.7"/><path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6M18.4 18.4l-1.6-1.6M7.2 7.2L5.6 5.6" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+      };
+      return { __html: map[key] };
+    };
+    const tabs = tabDefs.map(t => ({
+      key: t.key, label: t.label, color: s.tab===t.key ? 'oklch(70% 0.19 29)' : 'rgba(255,255,255,0.55)',
+      iconHtml: iconSvg(t.key, s.tab===t.key),
+      select: () => this.setState({ tab: t.key, detail: null }),
+    }));
+
+    const albumVMs = d.albums.map(a => this.albumVM(a));
+    const artistVMs = d.artists.map(a => this.artistVM(a));
+    const playlistVMs = d.playlists.map(p => this.playlistVM(p));
+
+    const genreChips = d.genres.map((g, i) => ({ name: g, gradient: grad(HUES[i % HUES.length]),
+      open: () => this.setState({ tab:'library', libraryTab:'albums', detail:null }) }));
+
+    const recentlyAdded = [...albumVMs].reverse().slice(0,5);
+    const recentlyAddedHero = recentlyAdded[0];
+    const recentlyAddedRest = recentlyAdded.slice(1);
+    const favouriteArtists = artistVMs.filter(a => s.favArtists.has(a.id));
+    const rediscover = albumVMs.slice(2,5);
+    const smartMixes = [
+      { title:'Late Night Focus', subtitle:'Made for you', gradient: grad(260), open:()=>{} },
+      { title:'Sunday Reset', subtitle:'Made for you', gradient: grad(190), open:()=>{} },
+    ];
+    const madeForYouHero = smartMixes[0];
+    const madeForYouRest = smartMixes.slice(1);
+    const todayLabel = new Date().toLocaleDateString(undefined, { weekday:'long' });
+
+    // Library
+    const libraryTabDefs = ['albums','artists','songs','playlists','genres'];
+    const libraryTabs = libraryTabDefs.map(k => ({
+      label: k[0].toUpperCase()+k.slice(1), key:k,
+      bg: s.libraryTab===k ? 'oklch(70% 0.19 29 / 0.85)' : 'rgba(120,120,128,0.22)',
+      border: s.libraryTab===k ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
+      color: s.libraryTab===k ? '#fff' : 'oklch(85% 0.005 40)',
+      select: () => this.setState({ libraryTab: k }),
+    }));
+    const allTracksFlat = d.allTracks.slice(0, 30).map(t => this.trackVM(t));
+    const libraryCountLabel = s.libraryTab==='albums' ? albumVMs.length+' Albums'
+      : s.libraryTab==='artists' ? artistVMs.length+' Artists'
+      : s.libraryTab==='songs' ? d.allTracks.length+' Songs'
+      : s.libraryTab==='playlists' ? playlistVMs.length+' Playlists'
+      : d.genres.length+' Genres';
+
+    // Search
+    const q = s.searchQuery.trim().toLowerCase();
+    const searchArtistResults = q ? artistVMs.filter(a => a.name.toLowerCase().includes(q)) : [];
+    const searchAlbumResults = q ? albumVMs.filter(a => a.name.toLowerCase().includes(q) || a.artist.toLowerCase().includes(q)) : [];
+    const searchTrackResults = q ? d.allTracks.filter(t => t.name.toLowerCase().includes(q)).slice(0,10).map(t=>this.trackVM(t)) : [];
+    const hasResults = searchArtistResults.length || searchAlbumResults.length || searchTrackResults.length;
+
+    // Downloads
+    const downloadedAlbums = albumVMs.filter(a => s.downloadedAlbumIds.has(a.id));
+    const totalSizeMB = downloadedAlbums.reduce((sum,a)=> sum + Math.round(a.duration/60*1.1), 0);
+
+    // Detail
+    let detailAlbum = null, detailArtist = null, detailPlaylist = null;
+    if (s.detail && s.detail.type === 'album') {
+      const album = this.findAlbum(s.detail.id);
+      const groups = album.discs > 1
+        ? [1,2].map(dn => ({ discNumber: dn, showDiscLabel: true, tracks: album.tracks.filter(t=>t.disc===dn).map(t => ({ ...this.trackVM(t, album.tracks), numColor: 'var(--text3)', nameColor: 'var(--text)' })) }))
+        : [{ discNumber:1, showDiscLabel:false, tracks: album.tracks.map(t => ({ ...this.trackVM(t, album.tracks), numColor: 'var(--text3)', nameColor: 'var(--text)' })) }];
+      detailAlbum = { ...this.albumVM(album), trackGroups: groups,
+        gradientFade: `oklch(30% 0.1 ${album.hue} / 0.55)`,
+        moreByArtist: albumVMs.filter(a => a.artistId === album.artistId && a.id !== album.id) };
+    }
+    if (s.detail && s.detail.type === 'artist') {
+      const artist = this.findArtist(s.detail.id);
+      const artistAlbums = albumVMs.filter(a => a.artistId === artist.id);
+      const popular = artistAlbums.flatMap(a => a.tracks.slice(0,2)).slice(0,5).map((t,i) => ({ ...this.trackVM(t), rank: i+1 }));
+      detailArtist = { ...artist, gradient: grad(artist.hue), monthlyListeners: artist.listeners,
+        favFill: s.favArtists.has(artist.id) ? 'oklch(70% 0.19 29)' : 'none',
+        toggleFav: () => { const set=new Set(s.favArtists); set.has(artist.id)?set.delete(artist.id):set.add(artist.id); this.setState({favArtists:set}); },
+        toggleDownload: () => {},
+        playAll: () => popular[0] && this.playTrack(this.findTrack(popular[0].id), artistAlbums[0].tracks),
+        popularTracks: popular, albums: artistAlbums,
+        bio: artist.bio };
+    }
+    if (s.detail && s.detail.type === 'playlist') {
+      const pl = this.findPlaylist(s.detail.id);
+      const tracks = pl.trackIds.map(id => this.findTrack(id));
+      detailPlaylist = { ...pl, trackCount: tracks.length, durationLabel: fmtTime(tracks.reduce((sum,t)=>sum+t.duration,0)),
+        collage: tracks.slice(0,4).map(t => ({ gradient: grad(this.findAlbum(t.albumId).hue) })),
+        playAll: () => this.playTrack(tracks[0], tracks), shuffleAll: () => this.shufflePlay(tracks),
+        tracks: tracks.map(t => this.trackVM(t, tracks)) };
+    }
+
+    // Now playing derived
+    const progressPercent = currentTrackRaw ? Math.min(100, (s.elapsed / Math.max(currentTrackRaw.duration,1)) * 100) : 0;
+    const nowPlayingBg = currentAlbum ? `radial-gradient(circle at 50% 0%, oklch(38% 0.1 ${currentAlbum.hue}), oklch(12% 0.01 ${currentAlbum.hue}) 70%)` : 'oklch(15% 0.006 40)';
+
+    const upcomingEntries = s.queue.slice(s.currentIndex+1).map((t,i) => ({
+      ...this.trackVM(t), key: t.id+'_'+i,
+      jump: () => this.setState({ currentIndex: s.currentIndex+1+i, elapsed:0 }),
+      remove: (e) => { e && e.stopPropagation && e.stopPropagation(); const nq=[...s.queue]; nq.splice(s.currentIndex+1+i,1); this.setState({queue:nq}); },
+    }));
+
+    const LINE_SECONDS = 8;
+    const lyricsLines = ['♪ instrumental ♪','Every light down this street','knows your name before I do','Paper moons in the windowpane','holding on to a fading tune','I keep the porch light on','for a season that already left','Amber light, amber light','won\'t you stay just one more night'].map((line,i) => {
+      const activeIdx = Math.min(8, Math.floor(s.elapsed/LINE_SECONDS));
+      const active = i === activeIdx;
+      const words = line.split(' ');
+      const lineProgress = active ? Math.min(1, (s.elapsed % LINE_SECONDS) / LINE_SECONDS) : (i < activeIdx ? 1 : 0);
+      const activeWordIdx = Math.floor(lineProgress * words.length);
+      return {
+        opacity: active ? 1 : 0.55, scale: active ? 'scale(1.04)' : 'scale(1)',
+        words: words.map((w, wi) => ({
+          text: w,
+          color: !active ? 'rgba(255,255,255,0.35)' : wi < activeWordIdx ? '#fff' : wi === activeWordIdx ? 'oklch(75% 0.19 29)' : 'rgba(255,255,255,0.4)',
+          scale: active && wi === activeWordIdx ? 'scale(1.08)' : 'scale(1)',
+        })),
+      };
+    });
+
+    return {
+      rootStyle, isDarkChrome: s.theme !== 'light' || s.nowPlayingOpen,
+      isOnboarding: s.screen==='onboarding', isApp: s.screen==='app',
+      serverUrl: s.serverUrl, username: s.username, password: s.password,
+      onServerChange: e => this.setState({ serverUrl: e.target.value }),
+      onUsernameChange: e => this.setState({ username: e.target.value }),
+      onPasswordChange: e => this.setState({ password: e.target.value }),
+      isConnecting: s.isConnecting, isNotConnecting: !s.isConnecting,
+      connect: () => { this.setState({ isConnecting: true }); setTimeout(() => this.setState({ screen:'app', isConnecting:false }), 900); },
+
+      greeting: (new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'),
+      goSettingsTab: () => this.setState({ tab:'settings' }),
+
+      showHome: s.tab==='home', showLibrary: s.tab==='library', showSearch: s.tab==='search',
+      showDownloads: s.tab==='downloads', showSettings: s.tab==='settings',
+
+      hasCurrentTrack, currentTrack, isPlaying, isPaused,
+      stopPropTogglePlay: (e) => { e && e.stopPropagation && e.stopPropagation(); this.setState({ isPlaying: !s.isPlaying }); },
+      stopPropNext: (e) => { e && e.stopPropagation && e.stopPropagation(); this.goNext(); },
+      openNowPlaying: () => hasCurrentTrack && this.setState({ nowPlayingOpen: true }),
+      closeNowPlaying: () => this.setState({ nowPlayingOpen: false, lyricsOpen: false }),
+      showNowPlaying: s.nowPlayingOpen,
+      showMiniPlayer: hasCurrentTrack && !s.nowPlayingOpen,
+
+      recentlyAdded, recentlyAddedHero, recentlyAddedRest, favouriteArtists, smartMixes, madeForYouHero, madeForYouRest, genreChips, rediscover, todayLabel,
+
+      libraryTabs, showAlbumsGrid: s.libraryTab==='albums', showArtistsGrid: s.libraryTab==='artists',
+      showSongsList: s.libraryTab==='songs', showPlaylistsList: s.libraryTab==='playlists', showGenresGrid: s.libraryTab==='genres',
+      allAlbums: albumVMs, allArtists: artistVMs, allTracksFlat, allPlaylists: playlistVMs, libraryCountLabel,
+
+      searchQuery: s.searchQuery, onSearchChange: e => this.setState({ searchQuery: e.target.value }),
+      showSearchEmpty: !q, showSearchResults: !!q && hasResults, showSearchNoResults: !!q && !hasResults,
+      hasArtistResults: !!searchArtistResults.length, hasAlbumResults: !!searchAlbumResults.length, hasTrackResults: !!searchTrackResults.length,
+      searchArtistResults, searchAlbumResults, searchTrackResults,
+
+      storageUsedLabel: totalSizeMB + ' MB', storageTotalLabel: '64 GB', storagePercent: Math.min(100, (totalSizeMB/2000)*100),
+      wifiOnlyBg: s.wifiOnly ? 'oklch(70% 0.19 29)' : 'var(--track-off)', wifiOnlyPos: s.wifiOnly ? 20 : 2,
+      toggleWifiOnly: () => this.setState({ wifiOnly: !s.wifiOnly }),
+      downloadedAlbums,
+
+      signOut: () => this.setState({ screen:'onboarding', tab:'home', detail:null, serverUrl:'', username:'', password:'' }),
+      gaplessBg: s.gapless ? 'oklch(70% 0.19 29)' : 'var(--track-off)', gaplessPos: s.gapless?20:2,
+      toggleGapless: () => this.setState({ gapless: !s.gapless }),
+      replayGainBg: s.replayGain ? 'oklch(70% 0.19 29)' : 'var(--track-off)', replayGainPos: s.replayGain?20:2,
+      toggleReplayGain: () => this.setState({ replayGain: !s.replayGain }),
+      themeDarkBg: s.theme==='dark' ? 'oklch(70% 0.19 29)' : 'transparent',
+      themeLightBg: s.theme==='light' ? 'oklch(70% 0.19 29)' : 'transparent',
+      themeAutoBg: s.theme==='auto' ? 'oklch(70% 0.19 29)' : 'transparent',
+      setThemeDark: () => this.setState({ theme:'dark' }), setThemeLight: () => this.setState({ theme:'light' }), setThemeAuto: () => this.setState({ theme:'auto' }),
+      clearCache: () => {}, cacheLabel: '1.2 GB',
+
+      showDetail: !!s.detail, closeDetail: () => this.setState({ detail: null }),
+      isAlbumDetail: !!detailAlbum, isArtistDetail: !!detailArtist, isPlaylistDetail: !!detailPlaylist,
+      detailAlbum: detailAlbum || {}, detailArtist: detailArtist || {}, detailPlaylist: detailPlaylist || {},
+      bioClamp: s.bioExpanded ? '' : 'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden',
+      bioToggleLabel: s.bioExpanded ? 'Show Less' : 'Read More',
+      toggleBio: () => this.setState({ bioExpanded: !s.bioExpanded }),
+
+      tabs, progressPercent, nowPlayingBg,
+      lyricsOpen: s.lyricsOpen, lyricsClosed: !s.lyricsOpen, lyricsLines,
+      toggleLyrics: () => this.setState({ lyricsOpen: !s.lyricsOpen }), lyricsColor: s.lyricsOpen ? 'oklch(70% 0.19 29)' : 'rgba(255,255,255,0.6)',
+      togglePlay: () => this.setState({ isPlaying: !s.isPlaying }),
+      prevTrack: () => this.goPrev(), nextTrack: () => this.goNext(),
+      toggleShuffle: () => this.setState({ isShuffled: !s.isShuffled }), shuffleColor: s.isShuffled ? 'oklch(70% 0.19 29)' : 'rgba(255,255,255,0.85)',
+      cycleRepeat: () => this.setState({ repeatMode: s.repeatMode==='off' ? 'all' : s.repeatMode==='all' ? 'one' : 'off' }),
+      repeatColor: s.repeatMode!=='off' ? 'oklch(70% 0.19 29)' : 'rgba(255,255,255,0.85)', repeatIsOne: s.repeatMode==='one',
+      elapsedLabel: fmtTime(s.elapsed), remainingLabel: currentTrackRaw ? '-'+fmtTime(currentTrackRaw.duration - s.elapsed) : '0:00',
+      seekFromClick: (e) => { if(!currentTrackRaw) return; const rect = e.currentTarget.getBoundingClientRect(); const pct = (e.clientX-rect.left)/rect.width; this.setState({ elapsed: Math.max(0,Math.min(currentTrackRaw.duration, pct*currentTrackRaw.duration)) }); },
+      currentTrackFavFill: currentTrackRaw && s.favTracks.has(currentTrackRaw.id) ? 'oklch(70% 0.19 29)' : 'none',
+      toggleFavCurrent: () => { if(!currentTrackRaw) return; const set=new Set(s.favTracks); set.has(currentTrackRaw.id)?set.delete(currentTrackRaw.id):set.add(currentTrackRaw.id); this.setState({favTracks:set}); },
+
+      openQueue: () => this.setState({ queueOpen: true }), closeQueue: () => this.setState({ queueOpen: false }), showQueue: s.queueOpen,
+      upcomingEntries, queueEmpty: !upcomingEntries.length,
+      clearQueue: () => this.setState({ queue: s.queue.slice(0, s.currentIndex+1) }),
+      saveQueueAsPlaylist: () => {},
+    };
+  }
+}
+</script>
+</body>
+</html>

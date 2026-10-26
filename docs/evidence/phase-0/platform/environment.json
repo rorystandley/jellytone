@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "proofId": "phase0-platform-environment",
+  "capturedAt": "2026-07-16T11:35:19Z",
+  "command": "tools/phase0/probe-environment.sh docs/evidence/phase-0/platform/environment.json",
+  "environment": {
+    "hostOS": "26.5.2",
+    "xcode": "Xcode 26.6 Build version 17F113",
+    "swift": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)"
+  },
+  "owner": {
+    "phase": "Phase 0",
+    "workstream": "platform"
+  },
+  "status": "pass",
+  "limitations": [
+    "Environment discovery proves tool and dependency presence only; it does not prove runtime capabilities."
+  ],
+  "checks": [
+    {
+      "id": "simulator-discovery",
+      "status": "pass",
+      "facts": {
+        "availableCount": 23,
+        "runtimes": [
+          {
+            "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+            "count": 11
+          },
+          {
+            "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-26-2",
+            "count": 12
+          }
+        ]
+      },
+      "limitations": []
+    },
+    {
+      "id": "attached-device-discovery",
+      "status": "pass",
+      "facts": {
+        "attachedCount": 1,
+        "devices": [
+          {
+            "model": "iPhone 13",
+            "platform": "iOS",
+            "osVersion": "26.5.2",
+            "developerMode": "enabled",
+            "pairingState": "paired"
+          }
+        ]
+      },
+      "limitations": [
+        "Discovery does not prove install, launch, background execution, routes, or endurance."
+      ]
+    },
+    {
+      "id": "code-signing-identities",
+      "status": "pass",
+      "facts": {
+        "developmentIdentityCount": 1,
+        "distributionIdentityCount": 1,
+        "developerIdIdentityCount": 1
+      },
+      "limitations": [
+        "Identity presence does not prove an App ID, provisioning profile, or managed entitlement."
+      ]
+    },
+    {
+      "id": "container-runtime",
+      "status": "pass",
+      "facts": {
+        "engineVersion": "29.5.3",
+        "os": "linux",
+        "architecture": "arm64"
+      },
+      "limitations": []
+    }
+  ],
+  "privacy": {
+    "redacted": true,
+    "committedEvidenceContainsSecrets": false,
+    "privateServerDataPersisted": false,
+    "omitted": [
+      "device names",
+      "device identifiers",
+      "serial numbers",
+      "certificate subjects",
+      "certificate hashes",
+      "server addresses other than loopback"
+    ]
+  }
+}

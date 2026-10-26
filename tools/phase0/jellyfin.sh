@@ -1,0 +1,166 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
+INFRA="$ROOT/infra/jellyfin"
+COMPOSE="$INFRA/compose.yml"
+VERSIONS="$INFRA/versions.env"
+STATE="$INFRA/.state"
+
+command -v docker >/dev/null 2>&1 || {
+  echo "Docker CLI is required" >&2
+  exit 2
+}
+
+compose() {
+  docker compose --env-file "$VERSIONS" -f "$COMPOSE" "$@"
+}
+
+retry_request() {
+  name=$1
+  endpoint=$2
+  shift 2
+  attempts=0
+  until response=$("$@" 2>/dev/null); do
+    attempts=$((attempts + 1))
+    if [ "$attempts" -ge 90 ]; then
+      echo "$name request did not become ready: $endpoint" >&2
+      compose logs --tail 80 "$name" >&2 || true
+      return 1
+    fi
+    sleep 2
+  done
+  printf '%s' "$response"
+}
+
+wait_for_server() {
+  name=$1
+  url=$2
+  retry_request "$name" "GET /System/Info/Public" \
+    curl --fail --silent --show-error --max-time 5 "$url/System/Info/Public"
+}
+
+wait_for_setup_user() {
+  name=$1
+  url=$2
+  retry_request "$name" "GET /Startup/User" \
+    curl --fail --silent --show-error --max-time 5 "$url/Startup/User"
+}
+
+setup_server() {
+  name=$1
+  url=$2
+  public_info=$(wait_for_server "$name" "$url")
+  wizard_completed=$(printf '%s' "$public_info" | jq -r '.StartupWizardCompleted')
+  if [ "$wizard_completed" = "true" ]; then
+    return 0
+  fi
+
+  retry_request "$name" "POST /Startup/Configuration" \
+    curl --fail --silent --show-error --max-time 5 -X POST \
+    -H 'Content-Type: application/json' \
+    -d '{"UICulture":"en-US","MetadataCountryCode":"GB","PreferredMetadataLanguage":"en"}' \
+    "$url/Startup/Configuration" >/dev/null
+  password=$(uuidgen | tr '[:upper:]' '[:lower:]')
+  # Public Info can become available before the startup endpoints accept
+  # requests. Wait for the endpoint required by the next mutation instead of
+  # treating an early 503 as a permanent provisioning failure.
+  startup_user=$(wait_for_setup_user "$name" "$url")
+  username=$(printf '%s' "$startup_user" | jq -er '.Name')
+  credential_file="$STATE/$name/fixture-password"
+  (umask 077 && printf '%s' "$password" > "$credential_file")
+
+  retry_request "$name" "POST /Startup/User" \
+    curl --fail --silent --show-error --max-time 5 -X POST \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -n --arg name "$username" --arg password "$password" '{Name:$name,Password:$password}')" \
+    "$url/Startup/User" >/dev/null
+  retry_request "$name" "POST /Startup/RemoteAccess" \
+    curl --fail --silent --show-error --max-time 5 -X POST \
+    -H 'Content-Type: application/json' \
+    -d '{"EnableRemoteAccess":false,"EnableAutomaticPortMapping":false}' \
+    "$url/Startup/RemoteAccess" >/dev/null
+  retry_request "$name" "POST /Startup/Complete" \
+    curl --fail --silent --show-error --max-time 5 -X POST "$url/Startup/Complete" >/dev/null
+
+  auth=$(retry_request "$name" "POST /Users/AuthenticateByName" \
+    curl --fail --silent --show-error --max-time 5 -X POST \
+    -H 'Content-Type: application/json' \
+    -H 'X-Emby-Authorization: MediaBrowser Client="Phase0Fixture", Device="Automation", DeviceId="phase0-fixture", Version="1"' \
+    -d "$(jq -n --arg name "$username" --arg password "$password" '{Username:$name,Pw:$password}')" \
+    "$url/Users/AuthenticateByName")
+  token=$(printf '%s' "$auth" | jq -er '.AccessToken')
+
+  # The token exists only in this process and is never printed or persisted.
+  retry_request "$name" "POST /Library/VirtualFolders" \
+    curl --fail --silent --show-error --max-time 5 -X POST \
+    -H "X-Emby-Token: $token" \
+    --get --data-urlencode 'name=Synthetic Music' \
+    --data-urlencode 'collectionType=music' \
+    --data-urlencode 'paths=/media' \
+    "$url/Library/VirtualFolders" >/dev/null
+}
+
+verify_server() {
+  name=$1
+  url=$2
+  expected=$3
+  info=$(wait_for_server "$name" "$url")
+  actual=$(printf '%s' "$info" | jq -r '.Version')
+  wizard=$(printf '%s' "$info" | jq -r '.StartupWizardCompleted')
+  test "$actual" = "$expected" || {
+    echo "$name version mismatch: expected $expected, found $actual" >&2
+    return 1
+  }
+  test "$wizard" = "true" || {
+    echo "$name startup wizard is incomplete" >&2
+    return 1
+  }
+  echo "$name: Jellyfin $actual ready at $url"
+}
+
+# shellcheck disable=SC1090
+# The version file is repository-controlled data.
+. "$VERSIONS"
+
+case "${1:-}" in
+  reset)
+    compose down --remove-orphans
+    mkdir -p "$STATE"
+    find "$STATE" -mindepth 1 -delete
+    "$ROOT/tools/fixtures/generate-library.sh" "$STATE/media"
+    mkdir -p "$STATE/current/config" "$STATE/current/cache" \
+      "$STATE/previous/config" "$STATE/previous/cache"
+    compose up -d
+    setup_server current http://127.0.0.1:18096
+    setup_server previous http://127.0.0.1:18097
+    "$0" verify
+    ;;
+  up)
+    if [ -d "$STATE/media" ]; then
+      "$ROOT/tools/fixtures/verify-library.sh" "$STATE/media"
+    else
+      "$ROOT/tools/fixtures/generate-library.sh" "$STATE/media"
+    fi
+    mkdir -p "$STATE/current/config" "$STATE/current/cache" \
+      "$STATE/previous/config" "$STATE/previous/cache"
+    compose up -d
+    setup_server current http://127.0.0.1:18096
+    setup_server previous http://127.0.0.1:18097
+    "$0" verify
+    ;;
+  verify)
+    verify_server current http://127.0.0.1:18096 "$JELLYFIN_CURRENT_VERSION"
+    verify_server previous http://127.0.0.1:18097 "$JELLYFIN_PREVIOUS_VERSION"
+    ;;
+  status)
+    compose ps
+    ;;
+  down)
+    compose down --remove-orphans
+    ;;
+  *)
+    echo "usage: $0 {reset|up|verify|status|down}" >&2
+    exit 2
+    ;;
+esac

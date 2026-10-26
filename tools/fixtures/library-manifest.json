@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "generatorVersion": 1,
+  "clock": "2026-01-01T00:00:00Z",
+  "sampleRate": 48000,
+  "durationSeconds": 1,
+  "tracks": [
+    {"path":"Single Disc/01 Deterministic Pulse.flac","codec":"flac","frequency":220,"title":"Deterministic Pulse","album":"Single Disc","artist":"Fixture Artist","albumArtist":"Fixture Artist","disc":1,"track":1},
+    {"path":"Multi Disc/CD1/01 First Disc.flac","codec":"flac","frequency":330,"title":"First Disc","album":"Multi Disc","artist":"Fixture Artist","albumArtist":"Fixture Artist","disc":1,"track":1},
+    {"path":"Multi Disc/CD2/01 Second Disc.flac","codec":"flac","frequency":440,"title":"Second Disc","album":"Multi Disc","artist":"Fixture Artist","albumArtist":"Fixture Artist","disc":2,"track":1},
+    {"path":"Compilation/01 Alpha.mp3","codec":"mp3","frequency":550,"title":"Alpha","album":"Compilation","artist":"Alpha Artist","albumArtist":"Various Artists","disc":1,"track":1},
+    {"path":"Compilation/02 Beta.m4a","codec":"aac","frequency":660,"title":"Beta","album":"Compilation","artist":"Beta Artist","albumArtist":"Various Artists","disc":1,"track":2},
+    {"path":"Missing Artwork/01 No Cover.ogg","codec":"vorbis","frequency":770,"title":"No Cover","album":"Missing Artwork","artist":"Fixture Artist","albumArtist":"Fixture Artist","disc":1,"track":1},
+    {"path":"Malformed Metadata/00 Untitled.opus","codec":"opus","frequency":880,"title":"","album":"","artist":"","albumArtist":"","disc":0,"track":0},
+    {"path":"Format Matrix/01 MP3.mp3","codec":"mp3","frequency":240,"title":"MP3","album":"Format Matrix","artist":"Fixture Artist","albumArtist":"Fixture Artist","disc":1,"track":1},
+    {"path":"Format Matrix/02 AAC.m4a","codec":"aac","frequency":360,"title":"AAC","album":"Format Matrix","artist":"Fixture Artist","albumArtist":"Fixture Artist","disc":1,"track":2},
+    {"path":"Format Matrix/03 ALAC.m4a","codec":"alac","frequency":480,"title":"ALAC","album":"Format Matrix","artist":"Fixture Artist","albumArtist":"Fixture Artist","disc":1,"track":3},
+    {"path":"Format Matrix/04 FLAC.flac","codec":"flac","frequency":600,"title":"FLAC","album":"Format Matrix","artist":"Fixture Artist","albumArtist":"Fixture Artist","disc":1,"track":4},
+    {"path":"Format Matrix/05 Vorbis.ogg","codec":"vorbis","frequency":720,"title":"Vorbis","album":"Format Matrix","artist":"Fixture Artist","albumArtist":"Fixture Artist","disc":1,"track":5},
+    {"path":"Format Matrix/06 Opus.opus","codec":"opus","frequency":840,"title":"Opus","album":"Format Matrix","artist":"Fixture Artist","albumArtist":"Fixture Artist","disc":1,"track":6}
+  ]
+}

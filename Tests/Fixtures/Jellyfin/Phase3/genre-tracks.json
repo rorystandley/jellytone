@@ -1,0 +1,53 @@
+{
+  "Items": [
+    {
+      "Id": "track-a",
+      "Name": "First",
+      "Type": "Audio",
+      "Artists": ["Artist A"],
+      "Album": "Album A",
+      "AlbumId": "album-a",
+      "ParentIndexNumber": 1,
+      "IndexNumber": 1,
+      "RunTimeTicks": 10000000
+    },
+    31,
+    {
+      "Id": "track-duplicate",
+      "Name": "Repeated Track",
+      "Type": "Audio",
+      "Artists": ["Repeat Artist"],
+      "Album": "Repeat Album",
+      "AlbumId": "album-repeat",
+      "ParentIndexNumber": 1,
+      "IndexNumber": 2
+    },
+    {
+      "Id": "track-duplicate",
+      "Name": "Repeated Track",
+      "Type": "Audio",
+      "Artists": ["Repeat Artist"],
+      "Album": "Repeat Album",
+      "AlbumId": "album-repeat",
+      "ParentIndexNumber": 1,
+      "IndexNumber": 2
+    },
+    { "Id": "video-a", "Name": "Not Audio", "Type": "Video" },
+    { "Name": "Missing identity", "Type": "Audio" },
+    {
+      "Id": "track-unicode",
+      "Name": "Café Finale 東京",
+      "Type": "Audio",
+      "AlbumArtist": "Unicode Artist",
+      "RunTimeTicks": "invalid",
+      "IndexNumber": "invalid"
+    },
+    {
+      "Id": "track-legacy",
+      "Name": "Legacy Audio",
+      "Album": 99,
+      "Artists": "invalid"
+    }
+  ],
+  "TotalRecordCount": 8
+}

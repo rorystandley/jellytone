@@ -1,0 +1,203 @@
+import XCTest
+
+@MainActor
+final class ConnectionScreenUITests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        XCUIDevice.shared.orientation = .portrait
+    }
+
+    func testMiniPlayerKeepsEveryPrimaryTabReachable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell"]
+        app.launch()
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 5))
+        XCTAssertTrue(tabBar.buttons["Home"].exists)
+        XCTAssertTrue(tabBar.buttons["Library"].exists)
+        XCTAssertTrue(tabBar.buttons["Search"].exists)
+        XCTAssertTrue(app.staticTexts["Visible Mini Player"].exists)
+
+        tabBar.buttons["Search"].tap()
+        XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Search your music"].exists)
+        // The search-role tab collapses the remaining tabs into a single
+        // button while Search is active; tapping it must restore the full
+        // tab bar so every primary tab stays reachable.
+        let collapsedTabs = tabBar.buttons["Home"]
+        XCTAssertTrue(collapsedTabs.exists)
+        collapsedTabs.tap()
+        XCTAssertTrue(tabBar.buttons["Library"].waitForExistence(timeout: 2))
+        XCTAssertTrue(tabBar.buttons["Search"].exists)
+    }
+
+    func testQueueProtectsCurrentTrackAndClearUpNextKeepsItVisible() {
+        let app = XCUIApplication()
+        XCUIDevice.shared.orientation = .portrait
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell"]
+        app.launch()
+
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        app.buttons["show-queue"].tap()
+        XCTAssertTrue(app.navigationBars["Queue"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Visible Mini Player"].exists)
+        XCTAssertTrue(app.buttons["Play First Up Next by Synthetic Artist"].exists)
+        XCTAssertTrue(app.buttons["Play Second Up Next by Synthetic Artist"].exists)
+
+        app.buttons["Clear Up Next"].tap()
+        XCTAssertTrue(app.staticTexts["Visible Mini Player"].exists)
+        XCTAssertTrue(app.staticTexts["Nothing Up Next"].exists)
+        XCTAssertFalse(app.buttons["Clear Up Next"].exists)
+    }
+
+    func testLyricsToggleAppearsAndSwitchesTheNowPlayingArtwork() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-player-lyrics"]
+        app.launch()
+
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        let toggle = app.buttons["now-playing-lyrics-toggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        toggle.tap()
+        XCTAssertTrue(app.staticTexts["Synthetic opening line"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["The chorus arrives now"].exists)
+    }
+
+    func testVinylToggleSwitchesNowPlayingArtworkToCircularDisc() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-player-artwork"]
+        app.launch()
+
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        let toggle = app.buttons["now-playing-vinyl-toggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertEqual(toggle.value as? String, "Square")
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "Vinyl")
+        XCTAssertTrue(app.descendants(matching: .any)["now-playing-vinyl-disc"].waitForExistence(timeout: 3))
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "Square")
+        XCTAssertFalse(app.descendants(matching: .any)["now-playing-vinyl-disc"].exists)
+    }
+
+    func testRestoredPlaybackPositionDrivesNowPlayingPresentation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-restored-playback"]
+        app.launch()
+
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["1:13"].exists)
+        XCTAssertTrue(app.staticTexts["−1:47"].exists)
+        XCTAssertTrue(app.buttons["Play"].exists)
+    }
+
+    func testPlayerFixturesExposeArtworkPlaybackAndAccessibleControls() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-player-artwork", "--ui-testing-player-playing"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Pause"].waitForExistence(timeout: 3))
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Pause"].exists)
+        XCTAssertEqual(app.buttons["Enable shuffle"].value as? String, "Off")
+        XCTAssertTrue(app.buttons["show-queue"].isHittable)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "now-playing-artwork"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    func testPlayerLongMetadataAndPreparingStateKeepControlsAvailable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-player-long-unicode", "--ui-testing-player-preparing", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["夜明けの街で聴く A deliberately very long song title that should remain readable"].waitForExistence(timeout: 3))
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 3))
+        // Silent buffering: primary transport stays available (no spinner takeover).
+        XCTAssertTrue(app.buttons["Play"].waitForExistence(timeout: 3) || app.buttons["Pause"].waitForExistence(timeout: 3))
+        // Preparing is announced accessibly via a subtle indicator, not a blocking label.
+        let preparing = app.descendants(matching: .any)["preparing-playback"]
+        XCTAssertTrue(preparing.waitForExistence(timeout: 3))
+        for _ in 0..<3 where !app.buttons["show-queue"].isHittable { app.swipeUp() }
+        XCTAssertTrue(app.buttons["show-queue"].isHittable)
+    }
+
+    func testPlaybackFailureIsActionableAndDoesNotHideShell() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell", "--ui-testing-player-failure"]
+        app.launch()
+
+        XCTAssertTrue(app.alerts["Something went wrong"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Playback could not continue. Try another track."].exists)
+        app.buttons["OK"].tap()
+        XCTAssertTrue(app.buttons["mini-player-details"].exists)
+    }
+
+    func testNowPlayingArtistAndAlbumOpenTheSpecificLibraryItems() {
+        var app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell"]
+        app.launch()
+
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+
+        let artist = app.descendants(matching: .any)["now-playing-artist"]
+        XCTAssertTrue(artist.waitForExistence(timeout: 3))
+        artist.tap()
+        XCTAssertTrue(app.navigationBars["Synthetic Artist"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Top Songs"].waitForExistence(timeout: 4))
+        let artistAlbum = app.descendants(matching: .any)["artist-album-album-artwork"]
+        for _ in 0..<6 where !artistAlbum.isHittable { app.swipeUp() }
+        XCTAssertTrue(artistAlbum.waitForExistence(timeout: 4))
+        artistAlbum.tap()
+        XCTAssertTrue(app.navigationBars["Aurora Lines"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["album-play-all"].waitForExistence(timeout: 4))
+        app.terminate()
+
+        app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-music-shell"]
+        app.launch()
+        app.buttons["mini-player-details"].tap()
+        XCTAssertTrue(app.navigationBars["Now Playing"].waitForExistence(timeout: 3))
+        let album = app.descendants(matching: .any)["now-playing-album"]
+        XCTAssertTrue(album.waitForExistence(timeout: 3))
+        album.tap()
+        XCTAssertTrue(app.navigationBars["Synthetic Album"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["album-play-all"].waitForExistence(timeout: 4))
+    }
+
+    func testColdLaunchShowsConnectionForm() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Jellytone"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["https://jellyfin.example.com"].exists)
+        XCTAssertTrue(app.buttons["Connect"].exists)
+    }
+
+    func testHTTPRequiresExplicitTailscaleConfirmation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+
+        let server = app.textFields["https://jellyfin.example.com"]
+        server.tap()
+        server.typeText("http://music.example.ts.net:8096")
+        app.textFields["Username"].tap()
+        app.textFields["Username"].typeText("listener")
+        app.secureTextFields["Password"].tap()
+        app.secureTextFields["Password"].typeText("synthetic-password")
+        app.buttons["Connect"].tap()
+
+        XCTAssertTrue(app.alerts["HTTP is not encrypted"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Connect over Tailscale"].exists)
+    }
+}
