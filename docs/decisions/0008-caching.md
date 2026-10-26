@@ -11,7 +11,7 @@ or mixing accounts. Offline-authoritative assets must not be evicted as cache.
 ## Alternatives
 
 - One database/blob cache: simple addressing but large migrations and poor file
-  lifecycle behavior.
+  lifecycle behaviour.
 - SQLite metadata plus content-addressed files: transactional references with
   efficient filesystem storage.
 - URLCache only: insufficient ownership, offline policy, and diagnostics.
@@ -51,16 +51,16 @@ directory under storage pressure.
 Not yet implemented from the decision above: budgeted LRU eviction, digests and
 byte-count verification, SQLite asset references, per-account (rather than
 per-server) namespaces, and offline pinning. Lyrics are now fetched live from
-`GET /Audio/{id}/Lyrics` (per-line timing at most — Jellyfin exposes no
+`GET /Audio/{id}/Lyrics` (per-line timing at most: Jellyfin exposes no
 per-word timing) and cached in-memory for the session, but not yet persisted to
-disk as content-addressed assets. Detail metadata snapshots (album tracks,
-playlist entries — `detail_track_snapshots`, migration 007) and ordered album
+disk as content-addressed assets. Detail metadata snapshots (album tracks and
+playlist entries: `detail_track_snapshots`, migration 007) and ordered album
 pages (`sort_index`, migration 006) landed in SQLite per the decision.
 
 `RecentAudioCache` is an LRU of original-container audio in the system Caches
 directory (default ~2 GB). Tracks the user has opened (album, playlist, queue,
 Home recently played, …) are enqueued for fetch so the next play starts from
-disk. Playback of a cache hit is immediate — the Jellyfin play session is
+disk. Playback of a cache hit is immediate. The Jellyfin play session is
 attached afterwards for reporting. Files are OS-evictable, unverified, and
 never presented as offline-capable; a miss (or a corrupt file) streams. Distinct
 from the download manifest of ADR 0009.

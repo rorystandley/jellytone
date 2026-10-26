@@ -5,12 +5,11 @@ Last updated: 2026-07-18
 
 ## Product decision
 
-Ship a premium personal Jellyfin music player for one server and one active
-account. Version 1.0 must do the everyday job exceptionally well: connect, find
-music, play it reliably, manage a queue, recover from ordinary failures, and
-feel as deliberate and polished as a leading commercial music app.
+Ship a personal Jellyfin music player for one server and one active
+account. Version 1.0 has to connect, find music, play it reliably, manage a
+queue, and recover from ordinary failures without looking unfinished.
 
-“Spotify-level” is the quality bar for interface and interaction, not a request
+Interface and interaction set the quality bar. That is not a request
 to reproduce Spotify's feature inventory. Offline, automation, multiple servers,
 CarPlay, and other ecosystem ideas remain possible future work, but they are not
 1.0 acceptance criteria.
@@ -48,9 +47,9 @@ and entering another URL is sufficient.
 Advanced sort/filter modes, alphabetical navigation, playlist creation and
 membership editing, artist/album favourite writes, and downloads are deferred.
 Home Listen Now discovery mixes (Instant Mix), frequently played albums,
-rediscover, and genre chips are in scope — they reuse existing Jellyfin item
+rediscover, and genre chips are in scope. They reuse existing Jellyfin item
 queries rather than a recommendation service. Existing track favourite and
-playlist rename writes may ship when their retry/conflict behavior remains
+playlist rename writes may ship when their retry/conflict behaviour remains
 proven, but are not a reason to broaden the release.
 
 ### Playback
@@ -69,10 +68,11 @@ proven, but are not a reason to broaden the release.
 Gapless playback, crossfade, sleep timer, lyrics, quality settings, downloads,
 CarPlay, Siri, widgets, and advanced technical playback UI are deferred.
 
-### Premium interface and interaction
+### Interface and interaction
 
 - Artwork is the visual anchor across Home, Library, Search, mini-player, and
-  Now Playing, with intentional gradients and high-quality missing-art fallbacks.
+  Now Playing, with intentional gradients and missing-art fallbacks that follow
+  the same visual system.
 - Typography, hierarchy, spacing, corner radii, colour, materials, and icon use
   form one restrained visual system rather than per-screen styling.
 - Mini-player and Now Playing transitions feel continuous; transport, queue,
@@ -90,8 +90,8 @@ CarPlay, Siri, widgets, and advanced technical playback UI are deferred.
   artwork, loading, content, empty, and error states.
 
 Visual similarity to Spotify is not the acceptance test. The test is whether the
-app has a coherent premium identity, clear state, fast interaction, excellent
-music-focused hierarchy, and no visibly unfinished primary flow.
+app has one visual system, clear state, fast interaction, a music-focused
+hierarchy, and no visibly unfinished primary flow.
 
 ### Native quality and local release
 
@@ -99,7 +99,7 @@ music-focused hierarchy, and no visibly unfinished primary flow.
 - Primary flows work in light/dark appearance, large Dynamic Type, VoiceOver,
   Reduce Motion, and missing-artwork states.
 - Warm cached content appears promptly and large libraries remain bounded by
-  pagination and measured storage/search behavior.
+  pagination and measured storage/search behaviour.
 - No secrets, authenticated URLs, server addresses, usernames, or library
   content enter committed fixtures or persisted diagnostics.
 - A clean checkout can bootstrap, run deterministic tests, and produce an
@@ -134,7 +134,7 @@ agent-operated evidence.
 ### Gate B: connected playback
 
 - [x] Queue and position restore after termination.
-- [x] Disposable servers record ordered start/progress/pause/stop behavior and
+- [x] Disposable servers record ordered start/progress/pause/stop behaviour and
   forced AAC fallback on Jellyfin 10.10.7 and 10.11.11.
 - [x] App playback state drives system Now Playing and remote commands.
 - [ ] An agent-operated device run proves audible start, pause, resume, seek,
@@ -148,7 +148,7 @@ agent-operated evidence.
   duplicate identity/display names, Unicode, and malformed metadata.
 - [ ] Every primary destination has passing compact/regular UI and accessibility
   coverage; the UI test runner must complete rather than merely compile.
-- [ ] Deterministic screenshot coverage and agent inspection prove the premium
+- [ ] Deterministic screenshot coverage and agent inspection prove the
   interface contract across content, loading, empty, error, large-text,
   light/dark, iPhone, and iPad states.
 - [ ] Existing writes have complete success, retry, conflict, authentication,
@@ -167,14 +167,14 @@ agent-operated evidence.
 ## Delivery order
 
 `docs/NEXT_WORK.md` is the only live work queue. Prefer release-risk removal and
-premium interaction quality over feature count: write-surface honesty, reliable
+interaction quality over feature count: write-surface honesty, reliable
 gates, a coherent visual-system pass, device playback, then a personal release
 candidate. Do not reopen deferred scope until these gates pass or the product
 owner explicitly changes this contract.
 
 ## Definition of done
 
-A release row is done only when behavior, deterministic tests, UI/accessibility
+A release row is done only when behaviour, deterministic tests, UI/accessibility
 evidence, diagnostics/privacy, documentation, and the relevant full repository
 gate agree. Compile-only success, subjective inspection, and promised human QA
 are insufficient. Missing hardware, credentials, signing, or services remain

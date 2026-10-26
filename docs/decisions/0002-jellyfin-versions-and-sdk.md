@@ -54,7 +54,7 @@ Primary sources:
 
 ## Consequences
 
-The dependency is reproducible and base-path behavior includes the official 2.1.0
+The dependency is reproducible and base-path behaviour includes the official 2.1.0
 fix. Supporting 10.10 requires explicit tests because the selected SDK was generated
 from a newer specification. A newly released Jellyfin server or SDK does not change
 the compatibility claim automatically.

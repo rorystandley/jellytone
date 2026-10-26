@@ -138,7 +138,7 @@ the saved position but never auto-plays. Queue edits preserve per-occurrence
 identity, including duplicate tracks.
 
 Direct Play is preferred when compatible; a single-stream AAC-in-MP4 transcode
-is the current safe fallback. Unsupported gapless/crossfade behavior is an
+is the current safe fallback. Unsupported gapless/crossfade behaviour is an
 ordinary diagnosable hard cut, not a release claim.
 
 ### Durable writes
@@ -169,13 +169,13 @@ If those conditions are not met, remove or hide the write UI for the release.
 - Pure unit/property tests for domain, queue, restoration, reconciliation, and
   failure classification.
 - Synthetic mapping/persistence fixtures for malformed and adversarial metadata.
-- Disposable Jellyfin 10.10.7 and 10.11.11 contracts for real request behavior.
+- Disposable Jellyfin 10.10.7 and 10.11.11 contracts for real request behaviour.
 - UI/accessibility tests for primary destinations and failure recovery.
 - Simulator tests for representative app integration.
-- Physical-device evidence for audible/background/route behavior.
+- Physical-device evidence for audible/background/route behaviour.
 
 The stable gate scripts are listed in `AGENTS.md`. A test-runner crash is a gate
-failure even when the app compiles. Hardware-only behavior remains blocked until
+failure even when the app compiles. Hardware-only behaviour remains blocked until
 an agent can execute and capture it.
 
 ## Durable decisions

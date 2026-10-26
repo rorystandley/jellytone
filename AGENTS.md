@@ -1,4 +1,4 @@
-# Jellytone — Agent Instructions & Design Brief
+# Jellytone agent instructions
 
 ## Project
 Native iOS music client for a single Jellyfin server.
@@ -17,28 +17,27 @@ Cache-first browse. Fail-closed TLS. No wire types outside the gateway.
 Downloads verified via manifest; playback prefers local URL when verified.
 
 ## Goal
-Premium connected music player with **Apple Music–level** visual and interaction quality
-(Spotify-level where it helps). Not feature parity with every Jellyfin client — quality of the primary surfaces first.
+Aim at the care of Apple Music, and of Spotify where that is the better pattern. Do the main screens well before chasing every Jellyfin feature.
 
 ## Target Information Architecture (Apple Music model)
 - Tab Bar:
   - Home (Listen Now style)
   - Browse or Library (hierarchical)
   - Search
-  - (Downloads can stay as tab or move under Library — decide for consistency)
+  - Downloads can stay a tab or move under Library. Pick one and use it everywhere.
 - Persistent MiniPlayer above the tab bar when playing (iOS 26 tabViewBottomAccessory preferred)
 - Full-screen Now Playing that feels continuous with the MiniPlayer (expand/collapse, shared materials), not a disconnected sheet
 - Hierarchical push for Album / Artist / Playlist / Genre detail
 - Library categories: Playlists, Artists, Albums, Songs, Genres, Favourites, Downloads
 
 ## Priority Order (do not skip ahead without reason)
-1. ~~Unify design system~~ — done: sole system is JellytoneTheme / `jt*` (`Theme.swift` + `Haptics.swift`). Do not reintroduce a parallel design layer.
-2. Now Playing as primary surface — continuous expand from MiniPlayer, richer queue, silent prep (no “Preparing…” spinners)
-3. Search to Apple Music level — Top Results, Songs, Albums, Artists, Playlists; rich rows; useful idle state
-4. Library IA pass — dedicated Albums, denser lists/grids, consistent state chrome
-5. Loading consistency — skeletons everywhere primary content appears; cache-first; no layout jumps
-6. Connection / first-run polish
-7. Optional later: widgets, Live Activities, CarPlay (per ADR 0011)
+1. The design system is unified. The sole system is JellytoneTheme / `jt*` (`Theme.swift` + `Haptics.swift`). Do not reintroduce a parallel design layer.
+2. Now Playing opens by expanding continuously from the MiniPlayer, with a queue you can edit, and silent prep (no “Preparing…” spinners).
+3. Search lists Top Results, Songs, Albums, Artists, and Playlists, with detailed rows and a useful idle state.
+4. Library IA: dedicated Albums, denser lists and grids, and consistent state chrome.
+5. Loading consistency: skeletons everywhere primary content appears, cache-first, and no layout jumps.
+6. Connection and first-run pass.
+7. Optional later: widgets, Live Activities, CarPlay (per ADR 0011).
 
 ## UI & Loading Rules
 - One design system only: JellytoneTheme / jt* tokens.

@@ -55,7 +55,7 @@ Primary sources:
 - Disable implicit redirects for authentication and authenticated requests.
 - Block HTTPS-to-HTTP downgrade redirects.
 - A same-origin redirect is reconstructed by the gateway; credentials are never
-  left to framework redirect behavior.
+  left to framework redirect behaviour.
 - A changed-origin destination is probed without credentials. Reissue an
   authenticated request only after the destination proves the same server ID.
 - Password login posts the password only after TLS/HTTP policy and identity checks;
@@ -80,7 +80,7 @@ Primary sources:
   change. Phase 1 must implement and device-test this classifier before HTTP ships.
 - Proposed ATS configuration is `NSAllowsLocalNetworking = YES`, never
   `NSAllowsArbitraryLoads` and never a media-wide exception. Phase 1 must prove the
-  exact iOS 18.4 behavior with `nscurl`, `URLSession`, IPv4, IPv6, `.local`, and a
+  exact iOS 18.4 behaviour with `nscurl`, `URLSession`, IPv4, IPv6, `.local`, and a
   physical device before finalizing project configuration.
 - The Minimum Working App adds an `NSExceptionDomains` entry limited to `ts.net`
   subdomains because ATS does not classify fully qualified Tailscale MagicDNS names
@@ -99,7 +99,7 @@ authenticated media URL. Phase 0 live-contract evidence uses the common evidence
 envelope and scans the complete JSON output against the actual process-local
 credentials, endpoints, and identities before emitting it. Its privacy claim is
 limited to the committed report sink; it is not evidence of memory erasure or
-Keychain behavior.
+Keychain behaviour.
 
 ## Consequences
 
@@ -138,7 +138,7 @@ passed. Host redirect-proxy, TLS
 validation/failure, dual-stack loopback, discovery-protocol shape, `.local` resolver,
 and disposable-server restart proofs now pass. Physical-device ATS and Local Network
 permission, real-subnet discovery, MagicDNS, Serve HTTPS, VPN loss, and cellular-route
-behavior remain open. A signed isolated connectivity harness now builds with the narrow
+behaviour remain open. A signed isolated connectivity harness now builds with the narrow
 `NSAllowsLocalNetworking` key, installs on the paired iPhone 13, and contains no
 broad ATS override. Its latest launch was rejected because the device was locked,
 so no physical-device ATS result exists. This host has no Tailscale CLI or connected

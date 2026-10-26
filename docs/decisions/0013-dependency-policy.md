@@ -29,7 +29,7 @@ letting generated or vendor models cross architecture boundaries.
   declarative dependency source and `Package.resolved`; cache archives remain
   derived and ignored.
 - Before addition, record licence, source/binary composition, maintenance and
-  release history, minimum platform, privacy/network behavior, transitive
+  release history, minimum platform, privacy/network behaviour, transitive
   packages, replacement boundary, and rollback path.
 - Keep every dependency behind an application-owned protocol or adapter.
   Generated Jellyfin models stay in `JellyfinGateway`; GRDB types stay in

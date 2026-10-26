@@ -49,7 +49,7 @@ and UI test suites.
 - Physical-device audible control is not yet agent-operable end to end on the
   current build; it remains a release blocker.
 - Simulator evidence does not prove Bluetooth, AirPlay, CarPlay, background
-  suspension, or endurance behavior.
+  suspension, or endurance behaviour.
 - The local unit runner has shown an intermittent pre-bootstrap process kill;
   a later run may pass, but repeatability is still required.
 - The UI suite currently has a favourites failure to diagnose; compilation does

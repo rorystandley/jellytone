@@ -14,10 +14,10 @@ assignees: ""
 2.
 3.
 
-## Expected Behavior
+## Expected Behaviour
 <!-- What you expected to happen. -->
 
-## Actual Behavior
+## Actual Behaviour
 <!-- What actually happened. -->
 
 ## Environment

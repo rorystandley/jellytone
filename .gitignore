@@ -37,3 +37,12 @@ TestResults/
 *.xcconfig.local
 # Personal Apple team / reverse-DNS for Xcode device installs
 /Config/Local.xcconfig
+
+# Signing material and keys
+*.p12
+*.pem
+*.key
+*.mobileprovision
+*.cer
+*.ipa
+id_rsa

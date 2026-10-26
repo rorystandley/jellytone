@@ -10,7 +10,7 @@ The product requires one authoritative queue, local and HTTP sources,
 background audio, system commands, preloading, proven gapless transitions and
 configurable crossfade. The proposed iOS 18.4 baseline can use AVFoundation,
 but API availability alone does not prove transition quality, background
-survival or route behavior.
+survival or route behaviour.
 
 ## Alternatives considered
 
@@ -19,7 +19,7 @@ survival or route behavior.
 2. Two overlapping `AVPlayer` instances. It can fade compressed remote assets,
    but increases clock, buffering, Now Playing and session-lifecycle races.
 3. `AVAudioEngine`/player nodes for all playback. It provides sample scheduling
-   and offline rendering, but remote compressed streaming, background behavior
+   and offline rendering, but remote compressed streaming, background behaviour
    and route recovery carry substantially more app-owned machinery.
 4. A third-party engine. This adds binary/licence/privacy/maintenance risk
    before native frameworks have failed the device gate.
@@ -126,4 +126,4 @@ AVQueuePlayer, replace the adapter and write a superseding ADR; durable
 queue/plan models remain independent. Legacy snapshots containing raw track
 arrays decode into per-occurrence queue entries and are rewritten in the new
 entry-based form; no queue is discarded. Disable crossfade by selecting the
-hard-cut fallback—no additional data migration is required.
+hard-cut fallback. No additional data migration is required.

@@ -1,4 +1,4 @@
-# Jellytone — iOS Design System Spec
+# Jellytone iOS design system
 Music client for Jellyfin. Reference for SwiftUI implementation (Theme.swift + component library). All values below are exact, taken from the approved HTML prototype.
 
 ---
@@ -28,14 +28,14 @@ Colours are defined in OKLCH in the source and converted to sRGB hex below. If y
 | `border` | oklch(84% 0.008 40) | `#CFC9C7` | Dividers |
 | `track-off` | oklch(80% 0.008 40) | `#C3BCBA` | Toggle OFF background |
 
-### Accent (identical in both modes — the ONLY accent colour in the app)
+### Accent (identical in both modes: the only accent colour in the app)
 | Token | OKLCH | Hex |
 |---|---|---|
 | `accent` (coral) | oklch(70% 0.19 29) | `#FE6555` |
 
 Used for: play/active state highlights, toggle ON state, selected tab icon+label, selected pill/chip, links ("Sign Out", "Remove", "Clear Cache", "Save Queue as Playlist"), progress bars, favourite/heart fill, now-playing lyric word highlight, repeat-mode "1" badge.
 
-**Rule: exactly one accent hue in the whole app.** Never introduce a second brand colour (no blue links, no green success states). Warnings/destructive actions reuse the same coral rather than red — "Sign Out" and "Remove" use accent, not a separate error colour.
+**Rule: exactly one accent hue in the whole app.** Never introduce a second brand colour (no blue links, no green success states). Warnings and destructive actions reuse the same coral. "Sign Out" and "Remove" use accent, not a separate error colour.
 
 ### Artwork placeholder gradients (album/artist art system)
 Every album/artist/playlist gets a generated 135° gradient placeholder (real artwork replaces this 1:1 in production):
@@ -44,7 +44,7 @@ linear-gradient(135deg, oklch(42% 0.13 <hue>), oklch(20% 0.13 <hue+30>))
 ```
 A rotating hue wheel is used across the catalogue: **29, 260, 145, 200, 330, 55, 190, 15, 280, 100** (degrees). Each album/artist is deterministically assigned one hue so repeat visits look consistent. In production this gradient is the *loading/missing-art* state, not a permanent design element.
 
-### Glass/chrome surfaces (translucent, used over both light and dark backgrounds — always rendered dark-tinted since chrome sits above artwork or blurred content)
+### Glass/chrome surfaces (translucent, used over both light and dark backgrounds; always rendered dark-tinted, since chrome sits above artwork or blurred content)
 | Surface | Fill | Blur | Border | Notes |
 |---|---|---|---|---|
 | Tab bar | `rgba(120,120,128,0.20)` | 24px blur, 180% saturation | 0.5px `rgba(255,255,255,0.15)` top only | + inset top highlight `rgba(255,255,255,0.12)` |
@@ -54,12 +54,12 @@ A rotating hue wheel is used across the catalogue: **29, 260, 145, 200, 330, 55,
 | Pill buttons over artwork (Shuffle, heart, download on detail headers) | `rgba(255,255,255,0.14)` | 16px blur, 180% saturation | 0.5px `rgba(255,255,255,0.25)` | + inset `1px 1px 1px rgba(255,255,255,0.2)` |
 | Library filter pills (unselected) | `rgba(120,120,128,0.22)` | 16px blur, 180% saturation | 0.5px `rgba(255,255,255,0.10)` | selected state switches to solid accent |
 
-**In SwiftUI**: `.background(.ultraThinMaterial)` tinted, or a custom `Color(white:1,opacity:X).background(.regularMaterial)` layered under a 0.5pt hairline stroke — do not fake blur with a flat translucent colour alone; the blur+saturation boost is core to the look.
+**In SwiftUI**: `.background(.ultraThinMaterial)` tinted, or a custom `Color(white:1,opacity:X).background(.regularMaterial)` layered under a 0.5pt hairline stroke. Use a material plus a 0.5pt hairline. A flat translucent fill is not a substitute for blur. The blur and saturation boost is core to the look.
 
 ---
 ## 2. Typography
 
-Font: **system font** (San Francisco) throughout — `-apple-system` / SF Pro / system-ui. No custom typefaces. All weights via SF's variable weight axis.
+Font: **system font** (San Francisco) throughout: `-apple-system` / SF Pro / system-ui. No custom typefaces. All weights via SF's variable weight axis.
 
 | Role | Size | Weight | Letter-spacing | Line-height | Example |
 |---|---|---|---|---|---|
@@ -76,18 +76,18 @@ Font: **system font** (San Francisco) throughout — `-apple-system` / SF Pro / 
 | Caption / Meta | 11.5–12.5px | Semibold (600–700) | none | 1.2 | Durations, timestamps, quality tag |
 | Eyebrow (uppercase label) | 11–12px | Bold (700) | +1.5px | 1.2 | "GOOD MORNING · MONDAY", "OFFLINE & READY" |
 
-Minimum text size anywhere in the app is 10px (tab bar label) — never go smaller.
+Minimum text size anywhere in the app is 10px (tab bar label). Never go smaller.
 
 ---
 ## 3. Spacing & Radius Scale
 
 ### Spacing (base unit 2px; primary scale is 4/6/8/10/12/14/16/18/20/22/24/30/32/56)
-- **20px** — standard horizontal screen margin (every screen's content padding)
-- **56px** top / **32px** bottom — screen vertical padding (56 clears the status bar/nav; content starts under it)
-- **8–10px** — gap between icon and label, small inline gaps
-- **12–14px** — gap between grid cells, row internal gaps (art→text)
-- **16–18px** — gap between horizontal-scroll cards, section-internal spacing
-- **24–30px** — spacing between major sections
+- 20px is the horizontal screen margin (every screen's content padding).
+- 56px top and 32px bottom is the screen vertical padding (56 clears the status bar/nav; content starts under it).
+- 8–10px is the gap between icon and label, and other small inline gaps.
+- 12–14px is the gap between grid cells, and the row internal gap (art→text).
+- 16–18px is the gap between horizontal-scroll cards, and section-internal spacing.
+- 24–30px is the spacing between major sections.
 - Use only values from this scale; don't invent odd spacings like 15px or 25px.
 
 ### Corner radius
@@ -103,7 +103,7 @@ Minimum text size anywhere in the app is 10px (tab bar label) — never go small
 | 50% | avatar/artist circles, all circular icon buttons |
 | 100px (pill) | filter chips, capsule buttons (Play/Shuffle), toggle switch tracks |
 
-**Never** use radii outside this set (no 6px, no 24px) — keep the scale disciplined.
+**Never** use radii outside this set (no 6px, no 24px). Keep the scale disciplined.
 
 ---
 ## 4. Component Patterns
@@ -119,13 +119,13 @@ Minimum text size anywhere in the app is 10px (tab bar label) — never go small
 - **Primary capsule (Play)**: pill radius 100px, padding 12px 22px, 14.5px/700 label, 12px play-triangle icon + 8px gap. On dark artwork headers: solid white fill, black text/icon. In flat/dark contexts (playlist header): solid accent fill (`#FE6555`), white text.
 - **Secondary capsule (Shuffle)**: same padding/radius, translucent glass fill (`rgba(255,255,255,0.14)` + blur, see §1) with white text/icon over artwork; accent-tinted glass (`accent @ 16% opacity` fill, accent text) in flat contexts.
 - **Icon-only circular buttons** (heart, download, back, more, nav): 44×44 (detail headers) or 34×34 (nav bars), 50% radius, glass fill per §1, centered icon.
-- **Press feedback**: every tappable element scales to **0.88–0.94** on press (`transform: scale()`) with a **0.12s ease** transition. This is the only pressed-state treatment — no colour change, no shadow change.
+- **Press feedback**: every tappable element scales to **0.88–0.94** on press (`transform: scale()`) with a **0.12s ease** transition. This is the only pressed-state treatment: no colour change, no shadow change.
 - **Disabled state**: reduce opacity to ~0.4, remove pointer/press-scale interaction. (Not present in current build but this is the rule to extend consistently.)
 
 ### 4.3 List / Track Rows
 - Layout: `[artwork 42×42, radius 8] – 12px gap – [title (14.5px/600) + subtitle (12px, text-secondary)] – flex – [duration, 12px, text-tertiary]`.
 - Vertical padding 9–11px, full-width **1px hairline** bottom border in `border` token (omit on last row of a group).
-- Playing-state row (inside an album's track list, if a track is the active one): index/number swaps to accent colour and title text stays default colour — do NOT recolor the whole row, only the index glyph, to keep it subtle. (Track number column is 22px wide, centered.)
+- Playing-state row (inside an album's track list, if a track is the active one): index/number swaps to accent colour and title text stays default colour. Do not recolour the whole row. Recolour only the index glyph, so the change stays subtle. (Track number column is 22px wide, centered.)
 - Grouped settings-style rows (Account, Playback, etc.): same row shape but label left / value right (`text-secondary`), inside one glass card (§1) with 13px/16px padding, no artwork.
 
 ### 4.4 Mini Player
@@ -142,14 +142,14 @@ Minimum text size anywhere in the app is 10px (tab bar label) — never go small
 - Tapping the row (not the buttons) opens Now Playing; play/pause and skip stop propagation.
 
 ### 4.5 Now Playing (full screen, always dark regardless of theme)
-- Background: `radial-gradient(circle at 50% 0%, oklch(38% 0.1 <hue>), oklch(12% 0.01 <hue>) 70%)` — a moody wash tinted from the current track's hue, not a flat black.
-- Header row: 34×34 glass chevron-down (close) — centered album-name eyebrow (11px/700, uppercase, 0.5px tracking, white 60% opacity) — 34×34 glass "more" button.
-- Artwork: 290×290, 20px radius, `0 30px 60px rgba(0,0,0,0.5)` shadow — swaps for a lyrics view (word-by-word) when toggled. Optional **vinyl mode** (footer disc toggle): circular LP with groove ring + centre label art; rotates while playing (~12s/rev), freezes on pause, static under Reduce Motion. Preference persists (`nowPlayingShowsVinylDisc`).
+- Background: `radial-gradient(circle at 50% 0%, oklch(38% 0.1 <hue>), oklch(12% 0.01 <hue>) 70%)`. This is a moody wash tinted from the current track's hue, not a flat black.
+- Header row: 34×34 glass chevron-down (close), centered album-name eyebrow (11px/700, uppercase, 0.5px tracking, white 60% opacity), and 34×34 glass "more" button.
+- Artwork: 290×290, 20px radius, `0 30px 60px rgba(0,0,0,0.5)` shadow. It swaps for a lyrics view (word-by-word) when toggled. Optional **vinyl mode** (footer disc toggle): circular LP with groove ring + centre label art; rotates while playing (~12s/rev), freezes on pause, static under Reduce Motion. Preference persists (`nowPlayingShowsVinylDisc`).
 - **Lyrics mode**: lines center-stacked, inactive lines at 0.55 opacity / scale 1.0, active line 1.0 opacity / scale 1.04. Within the active line: sung words → white; current word → accent colour + scale(1.08); unsung words → white @ 40% opacity. Transition 0.25–0.3s on colour/transform.
 - Track title 21px/800 white, artist 14.5px white @ 65%, heart icon top-right of that block (21×21, scale-on-press to 0.8).
 - Scrub bar: 4px track (white @ 25%), white fill, 12px round thumb with a small drop shadow, expands to `scaleY(1.8)` on press. Time labels 11.5px, white @ 55%, elapsed left / remaining (as `-M:SS`) right.
-- Transport row: shuffle (20px icon) — prev (26px) — **play/pause 68×68 solid white circle, black glyph** — next (26px) — repeat (20px, coral "1" badge super-scripted when repeat-one). All icons default to white @ 85% opacity, switch to accent when the mode is active (shuffle on, repeat on).
-- Footer row: quality tag (e.g. "FLAC · 24-bit", 11.5px white @ 50%) — vinyl disc icon toggle (accent when LP mode) — "Lyrics" text toggle (12px/700, accent when open) — queue icon (opens Queue sheet).
+- Transport row: shuffle (20px icon), prev (26px), **play/pause 68×68 solid white circle, black glyph**, next (26px), and repeat (20px, coral "1" badge super-scripted when repeat-one). All icons default to white @ 85% opacity, switch to accent when the mode is active (shuffle on, repeat on).
+- Footer row: quality tag (e.g. "FLAC · 24-bit", 11.5px white @ 50%), vinyl disc icon toggle (accent when LP mode), "Lyrics" text toggle (12px/700, accent when open), and queue icon (opens Queue sheet).
 
 ### 4.6 Queue sheet
 - Full-screen sheet, standard `background` fill (not glass), 20px side padding.
@@ -159,24 +159,24 @@ Minimum text size anywhere in the app is 10px (tab bar label) — never go small
 - Footer: full-width "Save Queue as Playlist" pill in the standard settings-glass style, accent text.
 
 ### 4.7 Navigation
-- **Tab bar**: 5 items (Home, Library, Search, Downloads, Settings), glass fill per §1, 24px icon + 10px/600 label, 3px gap between icon/label. Active tab = accent colour (icon+label); inactive = white @ 55% opacity (dark) / text-tertiary (light). Padding `8px 4px 22px` (bottom padding clears the home indicator). *(Superseded 2026-07: native iOS 26 tab bar is used instead — see §4.4 note; accent tint still applies.)*
-- **Section headers** (list pages): 22px/800 title, no divider below (hairline rule removed by product decision, 2026-07). No numbering, no icon — text only.
+- **Tab bar**: 5 items (Home, Library, Search, Downloads, Settings), glass fill per §1, 24px icon + 10px/600 label, 3px gap between icon/label. Active tab = accent colour (icon+label); inactive = white @ 55% opacity (dark) / text-tertiary (light). Padding `8px 4px 22px` (bottom padding clears the home indicator). *(Superseded 2026-07: native iOS 26 tab bar is used instead. See the §4.4 note. Accent tint still applies.)*
+- **Section headers** (list pages): 22px/800 title, no divider below (hairline rule removed by product decision, 2026-07). No numbering, no icon. Text only.
 - **Library filter pills**: horizontal scroll row of capsules (Albums/Artists/Songs/Playlists/Genres), unselected = glass per §1, selected = solid accent fill + white text.
 - **Detail header**: sticky 34×34 glass back-chevron over a top gradient scrim (fades to transparent), floats over the hero artwork/colour band beneath.
 
 ---
 ## 5. Iconography
 
-- Style: **thin monoline stroke icons**, no fills except where the glyph is inherently solid (play triangle, pause bars, skip triangles — these read as filled shapes by design, not stroke).
+- Style: **thin monoline stroke icons**, no fills except where the glyph is inherently solid (play triangle, pause bars, skip triangles: these read as filled shapes by design, not stroke).
 - Stroke width: **1.7–2px** at 20–26px icon sizes. Rounded line caps/joins throughout.
 - Colour: white (dark contexts) or `text-secondary`/`text-tertiary` (settings icons on light/dark screens), swapping to accent only to indicate an active/selected state (shuffle on, repeat on, selected tab, filled heart).
-- No icon ever carries a background chip/badge of its own colour — active state is communicated by the icon's own colour change, not a container.
+- No icon ever carries a background chip/badge of its own colour. Active state is the icon's own colour change, not a container.
 - Favourite/heart icon: outline stroke always; fill switches from `none` to accent when favourited (never switches to red).
 
 ## 6. Imagery / Artwork Treatment
 
 - All artwork (album covers, artist photos, playlist collages) is edge-to-edge, no inner padding, no rounded-corner "frame" beyond the container radius itself.
-- Missing/loading artwork uses the generated gradient system (§1) — never a grey placeholder box or a broken-image icon.
+- Missing/loading artwork uses the generated gradient system (§1). Never use a grey placeholder box or a broken-image icon.
 - Any text laid over artwork requires a scrim (linear gradient to transparent) sized to guarantee 4.5:1 contrast for the smallest overlaid text.
 - Playlist collages: 2×2 grid of 4 track/album artworks, 2px gaps, clipped to the playlist artwork's outer radius.
 
@@ -187,23 +187,23 @@ Minimum text size anywhere in the app is 10px (tab bar label) — never go small
 - Keep exactly one accent colour (`#FE6555`) for every interactive/active/highlight purpose across the whole app.
 - Use the glass/blur treatment (§1) for every piece of chrome that floats over content: tab bar, mini player, sheets' nav buttons, pills over artwork.
 - Use scale-on-press (0.85–0.94) as the *only* pressed-state affordance for tappable rows/buttons.
-- Keep section headers plain text at 22px/800 — no hairline rule (removed by product decision, 2026-07), no numbering, no icons, no colour tinting.
+- Keep section headers plain text at 22px/800. No hairline rule (removed by product decision, 2026-07), no numbering, no icons, no colour tinting.
 - Respect the radius scale in §3 exactly; don't introduce new corner radii per-component.
 - Keep Now Playing dark always, independent of the user's light/dark setting.
 
 **Don't**
-- Don't add a second accent colour (no blue links, no green "success", no red "destructive" — reuse coral, or in the worst case a neutral grey, for destructive actions).
-- Don't render chrome as flat opaque colour — always blur+saturate translucent surfaces per §1; a flat rgba fill without backdrop-filter reads as "wrong" immediately.
-- Don't add drop shadows to grid/list content that sits directly on the background (only hero cards, small horizontal-scroll cards, floating chrome, and the Now Playing artwork get shadows — see §4.1/4.5).
-- Don't add borders around album art or avatars — the artwork edge IS the shape.
-- Don't use hover states (this is a touch app — only rest and pressed/active states exist).
-- Don't add numbered eyebrow labels, icons, or hairline rules to section headers (previously used, both have been removed — keep it plain text only).
+- Don't add a second accent colour (no blue links, no green "success", no red "destructive"). Reuse coral, or in the worst case a neutral grey, for destructive actions.
+- Don't render chrome as flat opaque colour. Always blur and saturate translucent surfaces per §1. A flat rgba fill without backdrop-filter reads as "wrong" immediately.
+- Don't add drop shadows to grid/list content that sits directly on the background. Only hero cards, small horizontal-scroll cards, floating chrome, and the Now Playing artwork get shadows (see §4.1/4.5).
+- Don't add borders around album art or avatars. The artwork edge is the shape.
+- Don't use hover states (this is a touch app). Only rest and pressed/active states exist.
+- Don't add numbered eyebrow labels, icons, or hairline rules to section headers (previously used, and both have been removed). Keep plain text only.
 - Don't drop below the minimum type sizes in §2 (10px absolute floor, and only for the tab bar label).
 
 ---
 ## 8. Haptics
 
-Purposeful, short, interruptible — matching `PRODUCT_PLAN.md` and `AGENTS.md`.
+Purposeful, short, and interruptible, matching `PRODUCT_PLAN.md` and `AGENTS.md`.
 Implementation: `DesignSystem/Haptics.swift` (`JellytoneHaptics`).
 
 | Cue | Where |

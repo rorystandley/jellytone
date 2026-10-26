@@ -22,8 +22,8 @@ The app atomically writes a versioned Codable `PlaybackSnapshot` plus bounded,
 content-addressed artwork to an App Group. Extensions read snapshots and emit
 versioned command envelopes with deterministic IDs and expiry. The app remains
 the sole queue/playback authority and acknowledges commands idempotently.
-Snapshots contain display fields and opaque domain references only—no token,
-server endpoint, authenticated URL, database path, or full library data.
+Snapshots hold display fields and opaque domain references. They must not hold a
+token, server endpoint, authenticated URL, database path, or full library data.
 
 ## Consequences
 
@@ -35,7 +35,7 @@ reads. Per-surface refresh limits remain authoritative.
 
 Contract tests round-trip every schema version and cover partial writes, stale
 commands, duplicate delivery, offline state, logout, artwork loss, and privacy
-scanning. Entitlement and process behavior require signed simulator/device proof.
+scanning. Entitlement and process behaviour require signed simulator/device proof.
 
 ## Rollback and migration
 

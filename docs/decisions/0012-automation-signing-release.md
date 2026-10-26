@@ -25,7 +25,7 @@ same underlying repository gates and provisions disposable Jellyfin versions by
 immutable digest. Signing material never enters the repository. Local and CI
 probes report identity/profile/capability presence without subjects or hashes.
 
-Use simulator checks for representative lifecycle/UI behavior and `devicectl`
+Use simulator checks for representative lifecycle/UI behaviour and `devicectl`
 for attached-device discovery/install/launch. Required background audio,
 background download, Bluetooth, AirPlay, CarPlay, and endurance gates remain
 device-only. Each evidence record follows the Phase 0 schema and uses

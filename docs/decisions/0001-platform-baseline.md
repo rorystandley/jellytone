@@ -9,7 +9,7 @@ The product needs modern Swift concurrency, SwiftUI, background URLSession,
 MediaPlayer, App Intents, WidgetKit, and CarPlay while retaining a meaningful
 device range. Phase 0 found Xcode 26.6 (Swift 6.3.3), iOS 26.5 simulator
 runtimes, and a paired iPhone 13 running iOS 26.5.2. Discovery is not proof of
-background, route, codec, endurance, or CarPlay behavior.
+background, route, codec, endurance, or CarPlay behaviour.
 
 ## Alternatives
 

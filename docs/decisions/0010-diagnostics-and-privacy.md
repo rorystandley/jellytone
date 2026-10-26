@@ -27,7 +27,7 @@ removed or classified locally. Exports are redacted by default.
 
 Ship version 1 without third-party crash/analytics telemetry. Adding it requires
 a new ADR covering consent, retention, processors, privacy manifest, deletion,
-and failure behavior.
+and failure behaviour.
 
 ## Consequences
 

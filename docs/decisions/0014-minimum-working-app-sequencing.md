@@ -36,7 +36,7 @@ working slice; it does not mark them complete or waive later acceptance gates.
 ## Consequences
 
 - A real app can be installed and exercised sooner.
-- Reverse-proxy paths and authentication behavior remain owned and tested.
+- Reverse-proxy paths and authentication behaviour remain owned and tested.
 - The adapter creates migration work and lacks broad SDK model/version coverage.
 - The gateway boundary confines that migration to one module.
 
